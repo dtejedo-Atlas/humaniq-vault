@@ -121,6 +121,28 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 
 ## Changelog
 
+### 25-Mar-2026 - Scoring v2.1 Implementado
+- **Nuevo sistema de scoring multi-dimensional:**
+  - Área Funcional: 40% (mayor peso a función correcta)
+  - Seniority: 20% (por distancia de nivel)
+  - Industria: 15% (con transferibilidad)
+  - Semántico: 13% (inteligencia contextual)
+  - Trayectoria: 5% (progresión y consistencia)
+  - Keywords: 5% (match textual)
+  - Estabilidad: 2% (análisis de rotación)
+- **Sistema de penalties:**
+  - GM sin evidencia funcional: -25
+  - GM con evidencia débil: -20
+  - Distancia seniority 4+ niveles: -8 a -15
+  - Función adyacente: -8
+- **Archivos nuevos:**
+  - `scoring_config.py` - Configuración centralizada
+  - `affinity_matrices.py` - Matrices de afinidad funcional/industrial
+  - `query_parser.py` - Parser de queries
+  - `trajectory_analyzer.py` - Análisis de trayectoria y estabilidad
+- **Threshold mínimo subido a 45** (más selectivo)
+- Validación: HR Executive (82) >> CEO (-7) ✅
+
 ### 24-Mar-2026 - Unificación de Búsqueda
 - **Arquitectura final de búsqueda:**
   - `/search` → POST /api/search/hybrid → hybrid_search_service ✅
@@ -157,12 +179,8 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. **🔴 IMPLEMENTAR: Scoring v2.1** - Ver `/app/memory/SCORING_V2_FINAL.md`
-   - Modelo aprobado con ajustes del usuario
-   - Pesos: Funcional(40%), Seniority(20%), Industria(15%), Semántico(10%), Keywords(8%), Trayectoria(5%), Estabilidad(2%)
-   - Threshold mínimo: 45
-   - GM penalty condicional basado en evidencia funcional
-2. 🟡 Validar con queries reales post-implementación
+1. **🟢 COMPLETADO: Scoring v2.1** - Sistema multi-dimensional implementado y validado
+2. 🟡 Validación continua con queries reales de negocio
 3. 🔵 Fase 2: Motor de matching candidato-vacante (basado en Scoring v2.1)
 
 ## Arquitectura de Búsqueda (Definitiva)
