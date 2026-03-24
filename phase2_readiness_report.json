@@ -1,0 +1,155 @@
+{
+  "phase2_ready": false,
+  "summary": {
+    "total_tests": 20,
+    "passed_tests": 8,
+    "failed_tests": 12,
+    "success_rate": 40.0,
+    "critical_features_working": 1,
+    "critical_features_total": 6
+  },
+  "detailed_results": [
+    {
+      "test": "Authentication",
+      "success": true,
+      "details": "Successfully authenticated",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:12.006974"
+    },
+    {
+      "test": "Super Admin Setup",
+      "success": true,
+      "details": "Super admin user created and authenticated",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:12.781417"
+    },
+    {
+      "test": "Real CV Upload & Parsing",
+      "success": false,
+      "details": "Status: 500 - Internal Server Error",
+      "critical": true,
+      "timestamp": "2026-03-24T01:58:15.597645"
+    },
+    {
+      "test": "Duplicate Detection Accuracy",
+      "success": false,
+      "details": "Status: 500",
+      "critical": true,
+      "timestamp": "2026-03-24T01:58:17.685288"
+    },
+    {
+      "test": "Object Storage Integration",
+      "success": false,
+      "details": "No candidates available for testing",
+      "critical": true,
+      "timestamp": "2026-03-24T01:58:17.686499"
+    },
+    {
+      "test": "Semantic Search: automotive finance executive",
+      "success": false,
+      "details": "Query: 'CFO manufactura automotriz' \u2192 No semantic results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:17.981431"
+    },
+    {
+      "test": "Semantic Search: retail operations leader",
+      "success": false,
+      "details": "Query: 'Director operaciones retail' \u2192 No semantic results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:18.181585"
+    },
+    {
+      "test": "Semantic Search: FMCG supply chain manager",
+      "success": false,
+      "details": "Query: 'Gerente supply chain FMCG' \u2192 No semantic results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:18.343141"
+    },
+    {
+      "test": "Semantic Search: finance VP with M&A experience",
+      "success": false,
+      "details": "Query: 'VP finanzas con experiencia M&A' \u2192 No semantic results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:18.556774"
+    },
+    {
+      "test": "Semantic Search: manufacturing general manager",
+      "success": false,
+      "details": "Query: 'Director general manufactura' \u2192 No semantic results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:18.770008"
+    },
+    {
+      "test": "Semantic Search Overall",
+      "success": false,
+      "details": "Success rate: 0/5 (0.0%)",
+      "critical": true,
+      "timestamp": "2026-03-24T01:58:18.770039"
+    },
+    {
+      "test": "CRUD: Create Industry",
+      "success": true,
+      "details": "Created industry: b4e21d16-45f7-475f-b526-f5258b42de85",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:18.875061"
+    },
+    {
+      "test": "CRUD: Update Industry",
+      "success": true,
+      "details": "Industry updated successfully",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:19.009165"
+    },
+    {
+      "test": "CRUD: Delete Industry",
+      "success": true,
+      "details": "Industry deleted successfully",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:19.116132"
+    },
+    {
+      "test": "Taxonomy CRUD Operations",
+      "success": true,
+      "details": "All CRUD operations successful",
+      "critical": true,
+      "timestamp": "2026-03-24T01:58:19.116154"
+    },
+    {
+      "test": "Performance: Upload CFO Profile",
+      "success": false,
+      "details": "Time: 1.99s, Status: 500",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:21.105613"
+    },
+    {
+      "test": "Performance: Search CFO Profile",
+      "success": true,
+      "details": "Time: 0.21s, Status: 200",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:21.311367"
+    },
+    {
+      "test": "Performance: Upload Operations Director Profile",
+      "success": false,
+      "details": "Time: 1.72s, Status: 500",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:23.028490"
+    },
+    {
+      "test": "Performance: Search Operations Director Profile",
+      "success": true,
+      "details": "Time: 0.22s, Status: 200",
+      "critical": false,
+      "timestamp": "2026-03-24T01:58:23.244348"
+    },
+    {
+      "test": "System Performance Analysis",
+      "success": false,
+      "details": "Upload avg: 1.9s (max: 2.0s), Search avg: 0.2s (max: 0.2s), Success: 50.0%",
+      "critical": true,
+      "timestamp": "2026-03-24T01:58:23.244380"
+    }
+  ],
+  "candidate_ids_created": [],
+  "timestamp": "2026-03-24T01:58:23.245918"
+}

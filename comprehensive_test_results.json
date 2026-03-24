@@ -1,0 +1,118 @@
+{
+  "summary": {
+    "total_tests": 15,
+    "passed_tests": 2,
+    "failed_tests": 13,
+    "success_rate": 13.333333333333334,
+    "ready_for_phase_2": false
+  },
+  "detailed_results": [
+    {
+      "test": "Authentication",
+      "success": true,
+      "details": "Successfully authenticated",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:18.942013"
+    },
+    {
+      "test": "CV Upload & AI Parsing",
+      "success": false,
+      "details": "Status: 500 - Internal Server Error",
+      "critical": true,
+      "timestamp": "2026-03-24T01:55:21.413770"
+    },
+    {
+      "test": "Duplicate Detection",
+      "success": false,
+      "details": "Status: 500",
+      "critical": true,
+      "timestamp": "2026-03-24T01:55:24.259406"
+    },
+    {
+      "test": "Object Storage Verification",
+      "success": false,
+      "details": "No candidates to check",
+      "critical": true,
+      "timestamp": "2026-03-24T01:55:24.260034"
+    },
+    {
+      "test": "Semantic Search: 'CFO manufactura'",
+      "success": false,
+      "details": "No relevant results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:24.681074"
+    },
+    {
+      "test": "Semantic Search: 'Director operaciones automotriz'",
+      "success": false,
+      "details": "No relevant results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:24.893256"
+    },
+    {
+      "test": "Semantic Search: 'gerente supply chain retail'",
+      "success": false,
+      "details": "No relevant results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:25.162087"
+    },
+    {
+      "test": "Semantic Search: 'Director financiero con experiencia en M&A'",
+      "success": false,
+      "details": "No relevant results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:25.395253"
+    },
+    {
+      "test": "Semantic Search: 'Gerente de operaciones con lean manufacturing'",
+      "success": false,
+      "details": "No relevant results found",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:25.605383"
+    },
+    {
+      "test": "Hybrid Search Overall",
+      "success": false,
+      "details": "Passed 0/5 queries (0.0%)",
+      "critical": true,
+      "timestamp": "2026-03-24T01:55:25.605416"
+    },
+    {
+      "test": "Taxonomy CRUD",
+      "success": false,
+      "details": "Permission denied - user may not be super_admin",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:25.718905"
+    },
+    {
+      "test": "Performance Upload 1",
+      "success": false,
+      "details": "Time: 1.79s, Status: 500",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:27.505360"
+    },
+    {
+      "test": "Performance Upload 2",
+      "success": false,
+      "details": "Time: 2.15s, Status: 500",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:29.650973"
+    },
+    {
+      "test": "Performance Upload 3",
+      "success": false,
+      "details": "Time: 2.91s, Status: 500",
+      "critical": false,
+      "timestamp": "2026-03-24T01:55:32.560000"
+    },
+    {
+      "test": "Performance Analysis",
+      "success": true,
+      "details": "Avg: 2.28s, Max: 2.91s, Success: 0/3",
+      "critical": true,
+      "timestamp": "2026-03-24T01:55:32.560032"
+    }
+  ],
+  "candidate_ids_created": [],
+  "timestamp": "2026-03-24T01:55:32.561038"
+}

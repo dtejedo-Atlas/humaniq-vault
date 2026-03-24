@@ -1,0 +1,132 @@
+{
+  "phase2_ready": false,
+  "validation_summary": {
+    "total_tests": 17,
+    "passed_tests": 9,
+    "success_rate": 52.94117647058824,
+    "critical_success_rate": 50.0
+  },
+  "test_results": [
+    {
+      "test": "Authentication",
+      "success": true,
+      "details": "Successfully authenticated",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:35.677721"
+    },
+    {
+      "test": "Super Admin Setup",
+      "success": true,
+      "details": "Super admin authenticated",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:36.005714"
+    },
+    {
+      "test": "END-TO-END CV Upload",
+      "success": false,
+      "details": "Status: duplicate_detected, Parsing: 4/4 fields, ID: None...",
+      "critical": true,
+      "timestamp": "2026-03-24T02:01:44.267314"
+    },
+    {
+      "test": "Duplicate Detection \u226590%",
+      "success": true,
+      "details": "Status: duplicate_detected, Duplicates: 2, Max confidence: 0.90",
+      "critical": true,
+      "timestamp": "2026-03-24T02:01:48.551108"
+    },
+    {
+      "test": "Object Storage (Emergent)",
+      "success": false,
+      "details": "No candidates to check",
+      "critical": true,
+      "timestamp": "2026-03-24T02:01:48.551820"
+    },
+    {
+      "test": "Search: 'CFO manufactura'",
+      "success": false,
+      "details": "No semantic results",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:48.806192"
+    },
+    {
+      "test": "Search: 'Director operaciones automotriz'",
+      "success": false,
+      "details": "No semantic results",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:48.996254"
+    },
+    {
+      "test": "Search: 'gerente supply chain retail'",
+      "success": false,
+      "details": "No semantic results",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:49.205915"
+    },
+    {
+      "test": "Search: 'Director financiero M&A'",
+      "success": false,
+      "details": "No semantic results",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:49.417074"
+    },
+    {
+      "test": "Search: 'VP finanzas experiencia SAP'",
+      "success": false,
+      "details": "No semantic results",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:49.634813"
+    },
+    {
+      "test": "Hybrid Search Overall",
+      "success": false,
+      "details": "Success: 0/5 (0.0%)",
+      "critical": true,
+      "timestamp": "2026-03-24T02:01:49.634848"
+    },
+    {
+      "test": "Taxonomy CRUD",
+      "success": true,
+      "details": "Create, Update, Delete successful",
+      "critical": true,
+      "timestamp": "2026-03-24T02:01:49.990263"
+    },
+    {
+      "test": "Performance Upload 1",
+      "success": true,
+      "details": "Time: 7.7s, Status: 200",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:57.715642"
+    },
+    {
+      "test": "Performance Search 1",
+      "success": true,
+      "details": "Time: 0.3s",
+      "critical": false,
+      "timestamp": "2026-03-24T02:01:58.036602"
+    },
+    {
+      "test": "Performance Upload 2",
+      "success": true,
+      "details": "Time: 19.1s, Status: 200",
+      "critical": false,
+      "timestamp": "2026-03-24T02:02:17.104588"
+    },
+    {
+      "test": "Performance Search 2",
+      "success": true,
+      "details": "Time: 0.3s",
+      "critical": false,
+      "timestamp": "2026-03-24T02:02:17.411289"
+    },
+    {
+      "test": "Performance Benchmarks",
+      "success": true,
+      "details": "Upload avg: 13.4s, Search avg: 0.3s, Uploads: 2/2",
+      "critical": true,
+      "timestamp": "2026-03-24T02:02:17.411321"
+    }
+  ],
+  "candidates_created": 1,
+  "timestamp": "2026-03-24T02:02:17.412935"
+}
