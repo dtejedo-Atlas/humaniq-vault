@@ -13,13 +13,15 @@ import {
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Search, Filter, Eye, Mail, Phone, MapPin, Building2, Briefcase } from 'lucide-react';
-import { candidatesAPI, taxonomyAPI } from '../api';
+import { candidatesAPI } from '../api';
+import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate } from '../utils/helpers';
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
+  const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -29,11 +31,12 @@ const CandidatesPage = () => {
     functional_area: '',
     seniority: ''
   });
-  const [industries, setIndustries] = useState([]);
-  const [functionalAreas, setFunctionalAreas] = useState([]);
+
+  // Obtener opciones de taxonomía desde el contexto
+  const industries = getIndustryOptions();
+  const functionalAreas = getFunctionalAreaOptions();
 
   useEffect(() => {
-    fetchTaxonomies();
     fetchCandidates();
   }, []);
 
@@ -44,19 +47,6 @@ const CandidatesPage = () => {
 
     return () => clearTimeout(delayDebounce);
   }, [search, filters]);
-
-  const fetchTaxonomies = async () => {
-    try {
-      const [indResponse, areaResponse] = await Promise.all([
-        taxonomyAPI.getIndustries(),
-        taxonomyAPI.getFunctionalAreas()
-      ]);
-      setIndustries(indResponse.data);
-      setFunctionalAreas(areaResponse.data);
-    } catch (error) {
-      console.error('Error fetching taxonomies:', error);
-    }
-  };
 
   const fetchCandidates = async () => {
     setLoading(true);
@@ -119,8 +109,8 @@ const CandidatesPage = () => {
                 <SelectContent>
                   <SelectItem value=" ">Todas las industrias</SelectItem>
                   {industries.map((ind) => (
-                    <SelectItem key={ind.id} value={ind.name_es}>
-                      {ind.name_es}
+                    <SelectItem key={ind.value} value={ind.value}>
+                      {ind.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -243,13 +233,13 @@ const CandidatesPage = () => {
                           <div className="space-y-1">
                             {candidate.industry && (
                               <Badge variant="outline" className="text-xs">
-                                {candidate.industry}
+                                {getIndustryName(candidate.industry)}
                               </Badge>
                             )}
                             {candidate.functional_area && (
                               <p className="text-xs text-slate-600 flex items-center gap-1">
                                 <Briefcase className="w-3 h-3" />
-                                {candidate.functional_area}
+                                {getFunctionalAreaName(candidate.functional_area)}
                               </p>
                             )}
                           </div>

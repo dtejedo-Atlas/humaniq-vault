@@ -21,12 +21,14 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { candidatesAPI, atlasAPI } from '../api';
+import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate, formatDateTime } from '../utils/helpers';
 
 const CandidateDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const [candidate, setCandidate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
@@ -217,13 +219,13 @@ const CandidateDetailPage = () => {
                   {candidate.industry && (
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Industria</p>
-                      <p className="text-sm font-medium">{candidate.industry}</p>
+                      <p className="text-sm font-medium">{getIndustryName(candidate.industry)}</p>
                     </div>
                   )}
                   {candidate.functional_area && (
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Área Funcional</p>
-                      <p className="text-sm font-medium">{candidate.functional_area}</p>
+                      <p className="text-sm font-medium">{getFunctionalAreaName(candidate.functional_area)}</p>
                     </div>
                   )}
                   {candidate.seniority && (
@@ -284,11 +286,11 @@ const CandidateDetailPage = () => {
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Industria</p>
-                      <Badge variant="outline">{candidate.ai_classification.industry || 'N/A'}</Badge>
+                      <Badge variant="outline">{candidate.ai_classification.industry ? getIndustryName(candidate.ai_classification.industry) : 'N/A'}</Badge>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Área Funcional</p>
-                      <Badge variant="outline">{candidate.ai_classification.functional_area || 'N/A'}</Badge>
+                      <Badge variant="outline">{candidate.ai_classification.functional_area ? getFunctionalAreaName(candidate.ai_classification.functional_area) : 'N/A'}</Badge>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Seniority</p>

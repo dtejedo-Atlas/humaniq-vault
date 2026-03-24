@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import asyncio
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import json
+from taxonomy import build_taxonomy_prompt_section, get_industry_by_key, get_functional_area_by_key
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -80,49 +81,58 @@ Responde SOLO con JSON válido, sin texto adicional:
             }
     
     async def classify_candidate(self, candidate_data: dict, resume_text: str) -> dict:
-        """Classify candidate by industry, functional area, and seniority"""
+        """Classify candidate by industry, functional area, and seniority using bilingual taxonomy"""
+        
+        # Obtener la sección de taxonomía bilingüe para el prompt
+        taxonomy_section = build_taxonomy_prompt_section()
+        
         chat = LlmChat(
             api_key=self.api_key,
             session_id=f"classify-{id(candidate_data)}",
-            system_message="""Eres Atlas, un experto en clasificación de perfiles profesionales para reclutamiento ejecutivo.
-            
+            system_message=f"""Eres Atlas, un experto en clasificación de perfiles profesionales para reclutamiento ejecutivo en México y Latinoamérica.
+
 Tu tarea es clasificar candidatos por:
-- Industria
-- Área funcional / expertise
+- Industria (industry)
+- Área funcional / expertise (functional_area)
 - Nivel de seniority
-            
-Industrias disponibles: Manufacturing, Consumer Goods, Retail, Logistics and Supply Chain, Transportation, Pharmaceutical, Construction, Real Estate, Financial Services, Technology, Hospitality, Industrial Services, Energy, Automotive, Food and Beverage, Professional Services, Healthcare.
-            
-Áreas funcionales disponibles: General Management, Operations, Manufacturing, Supply Chain, Logistics, Procurement, Sales, Business Development, Marketing, Finance, Accounting, Human Resources, Talent Acquisition, Engineering, Quality, Maintenance, IT, Legal, Customer Service, Project Management, Construction Management.
-            
-Niveles de seniority: entry, junior, mid, senior, lead, manager, director, vp, c_level.
-            
+
+IMPORTANTE: 
+1. El CV puede estar en español O inglés. Debes clasificar correctamente independientemente del idioma.
+2. Debes responder usando ÚNICAMENTE las 'key' canónicas de la taxonomía, NO los nombres en español o inglés.
+3. Por ejemplo, si el CV menciona "Supply Chain" o "Cadena de Suministro", responde con la key "supply_chain".
+
+{taxonomy_section}
+
+Niveles de seniority (usar estos valores exactos):
+  - entry, junior, mid, senior, lead, manager, director, vp, c_level
+
 Responde SOLO en formato JSON:
-{
-    "industry": "industria identificada",
-    "functional_area": "área funcional identificada",
-    "seniority": "nivel de seniority",
+{{
+    "industry": "key_de_industria",
+    "functional_area": "key_de_area_funcional",
+    "seniority": "nivel_de_seniority",
     "confidence_score": 0.85,
     "suggested_tags": ["tag1", "tag2", "tag3"],
     "reasoning": "breve explicación de la clasificación"
-}
-            """
+}}
+"""
         ).with_model("anthropic", "claude-sonnet-4-5-20250929")
         
         message = UserMessage(
             text=f"""Clasifica el siguiente perfil profesional:
-            
+
 Nombre: {candidate_data.get('full_name', 'N/A')}
 Puesto actual: {candidate_data.get('current_title', 'N/A')}
 Empresa actual: {candidate_data.get('current_company', 'N/A')}
 Años de experiencia: {candidate_data.get('years_experience', 'N/A')}
 Habilidades: {', '.join(candidate_data.get('skills', []))}
-            
+
 Texto del CV (primeros 3000 caracteres):
 {resume_text[:3000]}
-            
+
+RECUERDA: Responde usando las 'key' canónicas de la taxonomía (ej: "manufacturing", "supply_chain"), NO los nombres en español o inglés.
 Responde SOLO con JSON válido.
-            """
+"""
         )
         
         response = await chat.send_message(message)
@@ -137,6 +147,18 @@ Responde SOLO con JSON válido.
                 response_text = response_text[:-3]
             
             classification = json.loads(response_text.strip())
+            
+            # Validar que las keys existan en la taxonomía
+            industry_key = classification.get('industry')
+            functional_area_key = classification.get('functional_area')
+            
+            if industry_key and not get_industry_by_key(industry_key):
+                # Intentar mapear si el LLM respondió con nombre en lugar de key
+                classification['industry'] = self._normalize_to_key(industry_key, 'industry')
+            
+            if functional_area_key and not get_functional_area_by_key(functional_area_key):
+                classification['functional_area'] = self._normalize_to_key(functional_area_key, 'functional_area')
+            
             return classification
         except json.JSONDecodeError:
             return {
@@ -147,6 +169,28 @@ Responde SOLO con JSON válido.
                 "suggested_tags": [],
                 "reasoning": "Error en clasificación"
             }
+    
+    def _normalize_to_key(self, value: str, category_type: str) -> str:
+        """Intenta normalizar un valor a su key canónica si el LLM respondió con nombre"""
+        from taxonomy import INDUSTRIES, FUNCTIONAL_AREAS
+        
+        value_lower = value.lower().strip()
+        
+        if category_type == 'industry':
+            for item in INDUSTRIES:
+                if (value_lower == item['key'] or 
+                    value_lower == item['name_es'].lower() or 
+                    value_lower == item['name_en'].lower()):
+                    return item['key']
+        else:
+            for item in FUNCTIONAL_AREAS:
+                if (value_lower == item['key'] or 
+                    value_lower == item['name_es'].lower() or 
+                    value_lower == item['name_en'].lower()):
+                    return item['key']
+        
+        # Si no se encuentra, devolver el valor original (puede ser categoría nueva)
+        return value
     
     async def generate_summary(self, candidate_data: dict, resume_text: str) -> str:
         """Generate a professional candidate summary"""

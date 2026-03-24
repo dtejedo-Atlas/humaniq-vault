@@ -262,6 +262,9 @@ async def create_candidate(
         created_by=current_user.id
     )
     
+    # Generar campos normalizados para búsqueda sin acentos
+    candidate.full_name_normalized = normalize_for_search(candidate.full_name)
+    
     candidate_doc = candidate.model_dump()
     candidate_doc['created_at'] = candidate_doc['created_at'].isoformat()
     candidate_doc['updated_at'] = candidate_doc['updated_at'].isoformat()
@@ -915,10 +918,19 @@ async def create_industry(
     current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
 ):
     """Create new industry (Super Admin only)"""
+    # Verificar que la key no exista ya
+    existing = await db.industries.find_one({"key": industry_data.key})
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ya existe una industria con la key '{industry_data.key}'"
+        )
+    
     industry_id = str(uuid.uuid4())
     
     industry = {
         "id": industry_id,
+        "key": industry_data.key,
         "name_es": industry_data.name_es,
         "name_en": industry_data.name_en,
         "description": industry_data.description,
@@ -927,7 +939,7 @@ async def create_industry(
     
     await db.industries.insert_one(industry)
     
-    return {"message": "Industria creada", "industry_id": industry_id}
+    return {"message": "Industria creada", "industry_id": industry_id, "key": industry_data.key}
 
 
 @api_router.put("/admin/industries/{industry_id}")
@@ -941,6 +953,7 @@ async def update_industry(
         {"id": industry_id},
         {
             "$set": {
+                "key": industry_data.key,
                 "name_es": industry_data.name_es,
                 "name_en": industry_data.name_en,
                 "description": industry_data.description
@@ -989,10 +1002,19 @@ async def create_functional_area(
     current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
 ):
     """Create new functional area (Super Admin only)"""
+    # Verificar que la key no exista ya
+    existing = await db.functional_areas.find_one({"key": area_data.key})
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ya existe un área funcional con la key '{area_data.key}'"
+        )
+    
     area_id = str(uuid.uuid4())
     
     area = {
         "id": area_id,
+        "key": area_data.key,
         "name_es": area_data.name_es,
         "name_en": area_data.name_en,
         "description": area_data.description,
@@ -1001,7 +1023,7 @@ async def create_functional_area(
     
     await db.functional_areas.insert_one(area)
     
-    return {"message": "Área funcional creada", "area_id": area_id}
+    return {"message": "Área funcional creada", "area_id": area_id, "key": area_data.key}
 
 
 @api_router.put("/admin/functional-areas/{area_id}")
@@ -1015,6 +1037,7 @@ async def update_functional_area(
         {"id": area_id},
         {
             "$set": {
+                "key": area_data.key,
                 "name_es": area_data.name_es,
                 "name_en": area_data.name_en,
                 "description": area_data.description
@@ -1241,64 +1264,53 @@ async def get_functional_areas(current_user: User = Depends(get_current_user)):
     return areas
 
 
+@api_router.get("/taxonomy/lookup")
+async def get_taxonomy_lookup(current_user: User = Depends(get_current_user)):
+    """Get taxonomy lookup maps (key -> display names) for frontend"""
+    industries = await db.industries.find({}, {"_id": 0, "key": 1, "name_es": 1, "name_en": 1}).to_list(1000)
+    areas = await db.functional_areas.find({}, {"_id": 0, "key": 1, "name_es": 1, "name_en": 1}).to_list(1000)
+    
+    return {
+        "industries": {ind["key"]: {"name_es": ind["name_es"], "name_en": ind["name_en"]} for ind in industries},
+        "functional_areas": {area["key"]: {"name_es": area["name_es"], "name_en": area["name_en"]} for area in areas}
+    }
+
+
 # ============= SEED DATA ROUTE =============
 
 @api_router.post("/seed/initial-data")
 async def seed_initial_data():
-    """Seed initial taxonomy data"""
+    """Seed initial taxonomy data from master taxonomy file"""
+    from taxonomy import get_all_industries, get_all_functional_areas
     
     # Check if already seeded
     existing_industries = await db.industries.count_documents({})
     if existing_industries > 0:
         return {"message": "Datos ya inicializados"}
     
-    # Seed industries
-    industries = [
-        {"id": str(uuid.uuid4()), "name_es": "Manufactura", "name_en": "Manufacturing", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Bienes de Consumo", "name_en": "Consumer Goods", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Retail", "name_en": "Retail", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Logística y Cadena de Suministro", "name_en": "Logistics and Supply Chain", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Transporte", "name_en": "Transportation", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Farmacéutica", "name_en": "Pharmaceutical", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Construcción", "name_en": "Construction", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Bienes Raíces", "name_en": "Real Estate", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Servicios Financieros", "name_en": "Financial Services", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Tecnología", "name_en": "Technology", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Hospitalidad", "name_en": "Hospitality", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Servicios Industriales", "name_en": "Industrial Services", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Energía", "name_en": "Energy", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Automotriz", "name_en": "Automotive", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Alimentos y Bebidas", "name_en": "Food and Beverage", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Servicios Profesionales", "name_en": "Professional Services", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Salud", "name_en": "Healthcare", "created_at": datetime.now(timezone.utc).isoformat()},
-    ]
+    # Seed industries from taxonomy.py
+    industries = []
+    for ind in get_all_industries():
+        industries.append({
+            "id": str(uuid.uuid4()),
+            "key": ind["key"],
+            "name_es": ind["name_es"],
+            "name_en": ind["name_en"],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
     
     await db.industries.insert_many(industries)
     
-    # Seed functional areas
-    functional_areas = [
-        {"id": str(uuid.uuid4()), "name_es": "Dirección General", "name_en": "General Management", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Operaciones", "name_en": "Operations", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Manufactura", "name_en": "Manufacturing", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Cadena de Suministro", "name_en": "Supply Chain", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Logística", "name_en": "Logistics", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Compras", "name_en": "Procurement", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Ventas", "name_en": "Sales", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Desarrollo de Negocio", "name_en": "Business Development", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Marketing", "name_en": "Marketing", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Finanzas", "name_en": "Finance", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Contabilidad", "name_en": "Accounting", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Recursos Humanos", "name_en": "Human Resources", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Adquisición de Talento", "name_en": "Talent Acquisition", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Ingeniería", "name_en": "Engineering", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Calidad", "name_en": "Quality", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Mantenimiento", "name_en": "Maintenance", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Tecnología de la Información", "name_en": "IT", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Legal", "name_en": "Legal", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Servicio al Cliente", "name_en": "Customer Service", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Gestión de Proyectos", "name_en": "Project Management", "created_at": datetime.now(timezone.utc).isoformat()},
-        {"id": str(uuid.uuid4()), "name_es": "Gestión de Construcción", "name_en": "Construction Management", "created_at": datetime.now(timezone.utc).isoformat()},
-    ]
+    # Seed functional areas from taxonomy.py
+    functional_areas = []
+    for area in get_all_functional_areas():
+        functional_areas.append({
+            "id": str(uuid.uuid4()),
+            "key": area["key"],
+            "name_es": area["name_es"],
+            "name_en": area["name_en"],
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
     
     await db.functional_areas.insert_many(functional_areas)
     

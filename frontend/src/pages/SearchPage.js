@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -14,37 +14,24 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Search, Sparkles, Loader2, Eye } from 'lucide-react';
-import { searchAPI, taxonomyAPI } from '../api';
+import { searchAPI } from '../api';
+import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { getStatusColor, getStatusLabel, getSeniorityLabel } from '../utils/helpers';
 
 const SearchPage = () => {
   const navigate = useNavigate();
+  const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({});
   const [useSemanticSearch, setUseSemanticSearch] = useState(true);
   const [results, setResults] = useState([]);
-  const [industries, setIndustries] = useState([]);
-  const [functionalAreas, setFunctionalAreas] = useState([]);
 
-  useEffect(() => {
-    fetchTaxonomies();
-  }, []);
-
-  const fetchTaxonomies = async () => {
-    try {
-      const [indResponse, areaResponse] = await Promise.all([
-        taxonomyAPI.getIndustries(),
-        taxonomyAPI.getFunctionalAreas()
-      ]);
-      setIndustries(indResponse.data);
-      setFunctionalAreas(areaResponse.data);
-    } catch (error) {
-      console.error('Error fetching taxonomies:', error);
-    }
-  };
+  // Obtener opciones de taxonomía desde el contexto
+  const industries = getIndustryOptions();
+  const functionalAreas = getFunctionalAreaOptions();
 
   const handleSearch = async () => {
     setLoading(true);
@@ -119,8 +106,8 @@ const SearchPage = () => {
                   <SelectContent>
                     <SelectItem value=" ">Todas</SelectItem>
                     {industries.map((ind) => (
-                      <SelectItem key={ind.id} value={ind.name_es}>
-                        {ind.name_es}
+                      <SelectItem key={ind.value} value={ind.value}>
+                        {ind.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -136,8 +123,8 @@ const SearchPage = () => {
                   <SelectContent>
                     <SelectItem value=" ">Todas</SelectItem>
                     {functionalAreas.map((area) => (
-                      <SelectItem key={area.id} value={area.name_es}>
-                        {area.name_es}
+                      <SelectItem key={area.value} value={area.value}>
+                        {area.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -224,10 +211,10 @@ const SearchPage = () => {
 
                         <div className="flex flex-wrap gap-2">
                           {candidate.industry && (
-                            <Badge variant="outline">{candidate.industry}</Badge>
+                            <Badge variant="outline">{getIndustryName(candidate.industry)}</Badge>
                           )}
                           {candidate.functional_area && (
-                            <Badge variant="outline">{candidate.functional_area}</Badge>
+                            <Badge variant="outline">{getFunctionalAreaName(candidate.functional_area)}</Badge>
                           )}
                           {candidate.seniority && (
                             <Badge variant="outline">{getSeniorityLabel(candidate.seniority)}</Badge>

@@ -98,8 +98,8 @@ class Candidate(BaseModel):
     current_company: Optional[str] = None
     current_title: Optional[str] = None
     years_experience: Optional[int] = None
-    industry: Optional[str] = None
-    functional_area: Optional[str] = None
+    industry: Optional[str] = None  # Almacena el 'key' canónico (ej: "manufacturing")
+    functional_area: Optional[str] = None  # Almacena el 'key' canónico (ej: "supply_chain")
     seniority: Optional[SeniorityLevel] = None
     skills: List[str] = []
     languages: List[str] = []
@@ -169,16 +169,18 @@ class ResumeUpload(BaseModel):
 class Industry(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    name_es: str
-    name_en: str
+    key: str  # Identificador canónico, neutral al idioma (ej: "manufacturing")
+    name_es: str  # Nombre en español para UI
+    name_en: str  # Nombre en inglés
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class FunctionalArea(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    name_es: str
-    name_en: str
+    key: str  # Identificador canónico, neutral al idioma (ej: "supply_chain")
+    name_es: str  # Nombre en español para UI
+    name_en: str  # Nombre en inglés
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -247,11 +249,13 @@ class SavedSearch(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class IndustryCreate(BaseModel):
+    key: str  # Identificador canónico (ej: "manufacturing")
     name_es: str
     name_en: str
     description: Optional[str] = None
 
 class FunctionalAreaCreate(BaseModel):
+    key: str  # Identificador canónico (ej: "supply_chain")
     name_es: str
     name_en: str
     description: Optional[str] = None

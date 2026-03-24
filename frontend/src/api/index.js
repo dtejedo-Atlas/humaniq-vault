@@ -58,6 +58,7 @@ export const dashboardAPI = {
 export const taxonomyAPI = {
   getIndustries: () => axios.get(`${API_BASE}/taxonomy/industries`),
   getFunctionalAreas: () => axios.get(`${API_BASE}/taxonomy/functional-areas`),
+  getLookup: () => axios.get(`${API_BASE}/taxonomy/lookup`),
   createIndustry: (data) => axios.post(`${API_BASE}/admin/industries`, data),
   updateIndustry: (id, data) => axios.put(`${API_BASE}/admin/industries/${id}`, data),
   deleteIndustry: (id) => axios.delete(`${API_BASE}/admin/industries/${id}`),

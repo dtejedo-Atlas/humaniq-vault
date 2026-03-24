@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TaxonomyProvider } from './contexts/TaxonomyContext';
 import { Toaster } from './components/ui/sonner';
 import axios from 'axios';
 import './App.css';
@@ -171,10 +172,12 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="App">
-          <AppRoutes />
-          <Toaster position="top-right" />
-        </div>
+        <TaxonomyProvider>
+          <div className="App">
+            <AppRoutes />
+            <Toaster position="top-right" />
+          </div>
+        </TaxonomyProvider>
       </AuthProvider>
     </BrowserRouter>
   );
