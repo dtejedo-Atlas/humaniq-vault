@@ -31,7 +31,11 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - [x] Embeddings habilitados con OPENAI_API_KEY (24-Mar-2026)
 - [x] Búsqueda semántica operativa - 27/27 candidatos (24-Mar-2026)
 - [x] Procesamiento batch paralelo con 3 workers (24-Mar-2026)
-- [ ] **EN CURSO:** Validación controlada con CVs reales
+- [x] **Calibración de búsqueda híbrida** (24-Mar-2026)
+  - Threshold semántico: 30%
+  - Score mínimo: 35%
+  - Boost keyword+semántica: +20
+- [ ] **EN CURSO:** Validación de ranking con queries reales
 - [ ] Ajustes según feedback de validación
 
 ### Fase 2 (Planificada)
