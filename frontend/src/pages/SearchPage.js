@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -17,27 +18,42 @@ import { Search, Sparkles, Loader2, Eye } from 'lucide-react';
 import { searchAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
 import { getStatusColor, getStatusLabel, getSeniorityLabel } from '../utils/helpers';
 
 const SearchPage = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({});
   const [useSemanticSearch, setUseSemanticSearch] = useState(true);
   const [results, setResults] = useState([]);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // Obtener opciones de taxonomía desde el contexto
   const industries = getIndustryOptions();
   const functionalAreas = getFunctionalAreaOptions();
 
-  const handleSearch = async () => {
+  // Leer parámetro 'q' de la URL y ejecutar búsqueda automáticamente
+  useEffect(() => {
+    const urlQuery = searchParams.get('q');
+    if (urlQuery && urlQuery.trim()) {
+      setQuery(urlQuery.trim());
+      // Ejecutar búsqueda automáticamente después de un breve delay para permitir que el estado se actualice
+      const timer = setTimeout(() => {
+        executeSearch(urlQuery.trim());
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams]);
+
+  const executeSearch = async (searchQuery) => {
     setLoading(true);
+    setHasSearched(true);
     try {
       const response = await searchAPI.hybrid({
-        query: query || undefined,
+        query: searchQuery || undefined,
         use_semantic: useSemanticSearch,
         ...filters
       });
@@ -61,6 +77,16 @@ const SearchPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSearch = async () => {
+    // Actualizar URL con el query actual (sin recargar página)
+    if (query.trim()) {
+      setSearchParams({ q: query.trim() });
+    } else {
+      setSearchParams({});
+    }
+    await executeSearch(query);
   };
 
   return (
