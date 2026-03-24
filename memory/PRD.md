@@ -157,9 +157,11 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. **Validación con CVs reales:** Usuario probará con sus propios CVs y queries de negocio
-2. Ajustes de relevancia según feedback
-3. Iniciar Fase 2 con motor de matching candidato-vacante
+1. **🔴 Afinar relevancia de búsqueda** - Ver `/app/memory/VALIDATION_FINDINGS.md`
+   - Hallazgo: "HR manager manufactura" → Director General (falso positivo)
+   - Diagnóstico pendiente: revisar scoring, área funcional, embeddings
+2. 🟡 Continuar validación con queries reales de negocio
+3. 🔵 Fase 2: Motor de matching candidato-vacante (después de estabilizar búsqueda)
 
 ## Arquitectura de Búsqueda (Definitiva)
 
