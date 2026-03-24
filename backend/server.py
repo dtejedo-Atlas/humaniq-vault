@@ -18,6 +18,7 @@ from models import (
     Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
     DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate
 )
+from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
 from atlas_service import atlas_service
 from document_parser import DocumentParser
@@ -1015,6 +1016,163 @@ async def update_functional_area(
 
 
 @api_router.delete("/admin/functional-areas/{area_id}")
+
+
+
+# ============= VALIDATION & QUALITY TRACKING ROUTES =============
+
+@api_router.post("/validation/record")
+async def create_validation_record(
+    candidate_id: str = Form(...),
+    expected_industry: Optional[str] = Form(None),
+    expected_functional_area: Optional[str] = Form(None),
+    expected_seniority: Optional[str] = Form(None),
+    industry_correct: Optional[bool] = Form(None),
+    functional_area_correct: Optional[bool] = Form(None),
+    seniority_correct: Optional[bool] = Form(None),
+    parsing_quality_score: Optional[int] = Form(None),
+    parsing_notes: Optional[str] = Form(None),
+    search_query: Optional[str] = Form(None),
+    search_relevant: Optional[bool] = Form(None),
+    search_notes: Optional[str] = Form(None),
+    comments: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user)
+):
+    """Create validation record for quality tracking"""
+    
+    # Get candidate info
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    
+    record_id = str(uuid.uuid4())
+    
+    validation_record = {
+        "id": record_id,
+        "candidate_id": candidate_id,
+        "candidate_name": candidate.get("full_name"),
+        "expected_industry": expected_industry,
+        "expected_functional_area": expected_functional_area,
+        "expected_seniority": expected_seniority,
+        "atlas_industry": candidate.get("industry"),
+        "atlas_functional_area": candidate.get("functional_area"),
+        "atlas_seniority": candidate.get("seniority"),
+        "industry_correct": industry_correct,
+        "functional_area_correct": functional_area_correct,
+        "seniority_correct": seniority_correct,
+        "parsing_quality_score": parsing_quality_score,
+        "parsing_notes": parsing_notes,
+        "search_query": search_query,
+        "search_relevant": search_relevant,
+        "search_notes": search_notes,
+        "reviewer_name": current_user.name,
+        "comments": comments,
+        "validated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.validation_records.insert_one(validation_record)
+    
+    return {"message": "Registro de validación creado", "record_id": record_id}
+
+
+@api_router.get("/validation/records")
+async def get_validation_records(
+    limit: int = Query(100),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all validation records"""
+    records = await db.validation_records.find({}, {"_id": 0}).sort("validated_at", -1).limit(limit).to_list(limit)
+    
+    for record in records:
+        if isinstance(record.get('validated_at'), str):
+            record['validated_at'] = datetime.fromisoformat(record['validated_at'])
+    
+    return records
+
+
+@api_router.get("/validation/summary")
+async def get_validation_summary(current_user: User = Depends(get_current_user)):
+    """Get validation summary statistics"""
+    
+    records = await db.validation_records.find({}, {"_id": 0}).to_list(1000)
+    
+    if not records:
+        return {
+            "total_evaluated": 0,
+            "industry_accuracy": 0,
+            "functional_area_accuracy": 0,
+            "seniority_accuracy": 0,
+            "avg_parsing_quality": 0,
+            "search_relevance_rate": 0,
+            "common_errors": []
+        }
+    
+    total = len(records)
+    
+    # Calculate accuracies
+    industry_correct = sum(1 for r in records if r.get('industry_correct') == True)
+    industry_total = sum(1 for r in records if r.get('industry_correct') is not None)
+    
+    functional_area_correct = sum(1 for r in records if r.get('functional_area_correct') == True)
+    functional_area_total = sum(1 for r in records if r.get('functional_area_correct') is not None)
+    
+    seniority_correct = sum(1 for r in records if r.get('seniority_correct') == True)
+    seniority_total = sum(1 for r in records if r.get('seniority_correct') is not None)
+    
+    # Parsing quality
+    parsing_scores = [r.get('parsing_quality_score') for r in records if r.get('parsing_quality_score')]
+    avg_parsing = sum(parsing_scores) / len(parsing_scores) if parsing_scores else 0
+    
+    # Search relevance
+    search_relevant = sum(1 for r in records if r.get('search_relevant') == True)
+    search_total = sum(1 for r in records if r.get('search_relevant') is not None)
+    
+    # Common errors
+    errors = {}
+    for record in records:
+        if record.get('industry_correct') == False:
+            key = f"Industria incorrecta: {record.get('atlas_industry')} → {record.get('expected_industry')}"
+            errors[key] = errors.get(key, 0) + 1
+        
+        if record.get('functional_area_correct') == False:
+            key = f"Área incorrecta: {record.get('atlas_functional_area')} → {record.get('expected_functional_area')}"
+            errors[key] = errors.get(key, 0) + 1
+    
+    common_errors = [{"error": k, "count": v} for k, v in sorted(errors.items(), key=lambda x: x[1], reverse=True)[:5]]
+    
+    return {
+        "total_evaluated": total,
+        "industry_accuracy": round((industry_correct / industry_total * 100) if industry_total > 0 else 0, 1),
+        "functional_area_accuracy": round((functional_area_correct / functional_area_total * 100) if functional_area_total > 0 else 0, 1),
+        "seniority_accuracy": round((seniority_correct / seniority_total * 100) if seniority_total > 0 else 0, 1),
+        "avg_parsing_quality": round(avg_parsing, 1),
+        "search_relevance_rate": round((search_relevant / search_total * 100) if search_total > 0 else 0, 1),
+        "common_errors": common_errors
+    }
+
+
+@api_router.get("/validation/export")
+async def export_validation_records(current_user: User = Depends(get_current_user)):
+    """Export validation records as CSV"""
+    import csv
+    from io import StringIO
+    
+    records = await db.validation_records.find({}, {"_id": 0}).to_list(1000)
+    
+    if not records:
+        return Response(content="No hay registros de validación", media_type="text/csv")
+    
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=records[0].keys())
+    writer.writeheader()
+    writer.writerows(records)
+    
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=atlas_validation_records.csv"}
+    )
+
 async def delete_functional_area(
     area_id: str,
     current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))

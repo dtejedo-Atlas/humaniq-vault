@@ -26,6 +26,7 @@ const Sidebar = () => {
     { path: '/search', icon: Search, label: 'Búsqueda' },
     { path: '/jobs', icon: Briefcase, label: 'Vacantes' },
     { path: '/folders', icon: FolderOpen, label: 'Carpetas' },
+    { path: '/validation', icon: Sparkles, label: 'Validación', roles: ['super_admin', 'recruiter'] },
     { path: '/admin', icon: Settings, label: 'Admin', roles: ['super_admin'] }
   ];
 

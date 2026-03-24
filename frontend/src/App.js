@@ -15,6 +15,7 @@ import SearchPage from './pages/SearchPage';
 import JobsPage from './pages/JobsPage';
 import FoldersPage from './pages/FoldersPage';
 import AdminPage from './pages/AdminPage';
+import ValidationPage from './pages/ValidationPage';
 
 // Configure axios defaults
 axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
@@ -132,6 +133,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AdminPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/validation"
+        element={
+          <ProtectedRoute>
+            <ValidationPage />
           </ProtectedRoute>
         }
       />
