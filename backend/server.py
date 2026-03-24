@@ -1548,7 +1548,18 @@ async def hybrid_search(
         if isinstance(candidate.get('updated_at'), str):
             candidate['updated_at'] = datetime.fromisoformat(candidate['updated_at'])
     
-    return results
+    # Agregar metadata de búsqueda
+    return {
+        "results": results,
+        "total": len(results),
+        "search_metadata": {
+            "query": query,
+            "use_semantic": use_semantic,
+            "semantic_search_active": use_semantic and embedding_service.enabled,
+            "filters_applied": bool(filters),
+            "embedding_service_enabled": embedding_service.enabled
+        }
+    }
 
 
 @api_router.post("/search/save")
