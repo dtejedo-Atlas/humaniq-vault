@@ -120,6 +120,10 @@ class Candidate(BaseModel):
     company_normalized: Optional[str] = None
     title_normalized: Optional[str] = None
     
+    # Campos de búsqueda híbrida (solo presentes en resultados de búsqueda)
+    match_score: Optional[int] = None
+    match_breakdown: Optional[Dict[str, Any]] = None
+    
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[str] = None
