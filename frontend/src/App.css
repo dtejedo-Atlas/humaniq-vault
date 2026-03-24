@@ -1,34 +1,155 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+/* Atlas Talent Vault Global Styles */
+
+.App {
+  min-height: 100vh;
+  background: hsl(var(--background));
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+/* Main Layout */
+.atlas-layout {
+  display: flex;
+  min-height: 100vh;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+.atlas-sidebar {
+  width: 260px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-right: 1px solid hsl(var(--border));
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  overflow-y: auto;
+  z-index: 50;
 }
 
-.App-link {
-    color: #61dafb;
+.atlas-main {
+  flex: 1;
+  margin-left: 260px;
+  background: hsl(var(--background));
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.atlas-content {
+  padding: 2rem;
+  max-width: 100%;
+}
+
+/* Custom button transitions */
+.btn-atlas {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-atlas:active {
+  transform: scale(0.95);
+}
+
+/* Card hover effect */
+.card-atlas {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-atlas:hover {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* AI Badge Animation */
+.ai-badge {
+  animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Fade in animation */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Table styles */
+.table-atlas {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table-atlas thead {
+  position: sticky;
+  top: 0;
+  background: hsl(var(--card));
+  z-index: 10;
+}
+
+.table-atlas tbody tr:nth-child(odd) {
+  background: hsl(var(--card));
+}
+
+.table-atlas tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.3);
+}
+
+.table-atlas tbody tr:hover {
+  background: hsl(var(--accent) / 0.05);
+}
+
+/* Upload zone */
+.upload-zone {
+  transition: all 0.2s ease;
+  border: 2px dashed hsl(var(--border));
+}
+
+.upload-zone:hover {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.05);
+}
+
+.upload-zone.drag-active {
+  border-color: hsl(var(--accent));
+  background: hsl(var(--accent) / 0.1);
+  transform: scale(1.02);
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Loading spinner */
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
