@@ -196,34 +196,55 @@ async def get_candidates(
     functional_area: Optional[str] = None,
     seniority: Optional[SeniorityLevel] = None,
     search: Optional[str] = None,
+    use_semantic: bool = True,
     current_user: User = Depends(get_current_user)
 ):
-    """Get candidates list with filters"""
-    query = {}
-    
+    """
+    Get candidates list with filters.
+    Si hay parámetro 'search', usa el motor de búsqueda híbrida calibrada.
+    """
+    # Construir filtros estructurados
+    filters = {}
     if status:
-        query['status'] = status
-    if industry:
-        query['industry'] = industry
-    if functional_area:
-        query['functional_area'] = functional_area
+        filters['status'] = status.value if hasattr(status, 'value') else str(status)
+    if industry and industry.strip():
+        filters['industry'] = industry.strip()
+    if functional_area and functional_area.strip():
+        filters['functional_area'] = functional_area.strip()
     if seniority:
-        query['seniority'] = seniority
-    if search:
-        # Normalizar query para búsqueda sin acentos
-        search_normalized = normalize_for_search(search)
+        filters['seniority'] = seniority.value if hasattr(seniority, 'value') else str(seniority)
+    
+    # Si hay búsqueda de texto, usar motor híbrido calibrado
+    if search and search.strip():
+        results = await hybrid_search_service.search(
+            query=search.strip(),
+            filters=filters,
+            use_semantic=use_semantic,
+            limit=limit
+        )
         
-        query['$or'] = [
-            # Buscar en campos normalizados (sin acentos)
-            {'full_name_normalized': {'$regex': search_normalized, '$options': 'i'}},
-            {'company_normalized': {'$regex': search_normalized, '$options': 'i'}},
-            {'title_normalized': {'$regex': search_normalized, '$options': 'i'}},
-            # También buscar en originales (por si query tiene acentos correctos)
-            {'full_name': {'$regex': search, '$options': 'i'}},
-            {'email': {'$regex': search, '$options': 'i'}},
-            {'current_company': {'$regex': search, '$options': 'i'}},
-            {'current_title': {'$regex': search, '$options': 'i'}}
-        ]
+        # Aplicar skip para paginación
+        results = results[skip:skip+limit] if skip > 0 else results[:limit]
+        
+        # Parse dates para compatibilidad
+        for candidate in results:
+            if isinstance(candidate.get('created_at'), str):
+                candidate['created_at'] = datetime.fromisoformat(candidate['created_at'])
+            if isinstance(candidate.get('updated_at'), str):
+                candidate['updated_at'] = datetime.fromisoformat(candidate['updated_at'])
+        
+        return results
+    
+    # Sin búsqueda de texto: solo filtros estructurados
+    query = {}
+    if status:
+        query['status'] = status.value if hasattr(status, 'value') else str(status)
+    if industry and industry.strip():
+        query['industry'] = industry.strip()
+    if functional_area and functional_area.strip():
+        query['functional_area'] = functional_area.strip()
+    if seniority:
+        query['seniority'] = seniority.value if hasattr(seniority, 'value') else str(seniority)
     
     candidates = await db.candidates.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
     
