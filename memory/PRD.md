@@ -25,7 +25,7 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - [x] Manejo de caracteres UTF-8/acentos
 - [x] Framework de validación de calidad
 
-### Fase 1.5 (Validación) - EN PROGRESO
+### Fase 1.5 (Validación) - COMPLETADA
 - [x] Taxonomía bilingüe con keys canónicas (24-Mar-2026)
 - [x] Sistema de errores detallados para uploads (24-Mar-2026)
 - [x] Embeddings habilitados con OPENAI_API_KEY (24-Mar-2026)
@@ -35,8 +35,12 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - Threshold semántico: 30%
   - Score mínimo: 35%
   - Boost keyword+semántica: +20
-- [ ] **EN CURSO:** Validación de ranking con queries reales
-- [ ] Ajustes según feedback de validación
+- [x] **Unificación completa de búsqueda** (24-Mar-2026)
+  - GET /api/candidates y POST /api/search/hybrid usan el mismo motor
+  - match_score y match_breakdown incluidos en modelo Candidate
+  - Header global redirige a /search?q= al presionar Enter
+  - SearchPage ejecuta búsqueda automática desde URL params
+  - Validado con 6 queries de prueba: 100% consistencia
 
 ### Fase 2 (Planificada)
 - [ ] Motor de matching candidato-vacante
@@ -117,6 +121,18 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 
 ## Changelog
 
+### 24-Mar-2026 - Unificación de Búsqueda
+- **Arquitectura final de búsqueda:**
+  - `/search` → POST /api/search/hybrid → hybrid_search_service ✅
+  - `/candidates` → GET /api/candidates?search= → hybrid_search_service ✅
+  - Header global → Redirige a /search?q= → SearchPage ejecuta automáticamente ✅
+  - `/upload` → Solo carga de CVs (sin búsqueda) ✅
+  - `/dashboard` → Solo estadísticas (sin búsqueda) ✅
+- Modelo `Candidate` extendido con `match_score: Optional[int]` y `match_breakdown: Optional[Dict]`
+- SearchPage ahora lee parámetro `q` de URL y ejecuta búsqueda automáticamente
+- Header.js conectado con redirección a /search?q= al presionar Enter
+- Validación completa con 6 queries de prueba: 100% consistencia
+
 ### 24-Mar-2026 - Sistema de Errores Detallados
 - Creado `/app/backend/error_handling.py` con sistema completo de errores
 - Cada upload retorna: `status`, `stage_reached`, `errors[]`, `warnings[]`, `processing_time_ms`
@@ -141,7 +157,16 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. Validación controlada con CVs reales (50-100)
-2. Opcional: Agregar OPENAI_API_KEY para embeddings
-3. Ajustes según feedback
-4. Iniciar Fase 2 con motor de matching
+1. **Validación con CVs reales:** Usuario probará con sus propios CVs y queries de negocio
+2. Ajustes de relevancia según feedback
+3. Iniciar Fase 2 con motor de matching candidato-vacante
+
+## Arquitectura de Búsqueda (Definitiva)
+
+| Ubicación | Endpoint | Motor | Comportamiento |
+|-----------|----------|-------|----------------|
+| `/search` | POST /api/search/hybrid | hybrid_search_service | Búsqueda avanzada con filtros |
+| `/candidates` | GET /api/candidates?search= | hybrid_search_service | Lista con búsqueda integrada |
+| Header global | Redirige a /search?q= | N/A | Acceso rápido desde cualquier página |
+| `/upload` | N/A | N/A | Solo carga de CVs |
+| `/dashboard` | N/A | N/A | Solo estadísticas |
