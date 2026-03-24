@@ -1,8 +1,39 @@
+"""
+Hybrid Search Service - Versión Calibrada
+==========================================
+
+Combina búsqueda estructurada, por keywords y semántica con:
+- Threshold de relevancia configurable
+- Scores normalizados correctamente (0-100%)
+- Filtrado inteligente de resultados poco relevantes
+"""
+
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# ============= CONFIGURACIÓN DE BÚSQUEDA =============
+
+# Threshold mínimo de similitud semántica (0.0 - 1.0)
+# Solo candidatos con score >= este valor se consideran relevantes
+SEMANTIC_THRESHOLD = 0.30  # ~30% de similitud mínima
+
+# Threshold mínimo de score final para incluir en resultados
+MIN_MATCH_SCORE = 35  # Score mínimo de 35/100
+
+# Pesos para combinar los diferentes tipos de búsqueda
+SEARCH_WEIGHTS = {
+    'structured': 1.0,   # Filtros exactos (máxima prioridad)
+    'keyword': 0.9,      # Match por keywords (aumentado)
+    'semantic': 0.7      # Similitud semántica
+}
+
+# Boost por match de keyword (cuando hay coincidencia textual + semántica)
+KEYWORD_BOOST = 20  # Aumentado para priorizar keyword matches
+
 
 class HybridSearchService:
     def __init__(self, db, embedding_service):
@@ -14,16 +45,20 @@ class HybridSearchService:
         query = {}
         
         if status := filters.get('status'):
-            query['status'] = status
+            if status.strip():
+                query['status'] = status.strip()
         
         if industry := filters.get('industry'):
-            query['industry'] = industry
+            if industry.strip():
+                query['industry'] = industry.strip()
         
         if functional_area := filters.get('functional_area'):
-            query['functional_area'] = functional_area
+            if functional_area.strip():
+                query['functional_area'] = functional_area.strip()
         
         if seniority := filters.get('seniority'):
-            query['seniority'] = seniority
+            if seniority.strip():
+                query['seniority'] = seniority.strip()
         
         # Years of experience range
         if min_exp := filters.get('min_experience'):
@@ -46,13 +81,6 @@ class HybridSearchService:
             else:
                 query['skills'] = skills
         
-        # Languages
-        if languages := filters.get('languages'):
-            if isinstance(languages, list):
-                query['languages'] = {'$in': languages}
-            else:
-                query['languages'] = languages
-        
         return query
     
     async def _keyword_search(self, query: str, filters: dict, limit: int = 100) -> List[dict]:
@@ -61,161 +89,202 @@ class HybridSearchService:
         
         mongo_query = self._build_mongo_query(filters)
         
-        # Add text search conditions
         if query:
-            # Normalizar query para búsqueda sin acentos
             query_normalized = normalize_for_search(query)
+            query_words = query_normalized.split()
             
-            mongo_query['$or'] = [
-                # Buscar en campos normalizados (captura búsquedas sin acentos)
-                {'full_name_normalized': {'$regex': query_normalized, '$options': 'i'}},
-                {'company_normalized': {'$regex': query_normalized, '$options': 'i'}},
-                {'title_normalized': {'$regex': query_normalized, '$options': 'i'}},
-                # También buscar en originales (por si query tiene acentos)
-                {'full_name': {'$regex': query, '$options': 'i'}},
-                {'email': {'$regex': query, '$options': 'i'}},
-                {'current_company': {'$regex': query, '$options': 'i'}},
-                {'current_title': {'$regex': query, '$options': 'i'}},
-                {'skills': {'$regex': query, '$options': 'i'}},
-                {'ai_summary': {'$regex': query, '$options': 'i'}}
-            ]
+            # Crear condiciones OR para cada palabra del query
+            or_conditions = []
+            for word in query_words:
+                if len(word) >= 3:  # Ignorar palabras muy cortas
+                    or_conditions.extend([
+                        {'full_name_normalized': {'$regex': word, '$options': 'i'}},
+                        {'company_normalized': {'$regex': word, '$options': 'i'}},
+                        {'title_normalized': {'$regex': word, '$options': 'i'}},
+                        {'full_name': {'$regex': word, '$options': 'i'}},
+                        {'current_company': {'$regex': word, '$options': 'i'}},
+                        {'current_title': {'$regex': word, '$options': 'i'}},
+                        {'skills': {'$regex': word, '$options': 'i'}},
+                        {'ai_summary': {'$regex': word, '$options': 'i'}}
+                    ])
+            
+            if or_conditions:
+                mongo_query['$or'] = or_conditions
         
         results = await self.db.candidates.find(
             mongo_query,
             {"_id": 0}
         ).limit(limit).to_list(limit)
         
+        # Calcular score de keyword basado en cuántas palabras coinciden
+        if query:
+            query_words_set = set(query.lower().split())
+            for candidate in results:
+                keyword_matches = 0
+                searchable_text = ' '.join([
+                    str(candidate.get('full_name', '')),
+                    str(candidate.get('current_title', '')),
+                    str(candidate.get('current_company', '')),
+                    str(candidate.get('ai_summary', '')),
+                    ' '.join(candidate.get('skills', []))
+                ]).lower()
+                
+                for word in query_words_set:
+                    if len(word) >= 3 and word in searchable_text:
+                        keyword_matches += 1
+                
+                # Score de keyword: proporción de palabras encontradas
+                candidate['keyword_score'] = keyword_matches / max(len(query_words_set), 1)
+        
         return results
     
-    async def _vector_search(self, query_embedding: List[float], filters: dict, limit: int = 50) -> List[dict]:
+    def _calculate_semantic_similarity(self, query_embedding: List[float], candidate_embedding: List[float]) -> float:
         """
-        Vector similarity search
-        Note: This is manual cosine similarity. For production with large datasets,
-        consider MongoDB Atlas Vector Search or external vector DB.
+        Calcula similitud coseno normalizada
         """
-        # Get base filtered candidates
+        if not query_embedding or not candidate_embedding:
+            return 0.0
+        
+        try:
+            from sklearn.metrics.pairwise import cosine_similarity
+            
+            query_vec = np.array([query_embedding])
+            candidate_vec = np.array([candidate_embedding])
+            
+            # Cosine similarity devuelve -1 a 1
+            raw_similarity = cosine_similarity(query_vec, candidate_vec)[0][0]
+            
+            # Para embeddings de texto profesional, los valores típicos son 0.3-0.8
+            # Normalizamos de [0.2, 0.9] a [0.0, 1.0] para mejor discriminación
+            if raw_similarity < 0.2:
+                return 0.0
+            
+            normalized = (raw_similarity - 0.2) / 0.7
+            return max(0.0, min(1.0, normalized))
+            
+        except Exception as e:
+            logger.error(f"Error calculating similarity: {str(e)}")
+            return 0.0
+    
+    async def _semantic_search(self, query_embedding: List[float], filters: dict, limit: int = 50) -> List[dict]:
+        """
+        Búsqueda semántica con threshold de relevancia
+        """
         mongo_query = self._build_mongo_query(filters)
         mongo_query['embedding'] = {'$exists': True, '$ne': None}
         
         candidates = await self.db.candidates.find(
             mongo_query,
-            {"_id": 0, "id": 1, "embedding": 1, "full_name": 1, "current_title": 1}
-        ).to_list(1000)  # Limit to 1000 for performance
+            {"_id": 0}
+        ).to_list(1000)
         
         if not candidates:
             return []
         
-        # Calculate similarities
-        candidate_embeddings = [
-            (c['id'], c.get('embedding', []))
-            for c in candidates
-            if c.get('embedding')
-        ]
+        results_with_scores = []
         
-        similar_results = self.embedding_service.find_top_similar(
-            query_embedding,
-            candidate_embeddings,
-            top_k=limit
-        )
+        for candidate in candidates:
+            embedding = candidate.get('embedding')
+            if not embedding or len(embedding) < 100:
+                continue
+            
+            # Calcular similitud semántica real
+            similarity = self._calculate_semantic_similarity(query_embedding, embedding)
+            
+            # APLICAR THRESHOLD: Solo incluir si supera el mínimo
+            if similarity >= SEMANTIC_THRESHOLD:
+                candidate['semantic_score'] = similarity
+                results_with_scores.append(candidate)
         
-        # Fetch full candidate data for top results
-        candidate_ids = [r['candidate_id'] for r in similar_results]
+        # Ordenar por score semántico descendente
+        results_with_scores.sort(key=lambda x: x.get('semantic_score', 0), reverse=True)
         
-        full_candidates = await self.db.candidates.find(
-            {"id": {"$in": candidate_ids}},
-            {"_id": 0}
-        ).to_list(limit)
-        
-        # Add similarity scores
-        id_to_score = {r['candidate_id']: r['similarity_score'] for r in similar_results}
-        for candidate in full_candidates:
-            candidate['vector_score'] = id_to_score.get(candidate['id'], 0.0)
-        
-        # Sort by score
-        full_candidates.sort(key=lambda x: x.get('vector_score', 0.0), reverse=True)
-        
-        return full_candidates
+        return results_with_scores[:limit]
     
     def _merge_and_rank(
         self,
-        structured_results: List[dict],
         keyword_results: List[dict],
         semantic_results: List[dict],
-        weights: Dict[str, float]
+        query: str
     ) -> List[dict]:
         """
-        Merge and rank results from different search methods
+        Merge y ranking inteligente con threshold de relevancia
         """
-        # Create a map of candidate_id -> combined data
         candidate_map = {}
         
-        # Add structured results (highest weight)
-        for candidate in structured_results:
+        # Procesar resultados de keyword
+        for candidate in keyword_results:
             candidate_id = candidate['id']
             candidate_map[candidate_id] = {
                 'candidate': candidate,
-                'scores': {
-                    'structured': 1.0,
-                    'keyword': 0.0,
-                    'semantic': 0.0
-                }
+                'keyword_score': candidate.get('keyword_score', 0.5),  # Default si no se calculó
+                'semantic_score': 0.0,
+                'has_keyword': True,
+                'has_semantic': False
             }
         
-        # Add keyword results
-        for candidate in keyword_results:
-            candidate_id = candidate['id']
-            if candidate_id not in candidate_map:
-                candidate_map[candidate_id] = {
-                    'candidate': candidate,
-                    'scores': {
-                        'structured': 0.0,
-                        'keyword': 1.0,
-                        'semantic': 0.0
-                    }
-                }
-            else:
-                candidate_map[candidate_id]['scores']['keyword'] = 1.0
-        
-        # Add semantic results
+        # Procesar resultados semánticos
         for candidate in semantic_results:
             candidate_id = candidate['id']
-            semantic_score = candidate.get('vector_score', 0.0)
+            semantic_score = candidate.get('semantic_score', 0.0)
             
-            if candidate_id not in candidate_map:
+            if candidate_id in candidate_map:
+                # Existe en keyword también - boost!
+                candidate_map[candidate_id]['semantic_score'] = semantic_score
+                candidate_map[candidate_id]['has_semantic'] = True
+            else:
+                # Solo en semántica
                 candidate_map[candidate_id] = {
                     'candidate': candidate,
-                    'scores': {
-                        'structured': 0.0,
-                        'keyword': 0.0,
-                        'semantic': semantic_score
-                    }
+                    'keyword_score': 0.0,
+                    'semantic_score': semantic_score,
+                    'has_keyword': False,
+                    'has_semantic': True
                 }
-            else:
-                candidate_map[candidate_id]['scores']['semantic'] = semantic_score
         
-        # Calculate weighted scores
+        # Calcular score final para cada candidato
         ranked_results = []
+        
         for candidate_id, data in candidate_map.items():
-            scores = data['scores']
+            keyword_score = data['keyword_score']
+            semantic_score = data['semantic_score']
+            has_keyword = data['has_keyword']
+            has_semantic = data['has_semantic']
             
-            # Weighted sum
-            total_score = (
-                scores['structured'] * weights.get('structured', 1.0) +
-                scores['keyword'] * weights.get('keyword', 0.7) +
-                scores['semantic'] * weights.get('semantic', 0.9)
+            # Score base: combinación ponderada
+            base_score = (
+                keyword_score * SEARCH_WEIGHTS['keyword'] +
+                semantic_score * SEARCH_WEIGHTS['semantic']
             )
             
+            # Normalizar a 0-100
+            max_possible = SEARCH_WEIGHTS['keyword'] + SEARCH_WEIGHTS['semantic']
+            match_score = (base_score / max_possible) * 100
+            
+            # BOOST: Si tiene tanto keyword como semántica, es muy relevante
+            if has_keyword and has_semantic:
+                match_score += KEYWORD_BOOST
+            
+            # Aplicar threshold de score mínimo
+            if match_score < MIN_MATCH_SCORE and not has_keyword:
+                # Si no tiene keyword match y score bajo, excluir
+                continue
+            
+            # Limitar a 100 máximo
+            match_score = min(100, round(match_score))
+            
             candidate = data['candidate'].copy()
-            candidate['match_score'] = round(total_score * 100)  # Convert to 0-100
+            candidate['match_score'] = match_score
             candidate['match_breakdown'] = {
-                'structured': bool(scores['structured']),
-                'keyword': bool(scores['keyword']),
-                'semantic': round(scores['semantic'] * 100)
+                'keyword': has_keyword,
+                'keyword_score': round(keyword_score * 100),
+                'semantic': round(semantic_score * 100),
+                'boosted': has_keyword and has_semantic
             }
             
             ranked_results.append(candidate)
         
-        # Sort by total score
+        # Ordenar por score final
         ranked_results.sort(key=lambda x: x['match_score'], reverse=True)
         
         return ranked_results
@@ -225,52 +294,78 @@ class HybridSearchService:
         query: Optional[str] = None,
         filters: Optional[dict] = None,
         use_semantic: bool = True,
-        limit: int = 50
+        limit: int = 50,
+        min_score: int = None  # Override del threshold
     ) -> List[dict]:
         """
-        Hybrid search: combines structured filters, keyword search, and semantic search
+        Búsqueda híbrida calibrada
+        
+        Args:
+            query: Texto de búsqueda
+            filters: Filtros estructurados (industria, área, etc.)
+            use_semantic: Si usar búsqueda semántica
+            limit: Máximo de resultados
+            min_score: Score mínimo para incluir (override de MIN_MATCH_SCORE)
+        
+        Returns:
+            Lista de candidatos ordenados por relevancia, filtrados por threshold
         """
         if filters is None:
             filters = {}
         
-        # A) STRUCTURED SEARCH (exact filters)
-        structured_results = []
-        if filters:
+        # Limpiar filtros vacíos
+        filters = {k: v for k, v in filters.items() if v and str(v).strip()}
+        
+        effective_min_score = min_score if min_score is not None else MIN_MATCH_SCORE
+        
+        # A) SOLO FILTROS (sin query de texto)
+        if not query:
             mongo_query = self._build_mongo_query(filters)
-            if not query:  # If no query, return filtered results
-                structured_results = await self.db.candidates.find(
-                    mongo_query,
-                    {"_id": 0}
-                ).limit(limit).to_list(limit)
+            results = await self.db.candidates.find(
+                mongo_query,
+                {"_id": 0}
+            ).limit(limit).to_list(limit)
+            
+            # Sin query, todos tienen match perfecto por filtros
+            for r in results:
+                r['match_score'] = 100
+                r['match_breakdown'] = {'structured': True, 'keyword': False, 'semantic': 0}
+            
+            return results
         
         # B) KEYWORD SEARCH
-        keyword_results = []
-        if query:
-            keyword_results = await self._keyword_search(query, filters, limit=100)
+        keyword_results = await self._keyword_search(query, filters, limit=100)
+        logger.info(f"Keyword search found {len(keyword_results)} candidates")
         
         # C) SEMANTIC SEARCH
         semantic_results = []
-        if use_semantic and query:
+        if use_semantic and self.embedding_service.enabled:
             try:
                 query_embedding = await self.embedding_service.generate_embedding(query)
-                semantic_results = await self._vector_search(query_embedding, filters, limit=50)
+                if query_embedding:
+                    semantic_results = await self._semantic_search(query_embedding, filters, limit=50)
+                    logger.info(f"Semantic search found {len(semantic_results)} candidates above threshold")
             except Exception as e:
                 logger.error(f"Semantic search failed: {str(e)}")
         
-        # If only filters (no query), return structured results
-        if not query:
-            return structured_results[:limit]
-        
-        # D) MERGE AND RANK
+        # D) MERGE Y RANKING
         combined_results = self._merge_and_rank(
-            structured_results,
             keyword_results,
             semantic_results,
-            weights={
-                'structured': 1.0,
-                'keyword': 0.7,
-                'semantic': 0.9
-            }
+            query
         )
         
-        return combined_results[:limit]
+        # E) APLICAR THRESHOLD FINAL
+        filtered_results = [
+            r for r in combined_results 
+            if r['match_score'] >= effective_min_score
+        ]
+        
+        logger.info(f"After threshold ({effective_min_score}): {len(filtered_results)} candidates")
+        
+        return filtered_results[:limit]
+
+
+# Función factory para crear instancia
+def create_hybrid_search_service(db, embedding_service):
+    return HybridSearchService(db, embedding_service)
