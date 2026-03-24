@@ -27,6 +27,7 @@ from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
+from background_processor import background_processor, JobStatus
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -284,6 +285,75 @@ async def create_candidate(
     return candidate
 
 
+# ============= BATCH QUEUE STATUS ROUTES (MUST BE BEFORE {candidate_id}) =============
+
+@api_router.get("/candidates/queue-stats")
+async def get_queue_stats(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener estadísticas de la cola de procesamiento.
+    """
+    return background_processor.get_queue_stats()
+
+
+@api_router.get("/candidates/batch/{batch_id}")
+async def get_batch_status(
+    batch_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener estado de un lote de uploads.
+    """
+    batch_status = background_processor.get_batch_status(batch_id)
+    
+    if not batch_status:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Lote no encontrado"
+        )
+    
+    return batch_status
+
+
+@api_router.get("/candidates/job/{job_id}")
+async def get_job_status(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener estado detallado de un job individual.
+    """
+    job = background_processor.get_job(job_id)
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job no encontrado"
+        )
+    
+    return job.to_dict()
+
+
+@api_router.post("/candidates/job/{job_id}/retry")
+async def retry_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reintentar un job fallido.
+    """
+    success = await background_processor.retry_job(job_id)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede reintentar este job"
+        )
+    
+    return {"message": "Job re-encolado para reintento", "job_id": job_id}
+
+
 @api_router.get("/candidates/{candidate_id}", response_model=Candidate)
 async def get_candidate(
     candidate_id: str,
@@ -419,12 +489,17 @@ async def upload_resume(
     # ===== ETAPA 1: VALIDACIÓN DE ARCHIVO =====
     file_ext = file.filename.lower().split('.')[-1] if '.' in file.filename else ''
     
-    if file_ext not in ['pdf', 'docx', 'doc']:
+    # Solo PDF y DOCX soportados
+    if file_ext not in ['pdf', 'docx']:
+        error_msg = "Formato no soportado. Solo se permiten archivos PDF y DOCX."
+        if file_ext == 'doc':
+            error_msg = "Formato DOC (Word 97-2003) no soportado. Por favor convierte a PDF o DOCX."
+        
         result.status = "failed"
         result.add_error(
             ErrorType.UNSUPPORTED_FORMAT,
             ProcessingStage.UPLOAD,
-            f"Extensión recibida: .{file_ext}. Solo se permiten PDF, DOCX y DOC.",
+            error_msg,
             recoverable=False
         )
         result.processing_time_ms = int((time.time() - start_time) * 1000)
@@ -898,6 +973,361 @@ async def retry_candidate_processing(
         "updates_applied": list(updates.keys()),
         "errors": errors,
         "warnings": warnings
+    }
+
+
+# ============= BATCH UPLOAD (PROCESAMIENTO EN BACKGROUND) =============
+
+async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
+    """
+    Función que procesa un CV individual en background.
+    Esta función es llamada por el BackgroundProcessor.
+    """
+    from error_handling import ProcessingStage, ErrorType, detect_error_type
+    
+    result = {
+        "status": "processing",
+        "candidate_id": None,
+        "extracted_name": None,
+        "extracted_email": None,
+        "errors": [],
+        "warnings": []
+    }
+    
+    user_id = file_metadata.get('user_id')
+    file_name = file_metadata.get('file_name')
+    content_type = file_metadata.get('content_type')
+    
+    # Actualizar progreso
+    job.progress = 10
+    job.current_stage = "text_extraction"
+    
+    # 1. Extracción de texto
+    extracted_text = ""
+    try:
+        extracted_text = DocumentParser.extract_text_from_bytes(file_data, content_type)
+        
+        if not extracted_text or len(extracted_text.strip()) < 50:
+            result["warnings"].append("Poco texto extraído - posible PDF escaneado")
+    except Exception as e:
+        error_type = detect_error_type(e, ProcessingStage.TEXT_EXTRACTION)
+        result["errors"].append({
+            "type": error_type.value,
+            "stage": "text_extraction",
+            "message": str(e),
+            "recoverable": True
+        })
+        result["warnings"].append(f"Error de extracción: {str(e)[:100]}")
+    
+    job.progress = 25
+    job.current_stage = "ai_parsing"
+    
+    # 2. Parsing con AI
+    parsed_data = {}
+    try:
+        if extracted_text and len(extracted_text.strip()) >= 20:
+            parsed_data = await atlas_service.parse_resume(extracted_text)
+        else:
+            parsed_data = {"full_name": None}
+    except Exception as e:
+        result["errors"].append({
+            "type": "ai_parsing_failed",
+            "stage": "ai_parsing",
+            "message": str(e),
+            "recoverable": True
+        })
+    
+    # Validar nombre
+    full_name = parsed_data.get('full_name')
+    if not full_name or not isinstance(full_name, str):
+        filename_without_ext = file_name.rsplit('.', 1)[0] if '.' in file_name else file_name
+        fallback_name = filename_without_ext.replace('_', ' ').replace('-', ' ').title()
+        
+        if len(fallback_name) > 3 and not any(c.isdigit() for c in fallback_name):
+            parsed_data['full_name'] = fallback_name
+            result["warnings"].append(f"Nombre extraído del archivo: {fallback_name}")
+        else:
+            parsed_data['full_name'] = f"Candidato - {file_name}"
+    
+    result["extracted_name"] = parsed_data.get('full_name')
+    result["extracted_email"] = parsed_data.get('email')
+    
+    job.progress = 40
+    job.current_stage = "duplicate_detection"
+    
+    # 3. Detección de duplicados
+    duplicates = []
+    try:
+        duplicates = await duplicate_detector.detect_duplicates(parsed_data)
+    except Exception as e:
+        result["warnings"].append("Error en detección de duplicados")
+    
+    # Si hay duplicado de alta confianza, marcar pero continuar
+    if duplicates and max(d['confidence'] for d in duplicates) >= 0.90:
+        result["warnings"].append(f"Posible duplicado detectado (confianza >= 90%)")
+    
+    job.progress = 50
+    job.current_stage = "creating_candidate"
+    
+    # 4. Crear candidato
+    candidate_id = str(uuid.uuid4())
+    
+    try:
+        candidate = Candidate(
+            id=candidate_id,
+            full_name=parsed_data.get('full_name', f"Candidato - {file_name}"),
+            email=parsed_data.get('email'),
+            phone=parsed_data.get('phone'),
+            city=parsed_data.get('city'),
+            state=parsed_data.get('state'),
+            country=parsed_data.get('country', 'México'),
+            linkedin_url=parsed_data.get('linkedin_url'),
+            current_company=parsed_data.get('current_company'),
+            current_title=parsed_data.get('current_title'),
+            years_experience=parsed_data.get('years_experience'),
+            skills=parsed_data.get('skills', []),
+            languages=parsed_data.get('languages', []),
+            previous_companies=[PreviousCompany(**pc) for pc in parsed_data.get('previous_companies', []) if isinstance(pc, dict)],
+            source="CV Upload (Batch)",
+            created_by=user_id
+        )
+    except Exception as e:
+        result["status"] = "failed"
+        result["errors"].append({
+            "type": "validation_error",
+            "stage": "creating_candidate",
+            "message": str(e),
+            "recoverable": True
+        })
+        return result
+    
+    job.progress = 60
+    job.current_stage = "ai_classification"
+    
+    # 5. Clasificación AI
+    try:
+        if extracted_text and len(extracted_text.strip()) >= 50:
+            classification = await atlas_service.classify_candidate(parsed_data, extracted_text)
+            
+            candidate.industry = classification.get('industry')
+            candidate.functional_area = classification.get('functional_area')
+            candidate.seniority = classification.get('seniority')
+            candidate.tags = classification.get('suggested_tags', [])
+            
+            candidate.ai_classification = AIClassification(
+                industry=classification.get('industry'),
+                functional_area=classification.get('functional_area'),
+                seniority=classification.get('seniority'),
+                confidence_score=classification.get('confidence_score', 0.0),
+                suggested_tags=classification.get('suggested_tags', [])
+            )
+    except Exception as e:
+        result["errors"].append({
+            "type": "ai_classification_failed",
+            "stage": "ai_classification",
+            "message": str(e),
+            "recoverable": True
+        })
+    
+    # Generar resumen
+    try:
+        if extracted_text and len(extracted_text.strip()) >= 50:
+            summary = await atlas_service.generate_summary(parsed_data, extracted_text)
+            candidate.ai_summary = summary
+    except Exception as e:
+        result["warnings"].append("Resumen AI no generado")
+    
+    job.progress = 75
+    job.current_stage = "storage"
+    
+    # 6. Almacenar archivo
+    try:
+        storage_result = storage_service.upload_resume(
+            file_data,
+            candidate_id,
+            file_name,
+            content_type
+        )
+        
+        resume_file = ResumeFile(
+            file_name=file_name,
+            file_path=storage_result['storage_path'],
+            file_type=storage_result['content_type'],
+            upload_date=datetime.now(timezone.utc)
+        )
+        candidate.resume_files = [resume_file]
+    except Exception as e:
+        result["warnings"].append("Archivo guardado localmente (fallback)")
+        
+        upload_path = UPLOAD_DIR / candidate_id
+        upload_path.mkdir(parents=True, exist_ok=True)
+        file_path = upload_path / file_name
+        with open(file_path, "wb") as f:
+            f.write(file_data)
+        
+        resume_file = ResumeFile(
+            file_name=file_name,
+            file_path=str(file_path.relative_to(ROOT_DIR)),
+            file_type=Path(file_name).suffix,
+            upload_date=datetime.now(timezone.utc)
+        )
+        candidate.resume_files = [resume_file]
+    
+    job.progress = 85
+    job.current_stage = "embedding_generation"
+    
+    # 7. Embeddings (opcional)
+    try:
+        embedding = await embedding_service.generate_candidate_embedding(candidate.model_dump())
+        if embedding:
+            candidate.embedding = embedding
+            candidate.embedding_updated_at = datetime.now(timezone.utc)
+    except Exception as e:
+        result["warnings"].append("Búsqueda semántica no disponible")
+    
+    # Normalizar campos
+    candidate.full_name_normalized = normalize_for_search(candidate.full_name)
+    if candidate.current_company:
+        candidate.company_normalized = normalize_for_search(candidate.current_company)
+    if candidate.current_title:
+        candidate.title_normalized = normalize_for_search(candidate.current_title)
+    
+    job.progress = 95
+    job.current_stage = "database_save"
+    
+    # 8. Guardar en DB
+    try:
+        candidate_doc = candidate.model_dump()
+        candidate_doc['created_at'] = candidate_doc['created_at'].isoformat()
+        candidate_doc['updated_at'] = candidate_doc['updated_at'].isoformat()
+        
+        for note in candidate_doc.get('notes', []):
+            note['created_at'] = note['created_at'].isoformat()
+        
+        if candidate_doc.get('ai_classification'):
+            candidate_doc['ai_classification']['classified_at'] = candidate_doc['ai_classification']['classified_at'].isoformat()
+        
+        if candidate_doc.get('embedding_updated_at'):
+            candidate_doc['embedding_updated_at'] = candidate_doc['embedding_updated_at'].isoformat()
+        
+        for resume in candidate_doc.get('resume_files', []):
+            resume['upload_date'] = resume['upload_date'].isoformat()
+        
+        await db.candidates.insert_one(candidate_doc)
+        
+        if duplicates:
+            await DuplicateSuggestion.create_suggestion(
+                db, candidate_id, duplicates, user_id
+            )
+    except Exception as e:
+        result["status"] = "failed"
+        result["errors"].append({
+            "type": "database_save_failed",
+            "stage": "database_save",
+            "message": str(e),
+            "recoverable": True
+        })
+        return result
+    
+    job.progress = 100
+    job.current_stage = "completed"
+    
+    # Determinar estado final
+    result["candidate_id"] = candidate_id
+    if len(result["errors"]) == 0:
+        result["status"] = "success"
+    else:
+        result["status"] = "partial_success"
+    
+    return result
+
+
+@api_router.post("/candidates/upload-batch")
+async def upload_batch(
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Upload múltiples CVs para procesamiento en background.
+    
+    Retorna inmediatamente con un batch_id para monitorear el progreso.
+    Los archivos se procesan en paralelo en background (máx 3 simultáneos).
+    """
+    if len(files) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se enviaron archivos"
+        )
+    
+    if len(files) > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Máximo 50 archivos por lote"
+        )
+    
+    # Inicializar processor si es necesario
+    await background_processor.initialize()
+    await background_processor.start_workers(process_cv_job)
+    
+    # Crear batch
+    batch = background_processor.create_batch(current_user.id, len(files))
+    
+    # Agregar cada archivo a la cola
+    jobs_added = []
+    for file in files:
+        file_ext = file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+        
+        # Solo PDF y DOCX soportados
+        if file_ext not in ['pdf', 'docx']:
+            reason = "Formato no soportado. Solo se permiten PDF y DOCX."
+            if file_ext == 'doc':
+                reason = "Formato DOC (Word antiguo) no soportado. Convierte a PDF o DOCX."
+            jobs_added.append({
+                "file_name": file.filename,
+                "status": "rejected",
+                "reason": reason
+            })
+            continue
+        
+        file_data = await file.read()
+        
+        if len(file_data) == 0:
+            jobs_added.append({
+                "file_name": file.filename,
+                "status": "rejected",
+                "reason": "Archivo vacío"
+            })
+            continue
+        
+        if len(file_data) > 10 * 1024 * 1024:
+            jobs_added.append({
+                "file_name": file.filename,
+                "status": "rejected",
+                "reason": "Archivo muy grande (máx 10MB)"
+            })
+            continue
+        
+        job = await background_processor.add_job(
+            batch_id=batch.batch_id,
+            file_name=file.filename,
+            file_data=file_data,
+            content_type=file.content_type,
+            user_id=current_user.id
+        )
+        
+        jobs_added.append({
+            "file_name": file.filename,
+            "job_id": job.job_id,
+            "status": "queued"
+        })
+    
+    return {
+        "batch_id": batch.batch_id,
+        "total_files": len(files),
+        "queued": len([j for j in jobs_added if j.get("status") == "queued"]),
+        "rejected": len([j for j in jobs_added if j.get("status") == "rejected"]),
+        "jobs": jobs_added,
+        "message": "Archivos en cola para procesamiento. Use GET /api/candidates/batch/{batch_id} para monitorear."
     }
 
 

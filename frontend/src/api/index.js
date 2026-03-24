@@ -23,6 +23,20 @@ export const candidatesAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
+  // Batch upload (procesamiento en background)
+  uploadBatch: (files) => {
+    const formData = new FormData();
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    return axios.post(`${API_BASE}/candidates/upload-batch`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  getBatchStatus: (batchId) => axios.get(`${API_BASE}/candidates/batch/${batchId}`),
+  getJobStatus: (jobId) => axios.get(`${API_BASE}/candidates/job/${jobId}`),
+  retryJob: (jobId) => axios.post(`${API_BASE}/candidates/job/${jobId}/retry`),
+  getQueueStats: () => axios.get(`${API_BASE}/candidates/queue-stats`),
   getDuplicates: (id) => axios.get(`${API_BASE}/candidates/${id}/duplicates`),
   dismissDuplicate: (candidateId, suggestionId) => 
     axios.post(`${API_BASE}/candidates/${candidateId}/dismiss-duplicate/${suggestionId}`)
