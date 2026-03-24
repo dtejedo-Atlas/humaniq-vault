@@ -1,0 +1,97 @@
+{
+  "summary": "Scoring v2.1 testing completed successfully. All 16 backend tests passed. The multi-dimensional scoring system is working correctly with: Functional area (40%), Seniority (20%), Industry (15%), Semantic (13%), Trajectory (5%), Keywords (5%), Stability (2%). HR Executive ranks first (Score 82) for HR Manager query. CEOs/GMs are correctly excluded from functional searches due to GM penalty system.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_scoring_v21.py",
+    "/app/test_reports/pytest/pytest_scoring_v21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Code handles None values for functional_area in some places but not consistently - recommend adding null checks throughout",
+    "Supply Chain search returns Sales candidates first when no Supply Chain candidates exist - this is expected behavior but could be improved with better test data"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scoring_v21.py"
+  ],
+  "success_rate": {
+    "backend": "100% (16/16 tests passed)",
+    "frontend": "100% (Search UI working correctly)"
+  },
+  "test_credentials": {
+    "email": "test_utf8@atlas.com",
+    "password": "test123456"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Scoring v2.1 verified working. Key validations: 1) HR Executive ranks first for HR Manager query with Score 82. 2) CEOs/GMs are excluded from functional searches (not appearing in results). 3) Match breakdown shows all 7 components (funcional, seniority, industria, semantico, keywords, trayectoria, estabilidad) plus boosts/penalties. 4) Query parser correctly detects area='human_resources' from 'HR Manager'.",
+  "test_results_detail": {
+    "scoring_v21_tests": {
+      "status": "PASS",
+      "tests_run": 16,
+      "tests_passed": 16,
+      "key_validations": {
+        "hr_manager_search": {
+          "first_result": "Rodrigo Ochoa Martinez Parente (HR Executive)",
+          "score": 82,
+          "functional_area": "human_resources",
+          "exp_level": "principal",
+          "status": "PASS"
+        },
+        "ceo_exclusion": {
+          "gm_candidates_in_results": 0,
+          "reason": "GM penalty applied - CEOs excluded due to negative scores",
+          "status": "PASS"
+        },
+        "match_breakdown_components": {
+          "funcional": 100,
+          "seniority": 75,
+          "industria": 70,
+          "semantico": 0,
+          "keywords": 0,
+          "trayectoria": 65,
+          "estabilidad": {"score": 85, "warning": "none"},
+          "boosts": 12,
+          "boost_reasons": ["match_exacto_funcion"],
+          "penalties": 0,
+          "status": "PASS"
+        },
+        "marketing_manager_search": {
+          "first_result_area": "marketing",
+          "sales_rank_lower": true,
+          "status": "PASS"
+        },
+        "operations_manager_search": {
+          "first_result_area": "operations",
+          "status": "PASS"
+        },
+        "finance_manager_search": {
+          "first_result_area": "finance",
+          "status": "PASS"
+        }
+      }
+    },
+    "frontend_tests": {
+      "search_page": {
+        "status": "PASS",
+        "description": "Search page loads correctly, displays results with match scores"
+      },
+      "match_score_display": {
+        "status": "PASS",
+        "description": "Match scores displayed as badges (82%, 53%, 49%, etc.)"
+      },
+      "semantic_search_toggle": {
+        "status": "PASS",
+        "description": "Semantic search toggle visible and functional"
+      }
+    }
+  }
+}
