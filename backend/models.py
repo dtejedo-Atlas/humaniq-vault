@@ -114,6 +114,12 @@ class Candidate(BaseModel):
     ai_classification: Optional[AIClassification] = None
     embedding: Optional[List[float]] = None
     embedding_updated_at: Optional[datetime] = None
+    
+    # Campos normalizados SOLO para búsqueda (sin acentos, lowercase)
+    full_name_normalized: Optional[str] = None
+    company_normalized: Optional[str] = None
+    title_normalized: Optional[str] = None
+    
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[str] = None

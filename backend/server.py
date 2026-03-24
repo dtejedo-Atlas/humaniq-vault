@@ -26,6 +26,7 @@ from storage_service import storage_service, init_storage
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
+from text_utils import normalize_for_search
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -208,7 +209,15 @@ async def get_candidates(
     if seniority:
         query['seniority'] = seniority
     if search:
+        # Normalizar query para búsqueda sin acentos
+        search_normalized = normalize_for_search(search)
+        
         query['$or'] = [
+            # Buscar en campos normalizados (sin acentos)
+            {'full_name_normalized': {'$regex': search_normalized, '$options': 'i'}},
+            {'company_normalized': {'$regex': search_normalized, '$options': 'i'}},
+            {'title_normalized': {'$regex': search_normalized, '$options': 'i'}},
+            # También buscar en originales (por si query tiene acentos correctos)
             {'full_name': {'$regex': search, '$options': 'i'}},
             {'email': {'$regex': search, '$options': 'i'}},
             {'current_company': {'$regex': search, '$options': 'i'}},
@@ -512,6 +521,13 @@ async def upload_resume(
             candidate.embedding_updated_at = datetime.now(timezone.utc)
         except Exception as e:
             logger.error(f"Error generating embedding: {str(e)}")
+        
+        # Generate normalized fields for search (conservar originales intactos)
+        candidate.full_name_normalized = normalize_for_search(candidate.full_name)
+        if candidate.current_company:
+            candidate.company_normalized = normalize_for_search(candidate.current_company)
+        if candidate.current_title:
+            candidate.title_normalized = normalize_for_search(candidate.current_title)
         
         # Save candidate
         candidate_doc = candidate.model_dump()

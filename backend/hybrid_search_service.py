@@ -56,12 +56,22 @@ class HybridSearchService:
         return query
     
     async def _keyword_search(self, query: str, filters: dict, limit: int = 100) -> List[dict]:
-        """Keyword-based search using regex"""
+        """Keyword-based search using regex with accent normalization"""
+        from text_utils import normalize_for_search
+        
         mongo_query = self._build_mongo_query(filters)
         
         # Add text search conditions
         if query:
+            # Normalizar query para búsqueda sin acentos
+            query_normalized = normalize_for_search(query)
+            
             mongo_query['$or'] = [
+                # Buscar en campos normalizados (captura búsquedas sin acentos)
+                {'full_name_normalized': {'$regex': query_normalized, '$options': 'i'}},
+                {'company_normalized': {'$regex': query_normalized, '$options': 'i'}},
+                {'title_normalized': {'$regex': query_normalized, '$options': 'i'}},
+                # También buscar en originales (por si query tiene acentos)
                 {'full_name': {'$regex': query, '$options': 'i'}},
                 {'email': {'$regex': query, '$options': 'i'}},
                 {'current_company': {'$regex': query, '$options': 'i'}},

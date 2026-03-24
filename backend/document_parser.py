@@ -2,6 +2,7 @@ import pdfplumber
 from docx import Document
 from pathlib import Path
 import io
+from text_utils import clean_text_encoding
 
 class DocumentParser:
     @staticmethod
@@ -12,6 +13,9 @@ class DocumentParser:
                 text = ""
                 for page in pdf.pages:
                     text += page.extract_text() or ""
+                
+                # Limpiar encoding solo si hay corrupción evidente
+                text = clean_text_encoding(text)
                 return text.strip()
         except Exception as e:
             raise Exception(f"Error extrayendo texto de PDF: {str(e)}")
@@ -22,6 +26,9 @@ class DocumentParser:
         try:
             doc = Document(file_path)
             text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            
+            # Limpiar encoding solo si hay corrupción evidente
+            text = clean_text_encoding(text)
             return text.strip()
         except Exception as e:
             raise Exception(f"Error extrayendo texto de DOCX: {str(e)}")
@@ -34,6 +41,9 @@ class DocumentParser:
                 text = ""
                 for page in pdf.pages:
                     text += page.extract_text() or ""
+                
+                # Limpiar encoding solo si hay corrupción evidente
+                text = clean_text_encoding(text)
                 return text.strip()
         except Exception as e:
             raise Exception(f"Error extrayendo texto de PDF: {str(e)}")
@@ -44,6 +54,9 @@ class DocumentParser:
         try:
             doc = Document(io.BytesIO(file_bytes))
             text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            
+            # Limpiar encoding solo si hay corrupción evidente
+            text = clean_text_encoding(text)
             return text.strip()
         except Exception as e:
             raise Exception(f"Error extrayendo texto de DOCX: {str(e)}")
