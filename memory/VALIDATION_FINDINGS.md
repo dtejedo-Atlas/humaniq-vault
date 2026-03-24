@@ -1,10 +1,31 @@
 # Atlas Talent Vault - Hallazgos de Validación
 
-## Fecha: 24-Mar-2026
+## Fecha: 24-Mar-2026 (Actualizado: 25-Mar-2026)
 
 ---
 
-## Hallazgo #1: Falso Positivo en Búsqueda HR
+## Ronda de Validación Completa
+
+### Hallazgos Detallados
+
+| Query | Resultados | Problema |
+|-------|------------|----------|
+| `HR Manager manufactura` | 2 CEOs + 1 COO | Perfiles de dirección general en vez de HR |
+| `Finance Manager retail` | 0 resultados | Posible falso negativo |
+| `Operations Manager industrial` | COO + Director General | Mezclados con experiencia operativa |
+| `Supply Chain Manager consumo` | 1 COO correcto + 1 CEO/DG sin SC | Mezcla correcto con incorrecto |
+| `Marketing Manager B2B` | 2 marketing + 2 ventas | Aceptable pero ventas rankea muy alto |
+
+### Conclusiones Clave
+
+1. **Sobreponderación de seniority alto** - CEOs/DGs aparecen en búsquedas funcionales específicas
+2. **Falta peso a área funcional principal** - General management rankea sobre especialistas
+3. **Mezcla de funciones cercanas** - Marketing/Ventas se confunden (parcialmente aceptable)
+4. **Industria y área funcional deben pesar más que jerarquía general**
+
+---
+
+## Hallazgo Original: Falso Positivo en Búsqueda HR
 
 ### Query
 ```

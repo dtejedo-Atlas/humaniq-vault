@@ -157,11 +157,12 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. **🔴 Afinar relevancia de búsqueda** - Ver `/app/memory/VALIDATION_FINDINGS.md`
-   - Hallazgo: "HR manager manufactura" → Director General (falso positivo)
-   - Diagnóstico pendiente: revisar scoring, área funcional, embeddings
-2. 🟡 Continuar validación con queries reales de negocio
-3. 🔵 Fase 2: Motor de matching candidato-vacante (después de estabilizar búsqueda)
+1. **🔴 PRIORIDAD: Implementar Scoring v2** - Ver `/app/memory/SCORING_PROPOSAL_V2.md`
+   - Validación completada con 5 queries reales
+   - Propuesta de scoring multi-dimensional lista para revisión
+   - Pendiente: Aprobación de pesos y penalties antes de implementar
+2. 🟡 Continuar validación post-implementación
+3. 🔵 Fase 2: Motor de matching candidato-vacante (basado en Scoring v2)
 
 ## Arquitectura de Búsqueda (Definitiva)
 
