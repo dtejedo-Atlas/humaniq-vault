@@ -41,16 +41,23 @@ const SearchPage = () => {
         use_semantic: useSemanticSearch,
         ...filters
       });
-      setResults(response.data);
       
-      if (response.data.length === 0) {
+      // El backend devuelve { results: [], total, search_metadata }
+      const data = response.data;
+      const candidates = data.results || data || [];
+      const total = data.total ?? candidates.length;
+      
+      setResults(candidates);
+      
+      if (total === 0) {
         toast.info('No se encontraron resultados');
       } else {
-        toast.success(`${response.data.length} candidatos encontrados`);
+        toast.success(`${total} candidatos encontrados`);
       }
     } catch (error) {
       console.error('Error searching:', error);
       toast.error('Error en la búsqueda');
+      setResults([]);
     } finally {
       setLoading(false);
     }

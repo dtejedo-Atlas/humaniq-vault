@@ -28,7 +28,10 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ### Fase 1.5 (Validación) - EN PROGRESO
 - [x] Taxonomía bilingüe con keys canónicas (24-Mar-2026)
 - [x] Sistema de errores detallados para uploads (24-Mar-2026)
-- [ ] Validación controlada con 50-100 CVs reales
+- [x] Embeddings habilitados con OPENAI_API_KEY (24-Mar-2026)
+- [x] Búsqueda semántica operativa - 27/27 candidatos (24-Mar-2026)
+- [x] Procesamiento batch paralelo con 3 workers (24-Mar-2026)
+- [ ] **EN CURSO:** Validación controlada con CVs reales
 - [ ] Ajustes según feedback de validación
 
 ### Fase 2 (Planificada)
