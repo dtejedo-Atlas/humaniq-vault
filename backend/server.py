@@ -389,100 +389,255 @@ async def add_candidate_note(
 
 # ============= RESUME UPLOAD & PARSING ROUTES =============
 
+from error_handling import (
+    ProcessingResult, ProcessingStage, ErrorType, 
+    detect_error_type, BatchProcessingResult
+)
+import time
+
 @api_router.post("/candidates/upload-resume")
 async def upload_resume(
     file: UploadFile = File(...),
     candidate_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload resume and optionally create/link candidate with duplicate detection"""
+    """
+    Upload resume and optionally create/link candidate with duplicate detection.
+    Returns detailed error information for each processing stage.
+    """
+    start_time = time.time()
     
-    # Validate file type
-    if not file.filename.lower().endswith(('.pdf', '.docx', '.doc')):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se permiten archivos PDF y DOCX"
+    # Inicializar resultado de procesamiento
+    result = ProcessingResult(
+        file_name=file.filename,
+        status="processing",
+        stage_reached=ProcessingStage.UPLOAD
+    )
+    
+    warnings = []
+    
+    # ===== ETAPA 1: VALIDACIÓN DE ARCHIVO =====
+    file_ext = file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+    
+    if file_ext not in ['pdf', 'docx', 'doc']:
+        result.status = "failed"
+        result.add_error(
+            ErrorType.UNSUPPORTED_FORMAT,
+            ProcessingStage.UPLOAD,
+            f"Extensión recibida: .{file_ext}. Solo se permiten PDF, DOCX y DOC.",
+            recoverable=False
         )
+        result.processing_time_ms = int((time.time() - start_time) * 1000)
+        return result.to_response()
     
-    # Read file data
-    file_data = await file.read()
+    # Leer datos del archivo
+    try:
+        file_data = await file.read()
+        
+        if len(file_data) == 0:
+            result.status = "failed"
+            result.add_error(
+                ErrorType.FILE_EMPTY,
+                ProcessingStage.UPLOAD,
+                "El archivo tiene 0 bytes",
+                recoverable=False
+            )
+            result.processing_time_ms = int((time.time() - start_time) * 1000)
+            return result.to_response()
+        
+        # Verificar tamaño máximo (10MB)
+        if len(file_data) > 10 * 1024 * 1024:
+            result.status = "failed"
+            result.add_error(
+                ErrorType.FILE_TOO_LARGE,
+                ProcessingStage.UPLOAD,
+                f"Tamaño: {len(file_data) / 1024 / 1024:.1f}MB. Máximo: 10MB",
+                recoverable=False
+            )
+            result.processing_time_ms = int((time.time() - start_time) * 1000)
+            return result.to_response()
+            
+    except Exception as e:
+        result.status = "failed"
+        result.add_error(
+            ErrorType.FILE_CORRUPTED,
+            ProcessingStage.UPLOAD,
+            str(e),
+            recoverable=False
+        )
+        result.processing_time_ms = int((time.time() - start_time) * 1000)
+        return result.to_response()
     
-    # Extract text from document
+    result.stage_reached = ProcessingStage.TEXT_EXTRACTION
+    
+    # ===== ETAPA 2: EXTRACCIÓN DE TEXTO =====
+    extracted_text = ""
     try:
         extracted_text = DocumentParser.extract_text_from_bytes(file_data, file.content_type)
+        
+        if not extracted_text or len(extracted_text.strip()) < 50:
+            result.add_error(
+                ErrorType.PDF_SCANNED_NO_OCR,
+                ProcessingStage.TEXT_EXTRACTION,
+                f"Texto extraído: {len(extracted_text)} caracteres. Mínimo esperado: 50",
+                recoverable=True
+            )
+            # Continuar con advertencia
+            warnings.append("Poco texto extraído - posible PDF escaneado")
+            
     except Exception as e:
-        logger.error(f"Error extracting text: {str(e)}")
-        extracted_text = ""
+        error_type = detect_error_type(e, ProcessingStage.TEXT_EXTRACTION)
+        result.add_error(
+            error_type,
+            ProcessingStage.TEXT_EXTRACTION,
+            str(e),
+            recoverable=True
+        )
+        # Continuar pero marcar como problema
+        warnings.append(f"Error de extracción: {str(e)[:100]}")
     
-    # Parse resume with Atlas AI
+    result.stage_reached = ProcessingStage.AI_PARSING
+    
+    # ===== ETAPA 3: PARSING CON AI =====
+    parsed_data = {}
     try:
-        parsed_data = await atlas_service.parse_resume(extracted_text)
+        if extracted_text and len(extracted_text.strip()) >= 20:
+            parsed_data = await atlas_service.parse_resume(extracted_text)
+        else:
+            parsed_data = {"full_name": None, "error": "Texto insuficiente para parsing"}
+            
     except Exception as e:
         logger.error(f"Error parsing resume with Atlas: {str(e)}")
-        parsed_data = {"full_name": "Desconocido", "error": str(e)}
+        error_type = detect_error_type(e, ProcessingStage.AI_PARSING)
+        result.add_error(
+            error_type,
+            ProcessingStage.AI_PARSING,
+            str(e),
+            recoverable=True
+        )
+        parsed_data = {"full_name": None, "error": str(e)}
     
-    # DUPLICATE DETECTION
-    duplicates = await duplicate_detector.detect_duplicates(parsed_data)
+    # Validar que tenemos al menos un nombre
+    full_name = parsed_data.get('full_name')
+    if not full_name or full_name == "Desconocido" or not isinstance(full_name, str):
+        # Intentar usar el nombre del archivo como fallback
+        filename_without_ext = file.filename.rsplit('.', 1)[0] if '.' in file.filename else file.filename
+        # Limpiar el nombre del archivo (quitar guiones, underscores, etc.)
+        fallback_name = filename_without_ext.replace('_', ' ').replace('-', ' ').title()
+        
+        if len(fallback_name) > 3 and not any(c.isdigit() for c in fallback_name):
+            parsed_data['full_name'] = fallback_name
+            warnings.append(f"Nombre extraído del archivo: {fallback_name}")
+        else:
+            parsed_data['full_name'] = f"Candidato - {file.filename}"
+            result.add_error(
+                ErrorType.AI_PARSING_FAILED,
+                ProcessingStage.AI_PARSING,
+                "No se pudo extraer el nombre del candidato",
+                recoverable=True
+            )
     
-    # If high confidence duplicate found (>= 90%), return for review
+    result.extracted_name = parsed_data.get('full_name')
+    result.extracted_email = parsed_data.get('email')
+    
+    result.stage_reached = ProcessingStage.DUPLICATE_DETECTION
+    
+    # ===== ETAPA 4: DETECCIÓN DE DUPLICADOS =====
+    duplicates = []
+    try:
+        duplicates = await duplicate_detector.detect_duplicates(parsed_data)
+    except Exception as e:
+        logger.error(f"Error detecting duplicates: {str(e)}")
+        warnings.append("Error en detección de duplicados")
+    
+    # Si hay duplicado de alta confianza, retornar para revisión
     if duplicates and max(d['confidence'] for d in duplicates) >= 0.90:
-        return {
-            "status": "duplicate_detected",
-            "duplicates": duplicates,
-            "parsed_data": parsed_data,
-            "message": "Se detectaron posibles duplicados. Por favor revisa antes de continuar."
-        }
+        result.status = "duplicate_detected"
+        result.stage_reached = ProcessingStage.DUPLICATE_DETECTION
+        result.processing_time_ms = int((time.time() - start_time) * 1000)
+        
+        response = result.to_response()
+        response["duplicates"] = duplicates
+        response["parsed_data"] = parsed_data
+        response["message"] = "Se detectaron posibles duplicados. Por favor revisa antes de continuar."
+        return response
     
-    # If no candidate_id provided, create new candidate
+    # ===== ETAPA 5: CREAR/ACTUALIZAR CANDIDATO =====
     if not candidate_id:
         candidate_id = str(uuid.uuid4())
+        result.candidate_id = candidate_id
+        result.stage_reached = ProcessingStage.AI_CLASSIFICATION
         
-        candidate = Candidate(
-            id=candidate_id,
-            full_name=parsed_data.get('full_name', 'Desconocido'),
-            email=parsed_data.get('email'),
-            phone=parsed_data.get('phone'),
-            city=parsed_data.get('city'),
-            state=parsed_data.get('state'),
-            country=parsed_data.get('country', 'México'),
-            linkedin_url=parsed_data.get('linkedin_url'),
-            current_company=parsed_data.get('current_company'),
-            current_title=parsed_data.get('current_title'),
-            years_experience=parsed_data.get('years_experience'),
-            skills=parsed_data.get('skills', []),
-            languages=parsed_data.get('languages', []),
-            previous_companies=[PreviousCompany(**pc) for pc in parsed_data.get('previous_companies', [])],
-            source="CV Upload",
-            created_by=current_user.id
-        )
-        
-        # Classify with Atlas
+        # Crear objeto candidato con datos parseados
         try:
-            classification = await atlas_service.classify_candidate(parsed_data, extracted_text)
-            
-            candidate.industry = classification.get('industry')
-            candidate.functional_area = classification.get('functional_area')
-            candidate.seniority = classification.get('seniority')
-            candidate.tags = classification.get('suggested_tags', [])
-            
-            candidate.ai_classification = AIClassification(
-                industry=classification.get('industry'),
-                functional_area=classification.get('functional_area'),
-                seniority=classification.get('seniority'),
-                confidence_score=classification.get('confidence_score', 0.0),
-                suggested_tags=classification.get('suggested_tags', [])
+            candidate = Candidate(
+                id=candidate_id,
+                full_name=parsed_data.get('full_name', f"Candidato - {file.filename}"),
+                email=parsed_data.get('email'),
+                phone=parsed_data.get('phone'),
+                city=parsed_data.get('city'),
+                state=parsed_data.get('state'),
+                country=parsed_data.get('country', 'México'),
+                linkedin_url=parsed_data.get('linkedin_url'),
+                current_company=parsed_data.get('current_company'),
+                current_title=parsed_data.get('current_title'),
+                years_experience=parsed_data.get('years_experience'),
+                skills=parsed_data.get('skills', []),
+                languages=parsed_data.get('languages', []),
+                previous_companies=[PreviousCompany(**pc) for pc in parsed_data.get('previous_companies', []) if isinstance(pc, dict)],
+                source="CV Upload",
+                created_by=current_user.id
             )
         except Exception as e:
-            logger.error(f"Error classifying candidate: {str(e)}")
+            result.status = "failed"
+            result.add_error(
+                ErrorType.VALIDATION_ERROR,
+                ProcessingStage.DATABASE_SAVE,
+                f"Error creando candidato: {str(e)}",
+                recoverable=True
+            )
+            result.processing_time_ms = int((time.time() - start_time) * 1000)
+            return result.to_response()
         
-        # Generate summary with Atlas
+        # ===== ETAPA 6: CLASIFICACIÓN CON AI =====
         try:
-            summary = await atlas_service.generate_summary(parsed_data, extracted_text)
-            candidate.ai_summary = summary
+            if extracted_text and len(extracted_text.strip()) >= 50:
+                classification = await atlas_service.classify_candidate(parsed_data, extracted_text)
+                
+                candidate.industry = classification.get('industry')
+                candidate.functional_area = classification.get('functional_area')
+                candidate.seniority = classification.get('seniority')
+                candidate.tags = classification.get('suggested_tags', [])
+                
+                candidate.ai_classification = AIClassification(
+                    industry=classification.get('industry'),
+                    functional_area=classification.get('functional_area'),
+                    seniority=classification.get('seniority'),
+                    confidence_score=classification.get('confidence_score', 0.0),
+                    suggested_tags=classification.get('suggested_tags', [])
+                )
+        except Exception as e:
+            logger.error(f"Error classifying candidate: {str(e)}")
+            result.add_error(
+                ErrorType.AI_CLASSIFICATION_FAILED,
+                ProcessingStage.AI_CLASSIFICATION,
+                str(e),
+                recoverable=True
+            )
+            warnings.append("Clasificación AI no disponible")
+        
+        # Generar resumen con Atlas
+        try:
+            if extracted_text and len(extracted_text.strip()) >= 50:
+                summary = await atlas_service.generate_summary(parsed_data, extracted_text)
+                candidate.ai_summary = summary
         except Exception as e:
             logger.error(f"Error generating summary: {str(e)}")
+            warnings.append("Resumen AI no generado")
         
-        # Upload to Object Storage
+        result.stage_reached = ProcessingStage.STORAGE
+        
+        # ===== ETAPA 7: ALMACENAMIENTO DE ARCHIVO =====
         try:
             storage_result = storage_service.upload_resume(
                 file_data,
@@ -497,26 +652,40 @@ async def upload_resume(
                 file_type=storage_result['content_type'],
                 upload_date=datetime.now(timezone.utc)
             )
-            
             candidate.resume_files = [resume_file]
+            result.file_id = storage_result.get('file_id')
+            
         except Exception as e:
             logger.error(f"Error uploading to storage: {str(e)}")
-            # Fallback to local storage
-            upload_path = UPLOAD_DIR / candidate_id
-            upload_path.mkdir(parents=True, exist_ok=True)
-            file_path = upload_path / file.filename
-            with open(file_path, "wb") as f:
-                f.write(file_data)
-            
-            resume_file = ResumeFile(
-                file_name=file.filename,
-                file_path=str(file_path.relative_to(ROOT_DIR)),
-                file_type=Path(file.filename).suffix,
-                upload_date=datetime.now(timezone.utc)
+            result.add_error(
+                ErrorType.STORAGE_UPLOAD_FAILED,
+                ProcessingStage.STORAGE,
+                str(e),
+                recoverable=True
             )
-            candidate.resume_files = [resume_file]
+            
+            # Fallback a almacenamiento local
+            try:
+                upload_path = UPLOAD_DIR / candidate_id
+                upload_path.mkdir(parents=True, exist_ok=True)
+                file_path = upload_path / file.filename
+                with open(file_path, "wb") as f:
+                    f.write(file_data)
+                
+                resume_file = ResumeFile(
+                    file_name=file.filename,
+                    file_path=str(file_path.relative_to(ROOT_DIR)),
+                    file_type=Path(file.filename).suffix,
+                    upload_date=datetime.now(timezone.utc)
+                )
+                candidate.resume_files = [resume_file]
+                warnings.append("Archivo guardado localmente (fallback)")
+            except Exception as local_e:
+                logger.error(f"Error saving locally: {str(local_e)}")
         
-        # Generate embedding
+        result.stage_reached = ProcessingStage.EMBEDDING_GENERATION
+        
+        # ===== ETAPA 8: GENERACIÓN DE EMBEDDINGS =====
         try:
             candidate_dict = candidate.model_dump()
             embedding = await embedding_service.generate_candidate_embedding(candidate_dict)
@@ -524,41 +693,66 @@ async def upload_resume(
             candidate.embedding_updated_at = datetime.now(timezone.utc)
         except Exception as e:
             logger.error(f"Error generating embedding: {str(e)}")
+            result.add_error(
+                ErrorType.EMBEDDING_API_ERROR,
+                ProcessingStage.EMBEDDING_GENERATION,
+                str(e),
+                recoverable=True
+            )
+            warnings.append("Búsqueda semántica no disponible para este candidato")
         
-        # Generate normalized fields for search (conservar originales intactos)
+        # Generar campos normalizados para búsqueda
         candidate.full_name_normalized = normalize_for_search(candidate.full_name)
         if candidate.current_company:
             candidate.company_normalized = normalize_for_search(candidate.current_company)
         if candidate.current_title:
             candidate.title_normalized = normalize_for_search(candidate.current_title)
         
-        # Save candidate
-        candidate_doc = candidate.model_dump()
-        candidate_doc['created_at'] = candidate_doc['created_at'].isoformat()
-        candidate_doc['updated_at'] = candidate_doc['updated_at'].isoformat()
+        result.stage_reached = ProcessingStage.DATABASE_SAVE
         
-        for note in candidate_doc.get('notes', []):
-            note['created_at'] = note['created_at'].isoformat()
-        
-        if candidate_doc.get('ai_classification'):
-            candidate_doc['ai_classification']['classified_at'] = candidate_doc['ai_classification']['classified_at'].isoformat()
-        
-        if candidate_doc.get('embedding_updated_at'):
-            candidate_doc['embedding_updated_at'] = candidate_doc['embedding_updated_at'].isoformat()
-        
-        for resume in candidate_doc.get('resume_files', []):
-            resume['upload_date'] = resume['upload_date'].isoformat()
-        
-        await db.candidates.insert_one(candidate_doc)
-        
-        # Store duplicate suggestions (if any with lower confidence)
-        if duplicates:
-            await DuplicateSuggestion.create_suggestion(
-                db, candidate_id, duplicates, current_user.id
+        # ===== ETAPA 9: GUARDAR EN BASE DE DATOS =====
+        try:
+            candidate_doc = candidate.model_dump()
+            candidate_doc['created_at'] = candidate_doc['created_at'].isoformat()
+            candidate_doc['updated_at'] = candidate_doc['updated_at'].isoformat()
+            
+            for note in candidate_doc.get('notes', []):
+                note['created_at'] = note['created_at'].isoformat()
+            
+            if candidate_doc.get('ai_classification'):
+                candidate_doc['ai_classification']['classified_at'] = candidate_doc['ai_classification']['classified_at'].isoformat()
+            
+            if candidate_doc.get('embedding_updated_at'):
+                candidate_doc['embedding_updated_at'] = candidate_doc['embedding_updated_at'].isoformat()
+            
+            for resume in candidate_doc.get('resume_files', []):
+                resume['upload_date'] = resume['upload_date'].isoformat()
+            
+            await db.candidates.insert_one(candidate_doc)
+            
+            # Guardar sugerencias de duplicados si hay
+            if duplicates:
+                await DuplicateSuggestion.create_suggestion(
+                    db, candidate_id, duplicates, current_user.id
+                )
+                
+        except Exception as e:
+            logger.error(f"Error saving to database: {str(e)}")
+            result.status = "failed"
+            result.add_error(
+                ErrorType.DATABASE_SAVE_FAILED,
+                ProcessingStage.DATABASE_SAVE,
+                str(e),
+                recoverable=True
             )
+            result.processing_time_ms = int((time.time() - start_time) * 1000)
+            return result.to_response()
     
     else:
-        # Adding resume to existing candidate
+        # Agregar CV a candidato existente
+        result.candidate_id = candidate_id
+        result.stage_reached = ProcessingStage.STORAGE
+        
         try:
             storage_result = storage_service.upload_resume(
                 file_data,
@@ -575,7 +769,7 @@ async def upload_resume(
             )
         except Exception as e:
             logger.error(f"Error uploading to storage: {str(e)}")
-            # Fallback to local
+            # Fallback local
             upload_path = UPLOAD_DIR / candidate_id
             upload_path.mkdir(parents=True, exist_ok=True)
             file_path = upload_path / file.filename
@@ -588,9 +782,12 @@ async def upload_resume(
                 file_type=Path(file.filename).suffix,
                 upload_date=datetime.now(timezone.utc)
             )
+            warnings.append("Archivo guardado localmente")
         
         resume_dict = resume_file.model_dump()
         resume_dict['upload_date'] = resume_dict['upload_date'].isoformat()
+        
+        result.stage_reached = ProcessingStage.DATABASE_SAVE
         
         await db.candidates.update_one(
             {"id": candidate_id},
@@ -600,12 +797,107 @@ async def upload_resume(
             }
         )
     
+    # ===== RESULTADO FINAL =====
+    result.stage_reached = ProcessingStage.COMPLETED
+    result.processing_time_ms = int((time.time() - start_time) * 1000)
+    
+    # Determinar estado final
+    if len(result.errors) == 0:
+        result.status = "success"
+    elif any(e.error_type in [ErrorType.DATABASE_SAVE_FAILED, ErrorType.FILE_CORRUPTED] for e in result.errors):
+        result.status = "failed"
+    else:
+        result.status = "partial_success"
+    
+    result.warnings = warnings
+    
+    response = result.to_response()
+    response["parsed_data"] = parsed_data
+    response["has_low_confidence_duplicates"] = len(duplicates) > 0 and max(d['confidence'] for d in duplicates) < 0.90 if duplicates else False
+    
+    return response
+
+
+@api_router.post("/candidates/retry-processing/{candidate_id}")
+async def retry_candidate_processing(
+    candidate_id: str,
+    reprocess_classification: bool = Query(True),
+    reprocess_embedding: bool = Query(True),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reintentar procesamiento de un candidato que tuvo errores.
+    Permite reprocesar clasificación y/o embeddings.
+    """
+    candidate_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    
+    if not candidate_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidato no encontrado"
+        )
+    
+    updates = {}
+    errors = []
+    warnings = []
+    
+    # Obtener texto del CV si existe
+    resume_text = ""
+    if candidate_doc.get('resume_files'):
+        first_resume = candidate_doc['resume_files'][0]
+        resume_path = ROOT_DIR / first_resume['file_path']
+        try:
+            resume_text = DocumentParser.extract_text(str(resume_path))
+        except Exception as e:
+            errors.append(f"No se pudo extraer texto del CV: {str(e)}")
+    
+    # Reprocesar clasificación
+    if reprocess_classification and resume_text:
+        try:
+            classification = await atlas_service.classify_candidate(candidate_doc, resume_text)
+            
+            updates['industry'] = classification.get('industry')
+            updates['functional_area'] = classification.get('functional_area')
+            updates['seniority'] = classification.get('seniority')
+            updates['tags'] = classification.get('suggested_tags', [])
+            
+            ai_classification = AIClassification(
+                industry=classification.get('industry'),
+                functional_area=classification.get('functional_area'),
+                seniority=classification.get('seniority'),
+                confidence_score=classification.get('confidence_score', 0.0),
+                suggested_tags=classification.get('suggested_tags', [])
+            )
+            ai_class_dict = ai_classification.model_dump()
+            ai_class_dict['classified_at'] = ai_class_dict['classified_at'].isoformat()
+            updates['ai_classification'] = ai_class_dict
+            
+        except Exception as e:
+            errors.append(f"Error en clasificación: {str(e)}")
+    
+    # Reprocesar embedding
+    if reprocess_embedding:
+        try:
+            embedding = await embedding_service.generate_candidate_embedding(candidate_doc)
+            updates['embedding'] = embedding
+            updates['embedding_updated_at'] = datetime.now(timezone.utc).isoformat()
+        except Exception as e:
+            errors.append(f"Error generando embedding: {str(e)}")
+    
+    # Aplicar actualizaciones
+    if updates:
+        updates['updated_at'] = datetime.now(timezone.utc).isoformat()
+        await db.candidates.update_one(
+            {"id": candidate_id},
+            {"$set": updates}
+        )
+    
     return {
-        "status": "success",
-        "message": "CV procesado exitosamente",
+        "status": "success" if not errors else "partial_success",
         "candidate_id": candidate_id,
-        "parsed_data": parsed_data,
-        "has_low_confidence_duplicates": len(duplicates) > 0 and max(d['confidence'] for d in duplicates) < 0.90 if duplicates else False
+        "updates_applied": list(updates.keys()),
+        "errors": errors,
+        "warnings": warnings
     }
 
 

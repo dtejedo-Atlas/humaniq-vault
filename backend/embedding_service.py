@@ -1,8 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from openai import OpenAI
-from typing import List
+from typing import List, Optional
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
@@ -12,13 +11,43 @@ load_dotenv(ROOT_DIR / '.env')
 
 logger = logging.getLogger(__name__)
 
+
 class EmbeddingService:
+    """
+    Servicio de generación de embeddings para búsqueda semántica.
+    
+    Usa la API de OpenAI para generar embeddings. 
+    Requiere una key de OpenAI válida (OPENAI_API_KEY).
+    
+    NOTA: La EMERGENT_LLM_KEY funciona para chat pero NO para embeddings directos.
+    Para embeddings, se necesita una OPENAI_API_KEY separada.
+    Si no hay key configurada, los embeddings se desactivan silenciosamente.
+    """
+    
     def __init__(self):
-        # Use EMERGENT_LLM_KEY for OpenAI embeddings
-        self.api_key = os.environ.get('EMERGENT_LLM_KEY')
-        self.client = OpenAI(api_key=self.api_key)
+        # Intentar usar OPENAI_API_KEY primero, luego EMERGENT_LLM_KEY
+        self.api_key = os.environ.get('OPENAI_API_KEY') or os.environ.get('EMERGENT_LLM_KEY')
+        self.client = None
         self.model = "text-embedding-3-small"
-        self.dimensions = 1536  # Default dimensions for text-embedding-3-small
+        self.dimensions = 1536
+        self.enabled = False
+        
+        # Solo inicializar si hay una key que NO sea emergent (ya que no funciona para embeddings)
+        openai_key = os.environ.get('OPENAI_API_KEY')
+        if openai_key:
+            try:
+                from openai import OpenAI
+                self.client = OpenAI(api_key=openai_key)
+                self.enabled = True
+                logger.info("Embedding service initialized with OpenAI API key")
+            except Exception as e:
+                logger.warning(f"Could not initialize OpenAI client: {str(e)}")
+        else:
+            logger.info(
+                "Embedding service disabled - no OPENAI_API_KEY configured. "
+                "Candidates will be saved but semantic search will not work. "
+                "To enable, add OPENAI_API_KEY to backend/.env"
+            )
     
     def _build_searchable_text(self, candidate: dict) -> str:
         """
@@ -69,12 +98,17 @@ class EmbeddingService:
         
         return " | ".join(filter(None, parts))
     
-    async def generate_embedding(self, text: str) -> List[float]:
+    async def generate_embedding(self, text: str) -> Optional[List[float]]:
         """
-        Generate embedding for a single text
+        Generate embedding for a single text.
+        Returns None if embeddings are disabled or on error.
         """
+        if not self.enabled or not self.client:
+            logger.debug("Embeddings disabled - skipping generation")
+            return None
+        
         if not text or not text.strip():
-            return [0.0] * self.dimensions
+            return None
         
         try:
             # Clean text
@@ -90,19 +124,27 @@ class EmbeddingService:
         
         except Exception as e:
             logger.error(f"Error generating embedding: {str(e)}")
-            return [0.0] * self.dimensions
+            # Don't return zeros - return None to indicate failure
+            return None
     
-    async def generate_candidate_embedding(self, candidate: dict) -> List[float]:
+    async def generate_candidate_embedding(self, candidate: dict) -> Optional[List[float]]:
         """
-        Generate embedding for a candidate profile
+        Generate embedding for a candidate profile.
+        Returns None if disabled or on error.
         """
+        if not self.enabled:
+            return None
         searchable_text = self._build_searchable_text(candidate)
         return await self.generate_embedding(searchable_text)
     
-    async def generate_batch_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def generate_batch_embeddings(self, texts: List[str]) -> List[Optional[List[float]]]:
         """
-        Generate embeddings for multiple texts in batch (more efficient)
+        Generate embeddings for multiple texts in batch (more efficient).
+        Returns list of embeddings or None for each text.
         """
+        if not self.enabled or not self.client:
+            return [None] * len(texts)
+        
         if not texts:
             return []
         
@@ -111,7 +153,7 @@ class EmbeddingService:
             cleaned_texts = [t.replace("\n", " ").strip() for t in texts if t and t.strip()]
             
             if not cleaned_texts:
-                return [[0.0] * self.dimensions] * len(texts)
+                return [None] * len(texts)
             
             # Generate embeddings in batch
             response = self.client.embeddings.create(
@@ -125,7 +167,7 @@ class EmbeddingService:
         
         except Exception as e:
             logger.error(f"Error generating batch embeddings: {str(e)}")
-            return [[0.0] * self.dimensions] * len(texts)
+            return [None] * len(texts)
     
     @staticmethod
     def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> float:

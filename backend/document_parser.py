@@ -76,9 +76,60 @@ class DocumentParser:
     @staticmethod
     def extract_text_from_bytes(file_bytes: bytes, file_type: str) -> str:
         """Extract text from bytes based on file type"""
-        if file_type.lower() == 'pdf' or file_type.lower() == 'application/pdf':
+        file_type_lower = file_type.lower()
+        
+        # PDF
+        if file_type_lower in ['pdf', 'application/pdf']:
             return DocumentParser.extract_text_from_pdf_bytes(file_bytes)
-        elif file_type.lower() in ['docx', 'doc', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
+        
+        # DOCX (Word moderno)
+        elif file_type_lower in ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
             return DocumentParser.extract_text_from_docx_bytes(file_bytes)
+        
+        # DOC (Word antiguo 97-2003) - Intentar como DOCX primero, luego textract
+        elif file_type_lower in ['doc', 'application/msword']:
+            # Primero intentar como DOCX (algunos .doc modernos funcionan)
+            try:
+                return DocumentParser.extract_text_from_docx_bytes(file_bytes)
+            except Exception:
+                # Si falla, intentar con textract o antiword
+                try:
+                    import subprocess
+                    import tempfile
+                    import os
+                    
+                    # Guardar temporalmente y usar antiword si está disponible
+                    with tempfile.NamedTemporaryFile(suffix='.doc', delete=False) as tmp:
+                        tmp.write(file_bytes)
+                        tmp_path = tmp.name
+                    
+                    try:
+                        # Intentar con antiword
+                        result = subprocess.run(
+                            ['antiword', tmp_path],
+                            capture_output=True,
+                            text=True,
+                            timeout=30
+                        )
+                        if result.returncode == 0 and result.stdout.strip():
+                            return clean_text_encoding(result.stdout.strip())
+                    except (subprocess.TimeoutExpired, FileNotFoundError):
+                        pass
+                    finally:
+                        os.unlink(tmp_path)
+                    
+                    # Si antiword no está disponible, dar mensaje claro
+                    raise Exception(
+                        "Formato DOC (Word 97-2003) detectado. "
+                        "Por favor convierte el archivo a PDF o DOCX para procesarlo."
+                    )
+                except Exception as e:
+                    if "convierte el archivo" in str(e):
+                        raise
+                    raise Exception(
+                        f"No se pudo procesar archivo DOC: {str(e)}. "
+                        "Por favor convierte a PDF o DOCX."
+                    )
+        
         else:
             raise Exception(f"Formato de archivo no soportado: {file_type}")
