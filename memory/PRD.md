@@ -157,12 +157,13 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. **🔴 PRIORIDAD: Implementar Scoring v2** - Ver `/app/memory/SCORING_PROPOSAL_V2.md`
-   - Validación completada con 5 queries reales
-   - Propuesta de scoring multi-dimensional lista para revisión
-   - Pendiente: Aprobación de pesos y penalties antes de implementar
-2. 🟡 Continuar validación post-implementación
-3. 🔵 Fase 2: Motor de matching candidato-vacante (basado en Scoring v2)
+1. **🔴 IMPLEMENTAR: Scoring v2.1** - Ver `/app/memory/SCORING_V2_FINAL.md`
+   - Modelo aprobado con ajustes del usuario
+   - Pesos: Funcional(40%), Seniority(20%), Industria(15%), Semántico(10%), Keywords(8%), Trayectoria(5%), Estabilidad(2%)
+   - Threshold mínimo: 45
+   - GM penalty condicional basado en evidencia funcional
+2. 🟡 Validar con queries reales post-implementación
+3. 🔵 Fase 2: Motor de matching candidato-vacante (basado en Scoring v2.1)
 
 ## Arquitectura de Búsqueda (Definitiva)
 
