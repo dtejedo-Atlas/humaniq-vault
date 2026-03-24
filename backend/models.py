@@ -112,6 +112,8 @@ class Candidate(BaseModel):
     source: Optional[str] = None
     ai_summary: Optional[str] = None
     ai_classification: Optional[AIClassification] = None
+    embedding: Optional[List[float]] = None
+    embedding_updated_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[str] = None
@@ -213,3 +215,37 @@ class ActivityLog(BaseModel):
     entity_id: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     details: Optional[Dict[str, Any]] = None
+
+class DuplicateSuggestionModel(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    new_candidate_id: str
+    potential_duplicate_id: str
+    match_type: str  # email, linkedin, phone, name_similarity
+    confidence: float
+    reason: str
+    status: str = "pending"  # pending, merged, dismissed
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    created_by: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SavedSearch(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    user_id: str
+    name: str
+    query: Optional[str] = None
+    filters: Dict[str, Any]
+    use_semantic: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class IndustryCreate(BaseModel):
+    name_es: str
+    name_en: str
+    description: Optional[str] = None
+
+class FunctionalAreaCreate(BaseModel):
+    name_es: str
+    name_en: str
+    description: Optional[str] = None

@@ -22,13 +22,30 @@ export const candidatesAPI = {
     return axios.post(`${API_BASE}/candidates/upload-resume`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
-  }
+  },
+  getDuplicates: (id) => axios.get(`${API_BASE}/candidates/${id}/duplicates`),
+  dismissDuplicate: (candidateId, suggestionId) => 
+    axios.post(`${API_BASE}/candidates/${candidateId}/dismiss-duplicate/${suggestionId}`)
 };
 
 // Atlas AI
 export const atlasAPI = {
   classify: (candidateId) => axios.post(`${API_BASE}/atlas/classify/${candidateId}`),
   approveClassification: (candidateId) => axios.post(`${API_BASE}/atlas/approve-classification/${candidateId}`)
+};
+
+// Search
+export const searchAPI = {
+  hybrid: (params) => axios.post(`${API_BASE}/search/hybrid`, null, { params }),
+  save: (name, query, filters, use_semantic) => {
+    const formData = new FormData();
+    formData.append('name', name);
+    if (query) formData.append('query', query);
+    formData.append('filters', JSON.stringify(filters));
+    formData.append('use_semantic', use_semantic);
+    return axios.post(`${API_BASE}/search/save`, formData);
+  },
+  getSaved: () => axios.get(`${API_BASE}/search/saved`)
 };
 
 // Dashboard
@@ -40,7 +57,13 @@ export const dashboardAPI = {
 // Taxonomy
 export const taxonomyAPI = {
   getIndustries: () => axios.get(`${API_BASE}/taxonomy/industries`),
-  getFunctionalAreas: () => axios.get(`${API_BASE}/taxonomy/functional-areas`)
+  getFunctionalAreas: () => axios.get(`${API_BASE}/taxonomy/functional-areas`),
+  createIndustry: (data) => axios.post(`${API_BASE}/admin/industries`, data),
+  updateIndustry: (id, data) => axios.put(`${API_BASE}/admin/industries/${id}`, data),
+  deleteIndustry: (id) => axios.delete(`${API_BASE}/admin/industries/${id}`),
+  createFunctionalArea: (data) => axios.post(`${API_BASE}/admin/functional-areas`, data),
+  updateFunctionalArea: (id, data) => axios.put(`${API_BASE}/admin/functional-areas/${id}`, data),
+  deleteFunctionalArea: (id) => axios.delete(`${API_BASE}/admin/functional-areas/${id}`)
 };
 
 // Seed
@@ -51,6 +74,7 @@ export const seedAPI = {
 export default {
   candidatesAPI,
   atlasAPI,
+  searchAPI,
   dashboardAPI,
   taxonomyAPI,
   seedAPI

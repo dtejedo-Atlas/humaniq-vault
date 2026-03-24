@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header, Query, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -15,11 +15,16 @@ from models import (
     User, UserCreate, UserLogin, Token, UserRole,
     Candidate, CandidateCreate, CandidateUpdate, CandidateStatus, SeniorityLevel,
     ResumeUpload, ParseStatus, ResumeFile, PreviousCompany, RecruiterNote, AIClassification,
-    Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog
+    Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
+    DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate
 )
 from auth import verify_password, get_password_hash, create_access_token, verify_token
 from atlas_service import atlas_service
 from document_parser import DocumentParser
+from storage_service import storage_service, init_storage
+from duplicate_detector import DuplicateDetector, DuplicateSuggestion
+from embedding_service import embedding_service
+from hybrid_search_service import HybridSearchService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -29,7 +34,11 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create uploads directory
+# Initialize services
+duplicate_detector = DuplicateDetector(db)
+hybrid_search_service = HybridSearchService(db, embedding_service)
+
+# Create uploads directory (fallback for migration)
 UPLOAD_DIR = ROOT_DIR / "uploads" / "resumes"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -48,6 +57,18 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+# ============= STARTUP/SHUTDOWN EVENTS =============
+
+@app.on_event("startup")
+async def startup():
+    """Initialize services on startup"""
+    try:
+        init_storage()
+        logger.info("✓ Object storage initialized")
+    except Exception as e:
+        logger.error(f"✗ Storage initialization failed: {e}")
 
 
 # ============= DEPENDENCY FUNCTIONS =============
@@ -79,8 +100,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return User(**user_doc)
 
 
-async def require_role(required_roles: List[UserRole]):
-    """Decorator to check user role"""
+def require_role(required_roles: List[UserRole]):
+    """Dependency factory to check user role"""
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in required_roles:
             raise HTTPException(
@@ -361,7 +382,7 @@ async def upload_resume(
     candidate_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload resume and optionally create/link candidate"""
+    """Upload resume and optionally create/link candidate with duplicate detection"""
     
     # Validate file type
     if not file.filename.lower().endswith(('.pdf', '.docx', '.doc')):
@@ -370,27 +391,12 @@ async def upload_resume(
             detail="Solo se permiten archivos PDF y DOCX"
         )
     
-    # Generate unique filename
-    file_id = str(uuid.uuid4())
-    file_ext = Path(file.filename).suffix
-    safe_filename = f"{file_id}{file_ext}"
-    
-    # Create candidate directory if needed
-    if candidate_id:
-        upload_path = UPLOAD_DIR / candidate_id
-    else:
-        upload_path = UPLOAD_DIR / "pending"
-    
-    upload_path.mkdir(parents=True, exist_ok=True)
-    file_path = upload_path / safe_filename
-    
-    # Save file
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Read file data
+    file_data = await file.read()
     
     # Extract text from document
     try:
-        extracted_text = DocumentParser.extract_text(str(file_path))
+        extracted_text = DocumentParser.extract_text_from_bytes(file_data, file.content_type)
     except Exception as e:
         logger.error(f"Error extracting text: {str(e)}")
         extracted_text = ""
@@ -401,6 +407,18 @@ async def upload_resume(
     except Exception as e:
         logger.error(f"Error parsing resume with Atlas: {str(e)}")
         parsed_data = {"full_name": "Desconocido", "error": str(e)}
+    
+    # DUPLICATE DETECTION
+    duplicates = await duplicate_detector.detect_duplicates(parsed_data)
+    
+    # If high confidence duplicate found (>= 90%), return for review
+    if duplicates and max(d['confidence'] for d in duplicates) >= 0.90:
+        return {
+            "status": "duplicate_detected",
+            "duplicates": duplicates,
+            "parsed_data": parsed_data,
+            "message": "Se detectaron posibles duplicados. Por favor revisa antes de continuar."
+        }
     
     # If no candidate_id provided, create new candidate
     if not candidate_id:
@@ -451,6 +469,49 @@ async def upload_resume(
         except Exception as e:
             logger.error(f"Error generating summary: {str(e)}")
         
+        # Upload to Object Storage
+        try:
+            storage_result = storage_service.upload_resume(
+                file_data,
+                candidate_id,
+                file.filename,
+                file.content_type
+            )
+            
+            resume_file = ResumeFile(
+                file_name=file.filename,
+                file_path=storage_result['storage_path'],
+                file_type=storage_result['content_type'],
+                upload_date=datetime.now(timezone.utc)
+            )
+            
+            candidate.resume_files = [resume_file]
+        except Exception as e:
+            logger.error(f"Error uploading to storage: {str(e)}")
+            # Fallback to local storage
+            upload_path = UPLOAD_DIR / candidate_id
+            upload_path.mkdir(parents=True, exist_ok=True)
+            file_path = upload_path / file.filename
+            with open(file_path, "wb") as f:
+                f.write(file_data)
+            
+            resume_file = ResumeFile(
+                file_name=file.filename,
+                file_path=str(file_path.relative_to(ROOT_DIR)),
+                file_type=Path(file.filename).suffix,
+                upload_date=datetime.now(timezone.utc)
+            )
+            candidate.resume_files = [resume_file]
+        
+        # Generate embedding
+        try:
+            candidate_dict = candidate.model_dump()
+            embedding = await embedding_service.generate_candidate_embedding(candidate_dict)
+            candidate.embedding = embedding
+            candidate.embedding_updated_at = datetime.now(timezone.utc)
+        except Exception as e:
+            logger.error(f"Error generating embedding: {str(e)}")
+        
         # Save candidate
         candidate_doc = candidate.model_dump()
         candidate_doc['created_at'] = candidate_doc['created_at'].isoformat()
@@ -462,38 +523,69 @@ async def upload_resume(
         if candidate_doc.get('ai_classification'):
             candidate_doc['ai_classification']['classified_at'] = candidate_doc['ai_classification']['classified_at'].isoformat()
         
+        if candidate_doc.get('embedding_updated_at'):
+            candidate_doc['embedding_updated_at'] = candidate_doc['embedding_updated_at'].isoformat()
+        
+        for resume in candidate_doc.get('resume_files', []):
+            resume['upload_date'] = resume['upload_date'].isoformat()
+        
         await db.candidates.insert_one(candidate_doc)
         
-        # Move file to candidate folder
-        new_path = UPLOAD_DIR / candidate_id
-        new_path.mkdir(parents=True, exist_ok=True)
-        new_file_path = new_path / safe_filename
-        shutil.move(str(file_path), str(new_file_path))
-        file_path = new_file_path
+        # Store duplicate suggestions (if any with lower confidence)
+        if duplicates:
+            await DuplicateSuggestion.create_suggestion(
+                db, candidate_id, duplicates, current_user.id
+            )
     
-    # Add resume file to candidate
-    resume_file = ResumeFile(
-        file_name=file.filename,
-        file_path=str(file_path.relative_to(ROOT_DIR)),
-        file_type=file_ext,
-        upload_date=datetime.now(timezone.utc)
-    )
-    
-    resume_dict = resume_file.model_dump()
-    resume_dict['upload_date'] = resume_dict['upload_date'].isoformat()
-    
-    await db.candidates.update_one(
-        {"id": candidate_id},
-        {
-            "$push": {"resume_files": resume_dict},
-            "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
-        }
-    )
+    else:
+        # Adding resume to existing candidate
+        try:
+            storage_result = storage_service.upload_resume(
+                file_data,
+                candidate_id,
+                file.filename,
+                file.content_type
+            )
+            
+            resume_file = ResumeFile(
+                file_name=file.filename,
+                file_path=storage_result['storage_path'],
+                file_type=storage_result['content_type'],
+                upload_date=datetime.now(timezone.utc)
+            )
+        except Exception as e:
+            logger.error(f"Error uploading to storage: {str(e)}")
+            # Fallback to local
+            upload_path = UPLOAD_DIR / candidate_id
+            upload_path.mkdir(parents=True, exist_ok=True)
+            file_path = upload_path / file.filename
+            with open(file_path, "wb") as f:
+                f.write(file_data)
+            
+            resume_file = ResumeFile(
+                file_name=file.filename,
+                file_path=str(file_path.relative_to(ROOT_DIR)),
+                file_type=Path(file.filename).suffix,
+                upload_date=datetime.now(timezone.utc)
+            )
+        
+        resume_dict = resume_file.model_dump()
+        resume_dict['upload_date'] = resume_dict['upload_date'].isoformat()
+        
+        await db.candidates.update_one(
+            {"id": candidate_id},
+            {
+                "$push": {"resume_files": resume_dict},
+                "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
+            }
+        )
     
     return {
+        "status": "success",
         "message": "CV procesado exitosamente",
         "candidate_id": candidate_id,
-        "parsed_data": parsed_data
+        "parsed_data": parsed_data,
+        "has_low_confidence_duplicates": len(duplicates) > 0 and max(d['confidence'] for d in duplicates) < 0.90 if duplicates else False
     }
 
 
@@ -661,6 +753,292 @@ async def get_recent_activity(
             log['timestamp'] = datetime.fromisoformat(log['timestamp'])
     
     return logs
+
+
+
+# ============= HYBRID SEARCH ROUTES =============
+
+@api_router.post("/search/hybrid")
+async def hybrid_search(
+    query: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    industry: Optional[str] = Query(None),
+    functional_area: Optional[str] = Query(None),
+    seniority: Optional[str] = Query(None),
+    min_experience: Optional[int] = Query(None),
+    max_experience: Optional[int] = Query(None),
+    city: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    use_semantic: bool = Query(True),
+    limit: int = Query(50),
+    current_user: User = Depends(get_current_user)
+):
+    """Hybrid search with filters, keyword, and semantic search"""
+    filters = {}
+    if status:
+        filters['status'] = status
+    if industry:
+        filters['industry'] = industry
+    if functional_area:
+        filters['functional_area'] = functional_area
+    if seniority:
+        filters['seniority'] = seniority
+    if min_experience:
+        filters['min_experience'] = min_experience
+    if max_experience:
+        filters['max_experience'] = max_experience
+    if city:
+        filters['city'] = city
+    if state:
+        filters['state'] = state
+    
+    results = await hybrid_search_service.search(
+        query=query,
+        filters=filters,
+        use_semantic=use_semantic,
+        limit=limit
+    )
+    
+    # Parse dates for results
+    for candidate in results:
+        if isinstance(candidate.get('created_at'), str):
+            candidate['created_at'] = datetime.fromisoformat(candidate['created_at'])
+        if isinstance(candidate.get('updated_at'), str):
+            candidate['updated_at'] = datetime.fromisoformat(candidate['updated_at'])
+    
+    return results
+
+
+@api_router.post("/search/save")
+async def save_search(
+    name: str = Form(...),
+    query: Optional[str] = Form(None),
+    filters: str = Form("{}"),
+    use_semantic: bool = Form(False),
+    current_user: User = Depends(get_current_user)
+):
+    """Save a search query for later use"""
+    import json
+    
+    search_id = str(uuid.uuid4())
+    filters_dict = json.loads(filters)
+    
+    saved_search = {
+        "id": search_id,
+        "user_id": current_user.id,
+        "name": name,
+        "query": query,
+        "filters": filters_dict,
+        "use_semantic": use_semantic,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.saved_searches.insert_one(saved_search)
+    
+    return {"message": "Búsqueda guardada", "search_id": search_id}
+
+
+@api_router.get("/search/saved")
+async def get_saved_searches(current_user: User = Depends(get_current_user)):
+    """Get user's saved searches"""
+    searches = await db.saved_searches.find(
+        {"user_id": current_user.id},
+        {"_id": 0}
+    ).to_list(100)
+    
+    for search in searches:
+        if isinstance(search.get('created_at'), str):
+            search['created_at'] = datetime.fromisoformat(search['created_at'])
+    
+    return searches
+
+
+# ============= DUPLICATE MANAGEMENT ROUTES =============
+
+@api_router.get("/candidates/{candidate_id}/duplicates")
+async def get_candidate_duplicates(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Get duplicate suggestions for a candidate"""
+    suggestions = await db.duplicate_suggestions.find(
+        {"new_candidate_id": candidate_id, "status": "pending"},
+        {"_id": 0}
+    ).to_list(10)
+    
+    return suggestions
+
+
+@api_router.post("/candidates/{candidate_id}/dismiss-duplicate/{suggestion_id}")
+async def dismiss_duplicate(
+    candidate_id: str,
+    suggestion_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Dismiss a duplicate suggestion"""
+    await db.duplicate_suggestions.update_one(
+        {"id": suggestion_id},
+        {
+            "$set": {
+                "status": "dismissed",
+                "reviewed_by": current_user.id,
+                "reviewed_at": datetime.now(timezone.utc).isoformat()
+            }
+        }
+    )
+    
+    return {"message": "Duplicado descartado"}
+
+
+# ============= ADMIN TAXONOMY CRUD ROUTES =============
+
+@api_router.post("/admin/industries")
+async def create_industry(
+    industry_data: IndustryCreate,
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Create new industry (Super Admin only)"""
+    industry_id = str(uuid.uuid4())
+    
+    industry = {
+        "id": industry_id,
+        "name_es": industry_data.name_es,
+        "name_en": industry_data.name_en,
+        "description": industry_data.description,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.industries.insert_one(industry)
+    
+    return {"message": "Industria creada", "industry_id": industry_id}
+
+
+@api_router.put("/admin/industries/{industry_id}")
+async def update_industry(
+    industry_id: str,
+    industry_data: IndustryCreate,
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Update industry (Super Admin only)"""
+    result = await db.industries.update_one(
+        {"id": industry_id},
+        {
+            "$set": {
+                "name_es": industry_data.name_es,
+                "name_en": industry_data.name_en,
+                "description": industry_data.description
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Industria no encontrada"
+        )
+    
+    return {"message": "Industria actualizada"}
+
+
+@api_router.delete("/admin/industries/{industry_id}")
+async def delete_industry(
+    industry_id: str,
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Delete industry (Super Admin only)"""
+    # Check if any candidates use this industry
+    count = await db.candidates.count_documents({"industry": industry_id})
+    
+    if count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede eliminar. {count} candidatos usan esta industria"
+        )
+    
+    result = await db.industries.delete_one({"id": industry_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Industria no encontrada"
+        )
+    
+    return {"message": "Industria eliminada"}
+
+
+@api_router.post("/admin/functional-areas")
+async def create_functional_area(
+    area_data: FunctionalAreaCreate,
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Create new functional area (Super Admin only)"""
+    area_id = str(uuid.uuid4())
+    
+    area = {
+        "id": area_id,
+        "name_es": area_data.name_es,
+        "name_en": area_data.name_en,
+        "description": area_data.description,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.functional_areas.insert_one(area)
+    
+    return {"message": "Área funcional creada", "area_id": area_id}
+
+
+@api_router.put("/admin/functional-areas/{area_id}")
+async def update_functional_area(
+    area_id: str,
+    area_data: FunctionalAreaCreate,
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Update functional area (Super Admin only)"""
+    result = await db.functional_areas.update_one(
+        {"id": area_id},
+        {
+            "$set": {
+                "name_es": area_data.name_es,
+                "name_en": area_data.name_en,
+                "description": area_data.description
+            }
+        }
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Área funcional no encontrada"
+        )
+    
+    return {"message": "Área funcional actualizada"}
+
+
+@api_router.delete("/admin/functional-areas/{area_id}")
+async def delete_functional_area(
+    area_id: str,
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))
+):
+    """Delete functional area (Super Admin only)"""
+    # Check if any candidates use this functional area
+    count = await db.candidates.count_documents({"functional_area": area_id})
+    
+    if count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede eliminar. {count} candidatos usan esta área funcional"
+        )
+    
+    result = await db.functional_areas.delete_one({"id": area_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Área funcional no encontrada"
+        )
+    
+    return {"message": "Área funcional eliminada"}
+
 
 
 # ============= TAXONOMY ROUTES (ADMIN) =============
