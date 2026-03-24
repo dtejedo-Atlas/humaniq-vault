@@ -1,0 +1,172 @@
+{
+  "design_system": {
+    "name": "Atlas Talent Vault Design System",
+    "version": "1.0.0",
+    "persona": {
+      "identity": "E1 - The Anti-AI Designer",
+      "core_principles": [
+        "Fusion over Imitation: Mix Executive Seriousness with AI Modernity",
+        "Emotion First: Trust, Authority, and Precision",
+        "Content is King: Data density with breathing room",
+        "Negative Space: Use it to separate complex data sets",
+        "Contrast: High contrast for readability in data-heavy views"
+      ]
+    },
+    "theme_strategy": {
+      "mode": "light_preferred",
+      "description": "Professional Light Mode (The 'Paper' Metaphor) for high-readability data work. Optional 'Executive Dark Mode' for low-light focus.",
+      "styles": {
+        "light": {
+          "background": "#FFFFFF",
+          "surface": "#F8FAFC", 
+          "border": "#E2E8F0",
+          "text_primary": "#0F172A",
+          "text_secondary": "#64748B"
+        },
+        "dark": {
+          "background": "#020617",
+          "surface": "#0F172A",
+          "border": "#1E293B",
+          "text_primary": "#F8FAFC",
+          "text_secondary": "#94A3B8"
+        }
+      }
+    },
+    "typography": {
+      "font_family": {
+        "headings": "Manrope, sans-serif",
+        "body": "Inter, sans-serif",
+        "mono": "JetBrains Mono, monospace"
+      },
+      "import_url": "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap",
+      "usage_rules": [
+        "HEADINGS: Use 'Manrope' for all H1-H4. Tight tracking (-0.02em).",
+        "BODY: Use 'Inter' for all paragraphs, inputs, and table data.",
+        "NUMBERS/DATA: Use 'JetBrains Mono' for IDs, salaries, and metrics.",
+        "WEIGHTS: Avoid 'Bold' (700) for body text. Use 'Medium' (500) for emphasis."
+      ]
+    },
+    "colors": {
+      "palette": {
+        "primary": {
+          "name": "Atlas Navy",
+          "value": "#0F172A", 
+          "tailwind_ref": "slate-900",
+          "usage": "Brand anchors, primary buttons, sidebars"
+        },
+        "secondary": {
+          "name": "AI Teal",
+          "value": "#06B6D4",
+          "tailwind_ref": "cyan-500",
+          "usage": "AI accents, active states, highlights"
+        },
+        "accent": {
+          "name": "Executive Gold",
+          "value": "#D97706",
+          "tailwind_ref": "amber-600",
+          "usage": "Warnings, premium badges, important alerts"
+        },
+        "neutral": {
+          "name": "Paper White",
+          "value": "#F8FAFC",
+          "tailwind_ref": "slate-50",
+          "usage": "Backgrounds, card surfaces"
+        }
+      },
+      "functional": {
+        "success": "#10B981",
+        "error": "#EF4444",
+        "warning": "#F59E0B",
+        "info": "#3B82F6"
+      }
+    },
+    "components": {
+      "global_radius": "rounded-sm",
+      "buttons": {
+        "primary": "bg-slate-900 text-white hover:bg-slate-800 rounded-sm shadow-sm font-medium px-6 py-2.5 transition-all active:scale-95",
+        "secondary": "bg-white text-slate-900 border border-slate-200 hover:bg-slate-50 rounded-sm font-medium px-6 py-2.5",
+        "ghost": "text-slate-600 hover:text-slate-900 hover:bg-slate-100/50 rounded-sm px-4"
+      },
+      "cards": {
+        "style": "bg-white border border-slate-200/60 shadow-sm rounded-sm p-6 hover:shadow-md transition-shadow duration-300",
+        "glass": "bg-white/80 backdrop-blur-md border border-white/20 shadow-lg"
+      },
+      "inputs": {
+        "style": "h-11 bg-white border-slate-200 focus:border-slate-900 focus:ring-1 focus:ring-slate-900 rounded-sm transition-all"
+      },
+      "badges": {
+        "style": "rounded-full px-2.5 py-0.5 text-xs font-semibold tracking-wide uppercase"
+      }
+    },
+    "layout_strategies": {
+      "dashboard_grid": {
+        "type": "Bento Grid Mode B (High Density)",
+        "classes": "grid grid-cols-1 md:grid-cols-4 gap-4 p-6",
+        "rules": [
+          "No jagged bottoms. Use h-full on children.",
+          "Summary metrics: col-span-1",
+          "Main chart/table: col-span-2 or col-span-3",
+          "Feed/Lists: col-span-1 row-span-2"
+        ]
+      },
+      "marketing_grid": {
+        "type": "Mode A: The Tetris Grid",
+        "classes": "grid grid-cols-1 md:grid-cols-12 gap-8 p-12",
+        "rules": [
+          "Asymmetry is key.",
+          "Hero element: col-span-8 row-span-2",
+          "Supporting: col-span-4"
+        ]
+      },
+      "spacing": {
+        "container_padding": "p-6 md:p-12",
+        "element_gap": "gap-6",
+        "section_margin": "my-24"
+      }
+    },
+    "assets": {
+      "images": {
+        "login_bg": "https://images.unsplash.com/photo-1765799921942-527d3e2cd262?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBtaW5pbWFsJTIwY29ycG9yYXRlJTIwb2ZmaWNlJTIwYXJjaGl0ZWN0dXJlJTIwZ2xhc3MlMjBjb25jcmV0ZXxlbnwwfHx8fDE3NzQzMTM5MzF8MA&ixlib=rb-4.1.0&q=85",
+        "dashboard_abstract": "https://images.unsplash.com/photo-1771773490670-7376a45c0e96?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwyfHxhYnN0cmFjdCUyMG5ldHdvcmslMjBkYXRhJTIwY29ubmVjdGlvbiUyMGJsdWUlMjBsaW5lcyUyMG1pbmltYWx8ZW58MHx8fHwxNzc0MzEzOTM0fDA&ixlib=rb-4.1.0&q=85",
+        "placeholders": {
+          "candidate_female_1": "https://images.unsplash.com/photo-1758518727888-ffa196002e59?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNDR8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkaXZlcnNlJTIwYnVzaW5lc3MlMjBwZW9wbGUlMjBwb3J0cmFpdHMlMjBjb25maWRlbnQlMjBleGVjdXRpdmV8ZW58MHx8fHwxNzc0MzEzOTMyfDA&ixlib=rb-4.1.0&q=85",
+          "candidate_male_1": "https://images.pexels.com/photos/9489396/pexels-photo-9489396.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+          "office_interior": "https://images.pexels.com/photos/1098982/pexels-photo-1098982.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+        }
+      },
+      "icons": {
+        "library": "lucide-react",
+        "style": "stroke-width: 1.5px; size: 18px or 20px"
+      }
+    },
+    "tech_specifics": {
+      "libraries": [
+        "framer-motion (Animation)",
+        "recharts (Data Viz)",
+        "lucide-react (Icons)",
+        "clsx & tailwind-merge (Utils)",
+        "sonner (Toasts)",
+        "react-dropzone (File Upload)"
+      ],
+      "forbidden": [
+        "Generic HTML date pickers (Use Shadcn Calendar)",
+        "Standard HTML selects (Use Shadcn Select/Combobox)",
+        "Dark Gradients as backgrounds"
+      ]
+    },
+    "universal_guidelines": [
+      "Avoid 'AI Slop': Do not use generic centered layouts or unstyled gradients.",
+      "Use 'sonner' for toasts.",
+      "Add 'data-testid' to all interactive elements.",
+      "Ensure all text has adequate contrast (WCAG AA).",
+      "Do not use transparent backgrounds on headers without blur/scrim."
+    ],
+    "instructions_to_main_agent": [
+      "Install 'Manrope' font via Google Fonts in index.html or import in index.css.",
+      "Implement the 'Atlas' sidebar layout: Fixed left sidebar (slate-900), scrollable main content (slate-50).",
+      "Use 'Card' components for all dashboard widgets but remove shadows until hover.",
+      "For the Candidate Table: Use a 'dense' table style with sticky headers and zebra striping (odd: bg-white, even: bg-slate-50/50).",
+      "AI Features (Atlas AI) should always use the 'AI Teal' (#06B6D4) color for icons or badges to distinguish from human actions."
+    ]
+  }
+}
