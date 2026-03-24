@@ -23,7 +23,7 @@ assert abs(sum(WEIGHTS.values()) - 1.0) < 0.001, "Los pesos deben sumar 1.0"
 # ============= THRESHOLDS =============
 
 # Score mínimo para incluir en resultados (0-100)
-MIN_MATCH_SCORE = 45
+MIN_MATCH_SCORE = 60
 
 # Threshold de similitud semántica (0.0-1.0)
 SEMANTIC_THRESHOLD = 0.40
