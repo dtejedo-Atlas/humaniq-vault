@@ -263,3 +263,135 @@ class FunctionalAreaCreate(BaseModel):
     name_es: str
     name_en: str
     description: Optional[str] = None
+
+
+
+# ============= JOB / VACANTE MODELS =============
+
+class JobStatus(str, Enum):
+    ACTIVE = "active"
+    PAUSED = "paused"
+    CLOSED = "closed"
+    DRAFT = "draft"
+
+class Job(BaseModel):
+    """Modelo de Vacante para Job Matching Engine"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    title: str                                    # "Gerente de Operaciones"
+    company: Optional[str] = None                 # Empresa (contexto)
+    
+    # Taxonomía (misma que candidatos)
+    industry: str                                 # key: "manufacturing"
+    functional_area: str                          # key: "operations"
+    seniority: str                                # "manager", "director", etc.
+    
+    # Requisitos de experiencia
+    min_experience: int = 0                       # Años mínimos
+    max_experience: Optional[int] = None          # Años máximos (opcional)
+    
+    # Skills
+    required_skills: List[str] = []               # Skills obligatorios
+    preferred_skills: List[str] = []              # Skills deseables
+    
+    # Descripción estructurada
+    responsibilities: Optional[str] = None        # Responsabilidades clave
+    requirements: Optional[str] = None            # Requisitos no negociables (texto)
+    nice_to_have: Optional[str] = None            # Deseables (texto)
+    description: Optional[str] = None             # Descripción completa libre
+    role_context: Optional[str] = None            # Contexto del rol
+    
+    # Ubicación (soft matching - no descarte)
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: str = "México"
+    remote_option: bool = False
+    
+    # Idioma (para Fase B - soft matching)
+    language_requirements: Optional[List[str]] = None  # ["spanish:fluent", "english:advanced"]
+    
+    # Metadata
+    status: JobStatus = JobStatus.ACTIVE
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by: str                               # ID del usuario
+    
+    # Embedding para búsqueda semántica
+    embedding: Optional[List[float]] = None
+
+class JobCreate(BaseModel):
+    """Schema para crear vacante"""
+    title: str
+    company: Optional[str] = None
+    industry: str
+    functional_area: str
+    seniority: str
+    min_experience: int = 0
+    max_experience: Optional[int] = None
+    required_skills: List[str] = []
+    preferred_skills: List[str] = []
+    responsibilities: Optional[str] = None
+    requirements: Optional[str] = None
+    nice_to_have: Optional[str] = None
+    description: Optional[str] = None
+    role_context: Optional[str] = None
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: str = "México"
+    remote_option: bool = False
+
+class JobUpdate(BaseModel):
+    """Schema para actualizar vacante"""
+    title: Optional[str] = None
+    company: Optional[str] = None
+    industry: Optional[str] = None
+    functional_area: Optional[str] = None
+    seniority: Optional[str] = None
+    min_experience: Optional[int] = None
+    max_experience: Optional[int] = None
+    required_skills: Optional[List[str]] = None
+    preferred_skills: Optional[List[str]] = None
+    responsibilities: Optional[str] = None
+    requirements: Optional[str] = None
+    nice_to_have: Optional[str] = None
+    description: Optional[str] = None
+    role_context: Optional[str] = None
+    location_city: Optional[str] = None
+    location_state: Optional[str] = None
+    location_country: Optional[str] = None
+    remote_option: Optional[bool] = None
+    status: Optional[JobStatus] = None
+
+class CandidateMatchResult(BaseModel):
+    """Resultado de matching de un candidato contra una vacante"""
+    candidate_id: str
+    candidate_name: str
+    current_title: Optional[str] = None
+    current_company: Optional[str] = None
+    
+    # Score total
+    match_percentage: int                         # 0-100
+    
+    # Breakdown detallado
+    breakdown: Dict[str, Any]
+    
+    # Análisis cualitativo
+    strengths: List[str] = []                     # Fortalezas principales
+    risks: List[Dict[str, Any]] = []              # Riesgos detectados
+    missing_skills: List[str] = []                # Skills faltantes
+    
+    # Datos adicionales del candidato para display
+    years_experience: Optional[int] = None
+    industry: Optional[str] = None
+    functional_area: Optional[str] = None
+    seniority: Optional[str] = None
+
+class JobMatchResponse(BaseModel):
+    """Respuesta del endpoint de matching"""
+    job_id: str
+    job_title: str
+    total_candidates: int
+    matched_candidates: int
+    threshold_used: int
+    results: List[CandidateMatchResult]

@@ -86,11 +86,26 @@ export const seedAPI = {
   initializeData: () => axios.post(`${API_BASE}/seed/initial-data`)
 };
 
+// Jobs / Vacantes
+export const jobsAPI = {
+  getAll: (status = null) => {
+    const params = status ? { status } : {};
+    return axios.get(`${API_BASE}/jobs`, { params });
+  },
+  getById: (id) => axios.get(`${API_BASE}/jobs/${id}`),
+  create: (data) => axios.post(`${API_BASE}/jobs`, data),
+  update: (id, data) => axios.put(`${API_BASE}/jobs/${id}`, data),
+  delete: (id) => axios.delete(`${API_BASE}/jobs/${id}`),
+  getMatches: (id, threshold = 60, limit = 50) => 
+    axios.post(`${API_BASE}/jobs/${id}/match`, null, { params: { threshold, limit } })
+};
+
 export default {
   candidatesAPI,
   atlasAPI,
   searchAPI,
   dashboardAPI,
   taxonomyAPI,
-  seedAPI
+  seedAPI,
+  jobsAPI
 };

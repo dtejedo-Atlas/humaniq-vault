@@ -121,6 +121,22 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 
 ## Changelog
 
+### 25-Mar-2026 - Job Matching Engine v1 Implementado
+- **Backend completo:**
+  - Modelo Job con campos estructurados (título, industria, área, seniority, skills, etc.)
+  - Endpoints CRUD: POST/GET/PUT/DELETE /api/jobs
+  - Endpoint de matching: POST /api/jobs/{id}/match
+  - Servicio `job_matching_service.py` con scoring adaptado
+- **Frontend:**
+  - Página /jobs con lista de vacantes y modal de creación
+  - Página /jobs/{id} con detalle y candidatos rankeados
+  - Breakdown visual de compatibilidad expandible
+  - Indicadores de fortalezas, riesgos y skills faltantes
+- **Scoring de matching:**
+  - Funcional: 35%, Seniority: 20%, Industria: 15%
+  - Skills: 12%, Experiencia: 8%, Semántico: 5%, Trayectoria: 5%
+- **Validación:** Vacante "Gerente de Operaciones" → María Elena García (86% Match) ✅
+
 ### 25-Mar-2026 - Scoring v2.1 Implementado
 - **Nuevo sistema de scoring multi-dimensional:**
   - Área Funcional: 40% (mayor peso a función correcta)
@@ -179,9 +195,10 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. **🟢 COMPLETADO: Scoring v2.1** - Sistema multi-dimensional implementado y validado
-2. 🟡 Validación continua con queries reales de negocio
-3. 🔵 Fase 2: Motor de matching candidato-vacante (basado en Scoring v2.1)
+1. **🟢 COMPLETADO: Job Matching Engine v1** - Backend + UI funcional
+2. 🟡 Validar matching con vacantes reales de negocio
+3. 🟡 Afinar scoring según feedback de validación
+4. 🔵 Fase B: Idioma normalizado + Ubicación como soft match
 
 ## Arquitectura de Búsqueda (Definitiva)
 

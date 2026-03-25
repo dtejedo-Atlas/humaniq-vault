@@ -14,6 +14,7 @@ import CandidateDetailPage from './pages/CandidateDetailPage';
 import UploadPage from './pages/UploadPage';
 import SearchPage from './pages/SearchPage';
 import JobsPage from './pages/JobsPage';
+import JobDetailPage from './pages/JobDetailPage';
 import FoldersPage from './pages/FoldersPage';
 import AdminPage from './pages/AdminPage';
 import ValidationPage from './pages/ValidationPage';
@@ -118,6 +119,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <JobsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jobs/:id"
+        element={
+          <ProtectedRoute>
+            <JobDetailPage />
           </ProtectedRoute>
         }
       />

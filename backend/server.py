@@ -16,7 +16,8 @@ from models import (
     Candidate, CandidateCreate, CandidateUpdate, CandidateStatus, SeniorityLevel,
     ResumeUpload, ParseStatus, ResumeFile, PreviousCompany, RecruiterNote, AIClassification,
     Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
-    DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate
+    DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate,
+    Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
@@ -28,6 +29,7 @@ from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
 from background_processor import background_processor, JobStatus
+from job_matching_service import JobMatchingService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -40,6 +42,7 @@ db = client[os.environ['DB_NAME']]
 # Initialize services
 duplicate_detector = DuplicateDetector(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
+job_matching_service = JobMatchingService(db, embedding_service)
 
 # Create uploads directory (fallback for migration)
 UPLOAD_DIR = ROOT_DIR / "uploads" / "resumes"
@@ -2073,6 +2076,195 @@ async def seed_initial_data():
         "industries": len(industries),
         "functional_areas": len(functional_areas)
     }
+
+
+# ============= JOB / VACANTES ENDPOINTS =============
+
+@api_router.post("/jobs", response_model=Job)
+async def create_job(
+    job_data: JobCreate,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Crear nueva vacante"""
+    user = await get_current_user(credentials)
+    
+    # Crear ID único
+    job_id = str(uuid.uuid4())
+    
+    # Construir documento
+    job_doc = {
+        "id": job_id,
+        **job_data.model_dump(),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": user.id,
+        "embedding": None
+    }
+    
+    # Generar embedding para la vacante
+    if embedding_service.enabled:
+        try:
+            searchable_text = f"""
+            Puesto: {job_data.title}
+            Área: {job_data.functional_area}
+            Industria: {job_data.industry}
+            Nivel: {job_data.seniority}
+            Skills: {', '.join(job_data.required_skills + job_data.preferred_skills)}
+            Responsabilidades: {job_data.responsibilities or ''}
+            Requisitos: {job_data.requirements or ''}
+            Descripción: {job_data.description or ''}
+            """
+            embedding = await embedding_service.generate_embedding(searchable_text)
+            if embedding:
+                job_doc["embedding"] = embedding
+                logger.info(f"Generated embedding for job {job_id}")
+        except Exception as e:
+            logger.error(f"Error generating job embedding: {str(e)}")
+    
+    # Guardar en MongoDB
+    await db.jobs.insert_one(job_doc)
+    
+    # Remover _id para respuesta
+    job_doc.pop("_id", None)
+    
+    return job_doc
+
+
+@api_router.get("/jobs", response_model=List[Job])
+async def list_jobs(
+    status: Optional[str] = None,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Listar vacantes"""
+    await get_current_user(credentials)
+    
+    query = {}
+    if status:
+        query["status"] = status
+    
+    jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return jobs
+
+
+@api_router.get("/jobs/{job_id}", response_model=Job)
+async def get_job(
+    job_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Obtener detalle de vacante"""
+    await get_current_user(credentials)
+    
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    return job
+
+
+@api_router.put("/jobs/{job_id}", response_model=Job)
+async def update_job(
+    job_id: str,
+    job_update: JobUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Actualizar vacante"""
+    await get_current_user(credentials)
+    
+    # Verificar que existe
+    existing = await db.jobs.find_one({"id": job_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    # Construir actualización
+    update_data = {k: v for k, v in job_update.model_dump().items() if v is not None}
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    
+    # Si se actualizan campos relevantes, regenerar embedding
+    embedding_fields = {"title", "functional_area", "industry", "required_skills", 
+                       "preferred_skills", "responsibilities", "requirements", "description"}
+    if embedding_fields & set(update_data.keys()) and embedding_service.enabled:
+        try:
+            # Merge con datos existentes para generar embedding completo
+            merged = {**existing, **update_data}
+            searchable_text = f"""
+            Puesto: {merged.get('title', '')}
+            Área: {merged.get('functional_area', '')}
+            Industria: {merged.get('industry', '')}
+            Skills: {', '.join(merged.get('required_skills', []) + merged.get('preferred_skills', []))}
+            Responsabilidades: {merged.get('responsibilities', '') or ''}
+            Descripción: {merged.get('description', '') or ''}
+            """
+            embedding = await embedding_service.generate_embedding(searchable_text)
+            if embedding:
+                update_data["embedding"] = embedding
+        except Exception as e:
+            logger.error(f"Error updating job embedding: {str(e)}")
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": update_data}
+    )
+    
+    updated_job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    return updated_job
+
+
+@api_router.delete("/jobs/{job_id}")
+async def delete_job(
+    job_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Eliminar vacante"""
+    await get_current_user(credentials)
+    
+    result = await db.jobs.delete_one({"id": job_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    return {"message": "Vacante eliminada correctamente"}
+
+
+@api_router.post("/jobs/{job_id}/match", response_model=JobMatchResponse)
+async def match_job_candidates(
+    job_id: str,
+    threshold: int = Query(default=60, ge=0, le=100, description="Score mínimo para incluir"),
+    limit: int = Query(default=50, ge=1, le=200, description="Máximo de resultados"),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Ejecutar matching de candidatos contra una vacante.
+    Retorna lista de candidatos rankeados con breakdown de compatibilidad.
+    """
+    await get_current_user(credentials)
+    
+    # Obtener vacante
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    # Ejecutar matching
+    result = await job_matching_service.match_candidates(
+        job=job,
+        threshold=threshold,
+        limit=limit
+    )
+    
+    return result
+
+
+@api_router.get("/jobs/{job_id}/matches", response_model=JobMatchResponse)
+async def get_job_matches(
+    job_id: str,
+    threshold: int = Query(default=60, ge=0, le=100),
+    limit: int = Query(default=50, ge=1, le=200),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Obtener candidatos rankeados para una vacante (ejecuta matching).
+    Alias de POST /jobs/{job_id}/match para conveniencia.
+    """
+    return await match_job_candidates(job_id, threshold, limit, credentials)
 
 
 # ============= ROOT ROUTE =============
