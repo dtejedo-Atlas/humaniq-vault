@@ -42,16 +42,30 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - SearchPage ejecuta búsqueda automática desde URL params
   - Validado con 6 queries de prueba: 100% consistencia
 
-### Fase 2 (Planificada)
-- [ ] Motor de matching candidato-vacante
+### Fase 2 (Operacional) - EN PROGRESO
+- [x] **Job Matching Engine v1** (25-Mar-2026)
+  - Motor de matching candidato-vacante completo
+  - Scoring: Funcional 35%, Seniority 20%, Industria 15%, Skills 12%, Experiencia 8%, Semántico 5%, Trayectoria 5%
+  - Frontend: /jobs (lista) y /jobs/{id} (detalle con ranking)
+- [x] **Multi-usuario y Roles** (26-Mar-2026)
+  - Roles: super_admin, admin, recruiter, researcher
+  - Backend: user_service.py, assignment_service.py
+  - Endpoints: /api/users, /api/users/me, /api/users/recruiters
+  - Frontend: /users (gestión de equipo, solo Admin)
+- [x] **Asignación de Candidatos** (26-Mar-2026)
+  - Regla: Recruiters ven toda la BD pero solo editan candidatos asignados
+  - Endpoints: /api/candidates/{id}/assign, /api/candidates/{id}/can-edit
+  - UI: Banner "Modo solo lectura" para recruiters sin asignación
+  - Sección "Asignaciones" en perfil de candidato
 - [ ] Smart Folders (carpetas dinámicas)
-- [ ] Sistema multi-usuario con roles granulares
-- [ ] Centro de merge de duplicados
+- [ ] Exportación PDF/DOCX premium
+- [ ] Activity Feed (trazabilidad)
 
 ### Fase 3 (Futura)
 - [ ] Analytics para admin
 - [ ] Exportación de datos
 - [ ] Búsquedas guardadas avanzadas
+- [ ] Idioma y Ubicación como soft match en Job Matching
 
 ---
 
@@ -69,14 +83,18 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ### Estructura de Archivos Clave
 ```
 /app/backend/
-├── server.py              # API principal
-├── models.py              # Modelos Pydantic
+├── server.py              # API principal (~2500 líneas - deuda técnica)
+├── models.py              # Modelos Pydantic (User, Job, Assignment, etc.)
+├── user_service.py        # Gestión de usuarios y permisos
+├── assignment_service.py  # Asignación de candidatos a recruiters
+├── job_matching_service.py # Motor de matching vacante-candidato
+├── hybrid_search_service.py  # Búsqueda híbrida v2.1
+├── scoring_config.py      # Configuración de pesos de scoring
+├── affinity_matrices.py   # Matrices de afinidad funcional/industrial
 ├── taxonomy.py            # Taxonomía maestra bilingüe
 ├── atlas_service.py       # Servicio de clasificación AI
 ├── text_utils.py          # Normalización UTF-8
-├── error_handling.py      # Sistema de errores detallados (NUEVO)
-├── hybrid_search_service.py  # Búsqueda híbrida
-└── embedding_service.py   # Generación de embeddings (opcional)
+└── embedding_service.py   # Generación de embeddings
 
 /app/frontend/src/
 ├── pages/                 # Páginas React
@@ -182,6 +200,27 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - Implementado sistema de taxonomía con keys canónicas neutras al idioma
 - Campos: `key`, `name_es`, `name_en` para industrias y áreas funcionales
 
+### 26-Mar-2026 - Multi-usuario y Asignaciones
+- **Backend completado:**
+  - `user_service.py`: Gestión de usuarios con verificación de permisos
+  - `assignment_service.py`: Asignación de candidatos a recruiters
+  - Endpoints: GET/POST /api/users, GET /api/users/me, GET /api/users/recruiters
+  - Endpoints: POST /api/candidates/{id}/assign, DELETE /api/candidates/{id}/assign/{recruiter_id}
+  - Endpoint: GET /api/candidates/{id}/can-edit (verifica permisos de edición)
+- **Frontend completado:**
+  - `/users` (UsersPage.js): Tabla de usuarios con roles, estadísticas, acciones de editar/desactivar
+  - Modal de creación de usuarios con selector de rol
+  - Candidate Detail: Sección "Asignaciones" visible para todos
+  - Banner "Modo solo lectura" para recruiters sin asignación
+  - Botón Editar deshabilitado cuando no tiene permisos
+  - Botón Asignar solo visible para Admin
+- **Reglas de negocio implementadas:**
+  - Admin/Super Admin: Pueden ver y editar todo
+  - Recruiter: Puede ver toda la BD pero solo editar candidatos asignados
+  - Página /users: Solo accesible para Admin
+  - UI muestra restricción claramente, no parece bug
+- **Testing:** 17/17 tests backend pasando, UI verificada
+
 ---
 
 ## Limitaciones Conocidas
@@ -195,10 +234,14 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ---
 
 ## Próximos Pasos
-1. **🟢 COMPLETADO: Job Matching Engine v1** - Backend + UI funcional
-2. 🟡 Validar matching con vacantes reales de negocio
-3. 🟡 Afinar scoring según feedback de validación
-4. 🔵 Fase B: Idioma normalizado + Ubicación como soft match
+1. **🟢 COMPLETADO: Multi-usuario y Asignaciones** (26-Mar-2026)
+2. 🟡 **Exportación PDF/DOCX Premium** - Reportes de candidatos con branding
+3. 🟡 **Smart Folders** - Carpetas dinámicas basadas en criterios
+4. 🔵 **Activity Feed** - Trazabilidad de acciones del sistema
+5. 🔵 **Idioma y Ubicación en Job Matching** - Soft matching adicional
+
+## Deuda Técnica
+- `server.py` tiene ~2500 líneas. Planificar división en routers modulares (/routers/jobs.py, /routers/users.py, etc.)
 
 ## Arquitectura de Búsqueda (Definitiva)
 
