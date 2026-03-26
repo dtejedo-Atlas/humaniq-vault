@@ -18,7 +18,7 @@ from models import (
     Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
     DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate,
     Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse,
-    AssignmentCreate
+    AssignmentCreate, ExportFormat, ExportSourceType, ExportRequest
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
@@ -33,6 +33,7 @@ from background_processor import background_processor, JobStatus
 from job_matching_service import JobMatchingService
 from user_service import UserService
 from assignment_service import AssignmentService
+from export_service import ExportService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -48,6 +49,7 @@ hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
 user_service = UserService(db)
 assignment_service = AssignmentService(db)
+export_service = ExportService(db, storage_service)
 
 # Create uploads directory (fallback for migration)
 UPLOAD_DIR = ROOT_DIR / "uploads" / "resumes"
@@ -2544,6 +2546,142 @@ async def check_candidate_edit_permission(
         "user_role": current_user.role.value,
         "assignments": assignments
     }
+
+
+# ============= EXPORT ENDPOINTS =============
+
+@api_router.post("/exports/job/{job_id}")
+async def export_job_shortlist(
+    job_id: str,
+    format: ExportFormat = Query(default=ExportFormat.PDF),
+    limit: int = Query(default=10, ge=1, le=20),
+    include_risks: bool = Query(default=True),
+    include_contact_info: bool = Query(default=False),
+    client_name: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Exportar shortlist de candidatos de una vacante.
+    Genera PDF o DOCX con branding Humaniq.
+    - Solo Admin puede incluir información de contacto
+    - Máximo 20 candidatos por exportación
+    """
+    try:
+        result = await export_service.export_job_shortlist(
+            job_id=job_id,
+            user=current_user,
+            format=format,
+            limit=limit,
+            include_risks=include_risks,
+            include_contact_info=include_contact_info,
+            client_name=client_name
+        )
+        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error generando exportación")
+
+
+@api_router.post("/exports/candidates")
+async def export_custom_candidates(
+    request: ExportRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Exportar selección custom de candidatos.
+    """
+    try:
+        if not request.candidate_ids:
+            raise ValueError("Debe proporcionar al menos un candidato")
+        
+        result = await export_service.export_custom_candidates(
+            candidate_ids=request.candidate_ids,
+            user=current_user,
+            title=request.source_id or "Selección de Candidatos",  # Usar source_id como título si se proporciona
+            format=request.format,
+            include_risks=request.include_risks,
+            include_contact_info=request.include_contact_info,
+            client_name=request.client_name
+        )
+        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error generando exportación")
+
+
+@api_router.get("/exports/{export_id}/download")
+async def download_export(
+    export_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Descargar archivo de exportación.
+    """
+    # Verificar que existe y pertenece al usuario (o es admin)
+    record = await export_service.get_export_record(export_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exportación no encontrada")
+    
+    # Verificar permisos
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        if record.get("user_id") != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a esta exportación")
+    
+    # Obtener archivo
+    file_data = await export_service.get_export_file(export_id)
+    if not file_data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Archivo no encontrado")
+    
+    file_bytes, filename, content_type = file_data
+    
+    return Response(
+        content=file_bytes,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@api_router.get("/exports")
+async def list_exports(
+    limit: int = Query(default=50, ge=1, le=100),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Listar exportaciones del usuario.
+    Admin ve todas, recruiters solo las suyas.
+    """
+    exports = await export_service.list_exports(current_user, limit=limit)
+    return {"exports": exports, "total": len(exports)}
+
+
+@api_router.get("/exports/{export_id}")
+async def get_export_details(
+    export_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener detalles de una exportación.
+    """
+    record = await export_service.get_export_record(export_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exportación no encontrada")
+    
+    # Verificar permisos
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        if record.get("user_id") != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a esta exportación")
+    
+    return record
 
 
 # ============= ROOT ROUTE =============

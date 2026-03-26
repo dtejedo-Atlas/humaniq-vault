@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report_title }}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        :root {
+            --humaniq-primary: #1a365d;
+            --humaniq-secondary: #2c5282;
+            --humaniq-accent: #3182ce;
+            --humaniq-light: #ebf4ff;
+            --text-dark: #1a202c;
+            --text-medium: #4a5568;
+            --text-light: #718096;
+            --border-color: #e2e8f0;
+            --bg-light: #f7fafc;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 10pt;
+            line-height: 1.5;
+            color: var(--text-dark);
+            background: white;
+        }
+        
+        /* Page Setup for PDF */
+        @page {
+            size: A4;
+            margin: 20mm 15mm 25mm 15mm;
+            
+            @bottom-center {
+                content: "Confidencial - Humaniq Executive Search";
+                font-size: 8pt;
+                color: #718096;
+            }
+            
+            @bottom-right {
+                content: counter(page);
+                font-size: 8pt;
+                color: #718096;
+            }
+        }
+        
+        /* Cover Page */
+        .cover-page {
+            page-break-after: always;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 40px 0;
+        }
+        
+        .cover-header {
+            text-align: center;
+            padding-bottom: 30px;
+            border-bottom: 3px solid var(--humaniq-primary);
+        }
+        
+        .logo-container {
+            margin-bottom: 20px;
+        }
+        
+        .logo-text {
+            font-size: 32pt;
+            font-weight: 700;
+            color: var(--humaniq-primary);
+            letter-spacing: 2px;
+        }
+        
+        .logo-subtitle {
+            font-size: 10pt;
+            color: var(--humaniq-secondary);
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            margin-top: 5px;
+        }
+        
+        .cover-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            padding: 60px 40px;
+        }
+        
+        .cover-title {
+            font-size: 14pt;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-light);
+            margin-bottom: 15px;
+        }
+        
+        .cover-position {
+            font-size: 28pt;
+            font-weight: 600;
+            color: var(--humaniq-primary);
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        
+        .cover-client {
+            font-size: 16pt;
+            color: var(--humaniq-secondary);
+            margin-bottom: 40px;
+        }
+        
+        .cover-summary {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 25px;
+            background: var(--bg-light);
+            border-left: 4px solid var(--humaniq-accent);
+            text-align: left;
+            font-size: 10pt;
+            color: var(--text-medium);
+            line-height: 1.6;
+        }
+        
+        .cover-footer {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .cover-meta {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 15px;
+        }
+        
+        .cover-meta-item {
+            text-align: center;
+        }
+        
+        .cover-meta-label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-light);
+            margin-bottom: 3px;
+        }
+        
+        .cover-meta-value {
+            font-size: 10pt;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+        
+        .cover-disclaimer {
+            font-size: 8pt;
+            color: var(--text-light);
+            margin-top: 20px;
+        }
+        
+        /* Candidate Cards */
+        .candidate-section {
+            page-break-before: always;
+        }
+        
+        .candidate-section:first-of-type {
+            page-break-before: auto;
+        }
+        
+        .candidate-header {
+            background: linear-gradient(135deg, var(--humaniq-primary) 0%, var(--humaniq-secondary) 100%);
+            color: white;
+            padding: 20px 25px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        
+        .candidate-name {
+            font-size: 18pt;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .candidate-current {
+            font-size: 11pt;
+            opacity: 0.9;
+        }
+        
+        .match-score {
+            position: absolute;
+            right: 25px;
+            top: 50%;
+            transform: translateY(-50%);
+            text-align: center;
+        }
+        
+        .match-score-value {
+            font-size: 28pt;
+            font-weight: 700;
+        }
+        
+        .match-score-label {
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+        
+        .candidate-header-wrapper {
+            position: relative;
+        }
+        
+        .section {
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 10pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--humaniq-primary);
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--humaniq-light);
+            margin-bottom: 12px;
+        }
+        
+        .summary-text {
+            font-size: 10pt;
+            color: var(--text-medium);
+            line-height: 1.7;
+            padding: 15px;
+            background: var(--bg-light);
+            border-radius: 4px;
+        }
+        
+        /* Strengths & Risks */
+        .highlights-grid {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .highlight-box {
+            flex: 1;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        
+        .highlight-box.strengths {
+            background: #f0fff4;
+            border-left: 4px solid #38a169;
+        }
+        
+        .highlight-box.risks {
+            background: #fffaf0;
+            border-left: 4px solid #dd6b20;
+        }
+        
+        .highlight-title {
+            font-size: 9pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+        
+        .highlight-box.strengths .highlight-title {
+            color: #276749;
+        }
+        
+        .highlight-box.risks .highlight-title {
+            color: #c05621;
+        }
+        
+        .highlight-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .highlight-list li {
+            font-size: 9pt;
+            padding: 4px 0;
+            padding-left: 15px;
+            position: relative;
+            color: var(--text-medium);
+        }
+        
+        .highlight-list li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+        
+        .highlight-box.strengths .highlight-list li::before {
+            color: #38a169;
+        }
+        
+        .highlight-box.risks .highlight-list li::before {
+            color: #dd6b20;
+        }
+        
+        /* Experience */
+        .experience-item {
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .experience-item:last-child {
+            border-bottom: none;
+        }
+        
+        .experience-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 5px;
+        }
+        
+        .experience-title {
+            font-size: 10pt;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        .experience-company {
+            font-size: 10pt;
+            color: var(--humaniq-secondary);
+        }
+        
+        .experience-dates {
+            font-size: 9pt;
+            color: var(--text-light);
+            text-align: right;
+        }
+        
+        .experience-description {
+            font-size: 9pt;
+            color: var(--text-medium);
+            margin-top: 5px;
+            line-height: 1.5;
+        }
+        
+        /* Skills */
+        .skills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .skill-tag {
+            display: inline-block;
+            padding: 5px 12px;
+            background: var(--humaniq-light);
+            color: var(--humaniq-primary);
+            border-radius: 15px;
+            font-size: 9pt;
+            font-weight: 500;
+        }
+        
+        /* Education */
+        .education-item {
+            padding: 10px 0;
+        }
+        
+        .education-degree {
+            font-size: 10pt;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+        
+        .education-institution {
+            font-size: 9pt;
+            color: var(--text-medium);
+        }
+        
+        /* Contact Info (when included) */
+        .contact-info {
+            background: var(--bg-light);
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        
+        .contact-info-title {
+            font-size: 8pt;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-light);
+            margin-bottom: 8px;
+        }
+        
+        .contact-grid {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .contact-item {
+            font-size: 9pt;
+        }
+        
+        .contact-label {
+            color: var(--text-light);
+        }
+        
+        .contact-value {
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+        
+        /* Page numbers and headers */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            font-size: 8pt;
+            color: var(--text-light);
+        }
+        
+        /* Utilities */
+        .text-center { text-align: center; }
+        .mt-10 { margin-top: 10px; }
+        .mt-20 { margin-top: 20px; }
+        .mb-10 { margin-bottom: 10px; }
+        .mb-20 { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <!-- Cover Page -->
+    <div class="cover-page">
+        <div class="cover-header">
+            <div class="logo-container">
+                <div class="logo-text">HUMANIQ</div>
+                <div class="logo-subtitle">Executive Search</div>
+            </div>
+        </div>
+        
+        <div class="cover-content">
+            <div class="cover-title">Shortlist de Candidatos</div>
+            <div class="cover-position">{{ job_title }}</div>
+            {% if client_name %}
+            <div class="cover-client">{{ client_name }}</div>
+            {% endif %}
+            
+            {% if job_summary %}
+            <div class="cover-summary">
+                <strong>Perfil Buscado:</strong><br>
+                {{ job_summary }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="cover-footer">
+            <div class="cover-meta">
+                <div class="cover-meta-item">
+                    <div class="cover-meta-label">Fecha</div>
+                    <div class="cover-meta-value">{{ generation_date }}</div>
+                </div>
+                <div class="cover-meta-item">
+                    <div class="cover-meta-label">Preparado por</div>
+                    <div class="cover-meta-value">{{ prepared_by }}</div>
+                </div>
+                <div class="cover-meta-item">
+                    <div class="cover-meta-label">Candidatos</div>
+                    <div class="cover-meta-value">{{ candidate_count }}</div>
+                </div>
+            </div>
+            <div class="cover-disclaimer">
+                Este documento es confidencial y está destinado únicamente al uso del destinatario previsto.
+            </div>
+        </div>
+    </div>
+    
+    <!-- Candidate Pages -->
+    {% for candidate in candidates %}
+    <div class="candidate-section">
+        <div class="page-header">
+            <span>{{ job_title }} | Shortlist</span>
+            <span>Candidato {{ loop.index }} de {{ candidates|length }}</span>
+        </div>
+        
+        <div class="candidate-header-wrapper">
+            <div class="candidate-header">
+                <div class="candidate-name">{{ candidate.full_name }}</div>
+                <div class="candidate-current">
+                    {{ candidate.current_title or 'Título no especificado' }}
+                    {% if candidate.current_company %} @ {{ candidate.current_company }}{% endif %}
+                </div>
+                {% if candidate.match_percentage %}
+                <div class="match-score">
+                    <div class="match-score-value">{{ candidate.match_percentage }}%</div>
+                    <div class="match-score-label">Match</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Executive Summary -->
+        {% if candidate.ai_summary %}
+        <div class="section">
+            <div class="section-title">Resumen Ejecutivo</div>
+            <div class="summary-text">{{ candidate.ai_summary }}</div>
+        </div>
+        {% endif %}
+        
+        <!-- Strengths & Risks -->
+        {% if candidate.strengths or (include_risks and candidate.risks) %}
+        <div class="section">
+            <div class="highlights-grid">
+                {% if candidate.strengths %}
+                <div class="highlight-box strengths">
+                    <div class="highlight-title">Fortalezas Principales</div>
+                    <ul class="highlight-list">
+                        {% for strength in candidate.strengths[:5] %}
+                        <li>{{ strength }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                {% if include_risks and candidate.risks %}
+                <div class="highlight-box risks">
+                    <div class="highlight-title">Puntos de Atención</div>
+                    <ul class="highlight-list">
+                        {% for risk in candidate.risks[:5] %}
+                        <li>{{ risk.description if risk.description else risk }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Experience -->
+        {% if candidate.previous_companies %}
+        <div class="section">
+            <div class="section-title">Experiencia Profesional</div>
+            {% for exp in candidate.previous_companies[:5] %}
+            <div class="experience-item">
+                <div class="experience-header">
+                    <div>
+                        <div class="experience-title">{{ exp.title }}</div>
+                        <div class="experience-company">{{ exp.company_name }}</div>
+                    </div>
+                    <div class="experience-dates">
+                        {{ exp.start_date or '' }} - {{ exp.end_date or 'Presente' }}
+                    </div>
+                </div>
+                {% if exp.description %}
+                <div class="experience-description">{{ exp.description[:200] }}{% if exp.description|length > 200 %}...{% endif %}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Skills -->
+        {% if candidate.skills %}
+        <div class="section">
+            <div class="section-title">Competencias Clave</div>
+            <div class="skills-container">
+                {% for skill in candidate.skills[:12] %}
+                <span class="skill-tag">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Education -->
+        {% if candidate.education %}
+        <div class="section">
+            <div class="section-title">Formación Académica</div>
+            {% for edu in candidate.education[:3] %}
+            <div class="education-item">
+                <div class="education-degree">{{ edu.degree }}</div>
+                <div class="education-institution">{{ edu.institution }}{% if edu.year %}, {{ edu.year }}{% endif %}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Contact Info (only if included) -->
+        {% if include_contact_info and (candidate.email or candidate.phone) %}
+        <div class="contact-info">
+            <div class="contact-info-title">Información de Contacto</div>
+            <div class="contact-grid">
+                {% if candidate.email %}
+                <div class="contact-item">
+                    <span class="contact-label">Email: </span>
+                    <span class="contact-value">{{ candidate.email }}</span>
+                </div>
+                {% endif %}
+                {% if candidate.phone %}
+                <div class="contact-item">
+                    <span class="contact-label">Teléfono: </span>
+                    <span class="contact-value">{{ candidate.phone }}</span>
+                </div>
+                {% endif %}
+                {% if candidate.linkedin_url %}
+                <div class="contact-item">
+                    <span class="contact-label">LinkedIn: </span>
+                    <span class="contact-value">{{ candidate.linkedin_url }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</body>
+</html>

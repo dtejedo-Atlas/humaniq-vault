@@ -5,12 +5,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue 
+} from '../components/ui/select';
 import {
   Collapsible,
   CollapsibleContent,
@@ -28,10 +40,15 @@ import {
   Briefcase,
   Building,
   Calendar,
-  Target
+  Target,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  Lock
 } from 'lucide-react';
-import { jobsAPI } from '../api';
+import { jobsAPI, exportsAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
 const SENIORITY_OPTIONS = [
@@ -51,6 +68,7 @@ const JobDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
+  const { user } = useAuth();
   
   const [job, setJob] = useState(null);
   const [matches, setMatches] = useState(null);
@@ -58,6 +76,19 @@ const JobDetailPage = () => {
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [expandedCards, setExpandedCards] = useState({});
+  
+  // Export state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportOptions, setExportOptions] = useState({
+    format: 'pdf',
+    limit: 10,
+    includeRisks: true,
+    includeContact: false,
+    clientName: ''
+  });
+  
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   useEffect(() => {
     loadJob();
@@ -123,6 +154,55 @@ const JobDetailPage = () => {
       ...prev,
       [candidateId]: !prev[candidateId]
     }));
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await exportsAPI.exportJobShortlist(id, {
+        format: exportOptions.format,
+        limit: exportOptions.limit,
+        includeRisks: exportOptions.includeRisks,
+        includeContact: exportOptions.includeContact,
+        clientName: exportOptions.clientName || null
+      });
+      
+      // Obtener URL de descarga
+      const downloadUrl = `${process.env.REACT_APP_BACKEND_URL}${response.data.download_url}`;
+      
+      // Crear link temporal para descargar
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = response.data.filename;
+      
+      // Agregar token al header para autenticación
+      const token = localStorage.getItem('token');
+      
+      // Usar fetch para descargar con auth
+      const fileResponse = await fetch(downloadUrl, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (fileResponse.ok) {
+        const blob = await fileResponse.blob();
+        const url = window.URL.createObjectURL(blob);
+        link.href = url;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        
+        toast.success(`Shortlist exportada: ${response.data.candidate_count} candidatos`);
+        setShowExportDialog(false);
+      } else {
+        throw new Error('Error descargando archivo');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error(error.response?.data?.detail || 'Error exportando shortlist');
+    } finally {
+      setExporting(false);
+    }
   };
 
   if (loading) {
@@ -233,10 +313,24 @@ const JobDetailPage = () => {
                   </CardDescription>
                 )}
               </div>
-              <Button onClick={loadMatches} disabled={loadingMatches} variant="outline" size="sm">
-                {loadingMatches && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Actualizar
-              </Button>
+              <div className="flex gap-2">
+                {matches?.results?.length > 0 && (
+                  <Button 
+                    onClick={() => setShowExportDialog(true)} 
+                    variant="outline" 
+                    size="sm"
+                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    data-testid="export-shortlist-button"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Exportar Shortlist
+                  </Button>
+                )}
+                <Button onClick={loadMatches} disabled={loadingMatches} variant="outline" size="sm">
+                  {loadingMatches && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  Actualizar
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -429,6 +523,134 @@ const JobDetailPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Export Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-indigo-600" />
+              Exportar Shortlist
+            </DialogTitle>
+            <DialogDescription>
+              Genera un documento PDF/DOCX con los mejores candidatos para "{job?.title}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Format Selection */}
+            <div className="space-y-2">
+              <Label>Formato</Label>
+              <div className="flex gap-3">
+                <Button
+                  variant={exportOptions.format === 'pdf' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions({...exportOptions, format: 'pdf'})}
+                  className={exportOptions.format === 'pdf' ? 'bg-indigo-600' : ''}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  PDF
+                </Button>
+                <Button
+                  variant={exportOptions.format === 'docx' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions({...exportOptions, format: 'docx'})}
+                  className={exportOptions.format === 'docx' ? 'bg-indigo-600' : ''}
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  DOCX
+                </Button>
+              </div>
+            </div>
+
+            {/* Number of candidates */}
+            <div className="space-y-2">
+              <Label>Número de candidatos</Label>
+              <Select
+                value={exportOptions.limit.toString()}
+                onValueChange={(v) => setExportOptions({...exportOptions, limit: parseInt(v)})}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">Top 5 candidatos</SelectItem>
+                  <SelectItem value="10">Top 10 candidatos</SelectItem>
+                  <SelectItem value="15">Top 15 candidatos</SelectItem>
+                  <SelectItem value="20">Top 20 candidatos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Client Name */}
+            <div className="space-y-2">
+              <Label>Nombre del cliente (opcional)</Label>
+              <Input
+                value={exportOptions.clientName}
+                onChange={(e) => setExportOptions({...exportOptions, clientName: e.target.value})}
+                placeholder="Empresa XYZ"
+              />
+            </div>
+
+            {/* Options */}
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="includeRisks"
+                  checked={exportOptions.includeRisks}
+                  onCheckedChange={(checked) => setExportOptions({...exportOptions, includeRisks: checked})}
+                />
+                <Label htmlFor="includeRisks" className="text-sm font-normal">
+                  Incluir puntos de atención/riesgos
+                </Label>
+              </div>
+              
+              {isAdmin ? (
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="includeContact"
+                    checked={exportOptions.includeContact}
+                    onCheckedChange={(checked) => setExportOptions({...exportOptions, includeContact: checked})}
+                  />
+                  <Label htmlFor="includeContact" className="text-sm font-normal">
+                    Incluir información de contacto
+                  </Label>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2 opacity-50">
+                  <Lock className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm text-slate-500">
+                    Solo Admin puede incluir datos de contacto
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleExport} 
+              disabled={exporting}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {exporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-2" />
+                  Exportar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

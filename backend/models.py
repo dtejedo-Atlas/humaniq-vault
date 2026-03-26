@@ -540,12 +540,13 @@ class ExportRequest(BaseModel):
     source_id: Optional[str] = None      # ID de job o folder
     candidate_ids: List[str] = []        # Si es custom, lista de IDs
     format: ExportFormat = ExportFormat.PDF
-    include_breakdown: bool = True
     include_risks: bool = True
     include_contact_info: bool = False   # Solo para admins
+    # Cover page info (opcional)
+    client_name: Optional[str] = None    # Nombre del cliente/empresa
 
 class ExportRecord(BaseModel):
-    """Registro de exportación generada"""
+    """Registro de exportación generada (para trazabilidad)"""
     model_config = ConfigDict(extra="ignore")
     
     id: str
@@ -556,7 +557,10 @@ class ExportRecord(BaseModel):
     source_name: str                     # Nombre de la vacante/folder
     format: ExportFormat
     candidate_count: int
+    candidate_ids: List[str] = []        # IDs de candidatos incluidos
+    included_contact_info: bool = False  # Si se incluyó contacto
     file_url: str
+    file_path: Optional[str] = None      # Path en storage
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

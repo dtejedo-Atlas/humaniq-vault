@@ -57,6 +57,15 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - Endpoints: /api/candidates/{id}/assign, /api/candidates/{id}/can-edit
   - UI: Banner "Modo solo lectura" para recruiters sin asignación
   - Sección "Asignaciones" en perfil de candidato
+- [x] **Exportación PDF/DOCX Premium** (26-Mar-2026)
+  - Backend: export_service.py con WeasyPrint + python-docx
+  - Template HTML profesional con branding Humaniq
+  - Cover page: vacante, cliente, fecha, preparado por
+  - Por candidato: nombre, match%, resumen, fortalezas, riesgos, experiencia, skills
+  - Permisos: Admin puede incluir contacto, Recruiter no
+  - Trazabilidad: registro en BD de cada exportación
+  - Endpoints: POST /api/exports/job/{id}, GET /api/exports/{id}/download
+  - Frontend: Dialog de exportación en JobDetailPage
 - [ ] Smart Folders (carpetas dinámicas)
 - [ ] Exportación PDF/DOCX premium
 - [ ] Activity Feed (trazabilidad)
@@ -83,10 +92,11 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ### Estructura de Archivos Clave
 ```
 /app/backend/
-├── server.py              # API principal (~2500 líneas - deuda técnica)
-├── models.py              # Modelos Pydantic (User, Job, Assignment, etc.)
+├── server.py              # API principal (~2700 líneas - deuda técnica)
+├── models.py              # Modelos Pydantic (User, Job, Assignment, Export, etc.)
 ├── user_service.py        # Gestión de usuarios y permisos
 ├── assignment_service.py  # Asignación de candidatos a recruiters
+├── export_service.py      # Generación de PDFs y DOCX
 ├── job_matching_service.py # Motor de matching vacante-candidato
 ├── hybrid_search_service.py  # Búsqueda híbrida v2.1
 ├── scoring_config.py      # Configuración de pesos de scoring
@@ -94,7 +104,9 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ├── taxonomy.py            # Taxonomía maestra bilingüe
 ├── atlas_service.py       # Servicio de clasificación AI
 ├── text_utils.py          # Normalización UTF-8
-└── embedding_service.py   # Generación de embeddings
+├── embedding_service.py   # Generación de embeddings
+└── templates/             # Templates HTML para PDFs
+    └── shortlist_report.html
 
 /app/frontend/src/
 ├── pages/                 # Páginas React
@@ -200,6 +212,30 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - Implementado sistema de taxonomía con keys canónicas neutras al idioma
 - Campos: `key`, `name_es`, `name_en` para industrias y áreas funcionales
 
+### 26-Mar-2026 - Exportación PDF/DOCX Premium
+- **Sistema de exportación profesional:**
+  - Backend: `export_service.py` con WeasyPrint (PDF) + python-docx (DOCX)
+  - Template HTML con branding Humaniq (elegante, consultoría ejecutiva)
+  - Cover page: título de vacante, cliente, fecha, preparado por
+  - Por candidato: nombre, match%, resumen ejecutivo, fortalezas, riesgos, experiencia, skills
+- **Permisos y trazabilidad:**
+  - Admin/Super Admin: pueden incluir info de contacto
+  - Recruiter: puede exportar pero SIN contacto (sistema ignora el flag)
+  - Registro en BD: user_id, candidate_ids, included_contact_info, timestamp
+- **Endpoints:**
+  - POST /api/exports/job/{id} - Exportar shortlist de vacante
+  - POST /api/exports/candidates - Exportar selección custom
+  - GET /api/exports/{id}/download - Descargar archivo
+  - GET /api/exports - Listar exportaciones
+- **Frontend:**
+  - Botón "Exportar Shortlist" en JobDetailPage
+  - Dialog con opciones: formato (PDF/DOCX), límite (5-20), cliente, riesgos, contacto
+  - Descarga automática al completar
+- **Archivos:**
+  - `/app/backend/export_service.py`
+  - `/app/backend/templates/shortlist_report.html`
+  - Exports guardados en `/app/backend/exports/`
+
 ### 26-Mar-2026 - Multi-usuario y Asignaciones
 - **Backend completado:**
   - `user_service.py`: Gestión de usuarios con verificación de permisos
@@ -235,13 +271,14 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 
 ## Próximos Pasos
 1. **🟢 COMPLETADO: Multi-usuario y Asignaciones** (26-Mar-2026)
-2. 🟡 **Exportación PDF/DOCX Premium** - Reportes de candidatos con branding
+2. **🟢 COMPLETADO: Exportación PDF/DOCX Premium** (26-Mar-2026)
 3. 🟡 **Smart Folders** - Carpetas dinámicas basadas en criterios
-4. 🔵 **Activity Feed** - Trazabilidad de acciones del sistema
-5. 🔵 **Idioma y Ubicación en Job Matching** - Soft matching adicional
+4. 🟡 **Panel "Mis Candidatos"** - Vista rápida de asignaciones en Dashboard
+5. 🔵 **Activity Feed** - Trazabilidad de acciones del sistema
+6. 🔵 **Idioma y Ubicación en Job Matching** - Soft matching adicional
 
 ## Deuda Técnica
-- `server.py` tiene ~2500 líneas. Planificar división en routers modulares (/routers/jobs.py, /routers/users.py, etc.)
+- `server.py` tiene ~2700 líneas. Planificar división en routers modulares (/routers/jobs.py, /routers/users.py, /routers/exports.py, etc.)
 
 ## Arquitectura de Búsqueda (Definitiva)
 

@@ -134,6 +134,34 @@ export const assignmentsAPI = {
     })
 };
 
+// Exports
+export const exportsAPI = {
+  exportJobShortlist: (jobId, options = {}) => {
+    const params = new URLSearchParams();
+    params.append('format', options.format || 'pdf');
+    params.append('limit', options.limit || 10);
+    params.append('include_risks', options.includeRisks !== false);
+    params.append('include_contact_info', options.includeContact || false);
+    if (options.clientName) params.append('client_name', options.clientName);
+    return axios.post(`${API_BASE}/exports/job/${jobId}?${params.toString()}`);
+  },
+  exportCandidates: (candidateIds, options = {}) =>
+    axios.post(`${API_BASE}/exports/candidates`, {
+      source_type: 'custom',
+      candidate_ids: candidateIds,
+      format: options.format || 'pdf',
+      include_risks: options.includeRisks !== false,
+      include_contact_info: options.includeContact || false,
+      client_name: options.clientName || null
+    }),
+  getExport: (exportId) => axios.get(`${API_BASE}/exports/${exportId}`),
+  listExports: (limit = 50) => axios.get(`${API_BASE}/exports`, { params: { limit } }),
+  downloadExport: (exportId) => {
+    const token = localStorage.getItem('token');
+    return `${API_BASE}/exports/${exportId}/download?token=${token}`;
+  }
+};
+
 export default {
   candidatesAPI,
   atlasAPI,
@@ -143,5 +171,6 @@ export default {
   seedAPI,
   jobsAPI,
   usersAPI,
-  assignmentsAPI
+  assignmentsAPI,
+  exportsAPI
 };
