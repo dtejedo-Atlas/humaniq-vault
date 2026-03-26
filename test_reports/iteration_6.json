@@ -1,0 +1,93 @@
+{
+  "summary": "Multi-user Roles and Candidate Assignments feature testing completed successfully. All 17 backend tests passed. Frontend UI verified for Users page, Candidate Detail page with assignments, and permission restrictions for recruiters.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_users_assignments.py",
+    "/app/test_reports/pytest/pytest_users_assignments.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_users_assignments.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100% (All UI elements verified)"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "test_utf8@atlas.com",
+      "password": "test123456"
+    },
+    "recruiter": {
+      "email": "recruiter_test@atlas.com",
+      "password": "test123456"
+    }
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Multi-user roles and candidate assignments feature verified. Key validations: 1) Admin can list/create users, recruiters get 403. 2) GET /users/me returns can_manage_users and can_assign_candidates flags. 3) Admin can assign/unassign candidates, recruiters cannot. 4) GET /candidates/{id}/can-edit returns correct permissions. 5) Frontend Users page shows user list with roles, status, stats. 6) Candidate detail shows assignment section. 7) Recruiter sees 'Modo solo lectura' banner for unassigned candidates. 8) Usuarios link hidden from recruiter sidebar.",
+  "test_results_detail": {
+    "backend_tests": {
+      "status": "PASS",
+      "tests_run": 17,
+      "tests_passed": 17,
+      "test_classes": {
+        "TestUserManagement": {
+          "test_admin_can_list_users": "PASS - Admin listed 8 users, no password_hash exposed",
+          "test_recruiter_cannot_list_users": "PASS - Recruiter gets 403",
+          "test_admin_can_create_user": "PASS - Admin created new user",
+          "test_recruiter_cannot_create_user": "PASS - Recruiter gets 403",
+          "test_get_current_user_with_permissions": "PASS - Admin has can_manage_users=true, recruiter has false",
+          "test_admin_can_get_recruiters_list": "PASS - Admin retrieved recruiters list",
+          "test_recruiter_cannot_get_recruiters_list": "PASS - Recruiter gets 403"
+        },
+        "TestCandidateAssignments": {
+          "test_admin_can_assign_candidate": "PASS - Admin assigned candidate",
+          "test_recruiter_cannot_assign_candidate": "PASS - Recruiter gets 403",
+          "test_admin_can_edit_any_candidate": "PASS - Admin can_edit=true",
+          "test_recruiter_cannot_edit_unassigned_candidate": "PASS - Recruiter can_edit=false with reason",
+          "test_get_candidate_assignments": "PASS - Retrieved assignments list",
+          "test_recruiter_get_my_assignments": "PASS - Recruiter gets their assignments",
+          "test_admin_can_unassign_candidate": "PASS - Admin unassigned candidate",
+          "test_recruiter_cannot_unassign_candidate": "PASS - Recruiter gets 403"
+        },
+        "TestSpecificCandidate": {
+          "test_specific_candidate_exists": "PASS",
+          "test_specific_candidate_assignments": "PASS"
+        }
+      }
+    },
+    "frontend_tests": {
+      "users_page": {
+        "status": "PASS",
+        "description": "Users page shows user list with roles (Recruiter, Admin, Super Admin), status badges, candidates assigned count, jobs created count, last login dates, and 'Nuevo Usuario' button"
+      },
+      "candidate_detail_page": {
+        "status": "PASS",
+        "description": "Candidate detail shows Asignaciones section with assigned recruiters, Asignar button for admin, Editar button"
+      },
+      "assignment_dialog": {
+        "status": "PASS",
+        "description": "Assignment dialog shows recruiter dropdown, notes field, Cancel and Asignar buttons"
+      },
+      "recruiter_permission_restriction": {
+        "status": "PASS",
+        "description": "Recruiter sees 'Modo solo lectura' banner, Edit button disabled, no Assign button visible"
+      },
+      "recruiter_sidebar": {
+        "status": "PASS",
+        "description": "Usuarios link NOT visible for recruiter (correctly hidden)"
+      }
+    }
+  }
+}

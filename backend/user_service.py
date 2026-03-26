@@ -78,7 +78,7 @@ class UserService:
             "id": user_id,
             "email": user_data.email.lower(),
             "name": user_data.name,
-            "hashed_password": get_password_hash(user_data.password),
+            "password_hash": get_password_hash(user_data.password),
             "role": user_data.role.value,
             "is_active": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
@@ -91,6 +91,7 @@ class UserService:
         logger.info(f"User {user_data.email} created by {created_by.email}")
         
         # Retornar sin password
+        user_doc.pop("password_hash", None)
         user_doc.pop("hashed_password", None)
         user_doc.pop("_id", None)
         
@@ -98,15 +99,19 @@ class UserService:
     
     async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Obtiene un usuario por ID"""
-        user = await self.db.users.find_one({"id": user_id}, {"_id": 0, "hashed_password": 0})
+        user = await self.db.users.find_one({"id": user_id}, {"_id": 0, "hashed_password": 0, "password_hash": 0})
+        if user and "is_active" not in user:
+            user["is_active"] = True
         return user
     
     async def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """Obtiene un usuario por email"""
         user = await self.db.users.find_one(
             {"email": email.lower()}, 
-            {"_id": 0, "hashed_password": 0}
+            {"_id": 0, "hashed_password": 0, "password_hash": 0}
         )
+        if user and "is_active" not in user:
+            user["is_active"] = True
         return user
     
     async def list_users(
@@ -125,8 +130,13 @@ class UserService:
         
         users = await self.db.users.find(
             query, 
-            {"_id": 0, "hashed_password": 0}
+            {"_id": 0, "hashed_password": 0, "password_hash": 0}
         ).sort("created_at", -1).to_list(100)
+        
+        # Asegurar campo is_active
+        for user in users:
+            if "is_active" not in user:
+                user["is_active"] = True
         
         return users
     
@@ -238,10 +248,14 @@ class UserService:
         recruiters = await self.db.users.find(
             {
                 "role": {"$in": ["recruiter", "admin", "super_admin"]},
-                "is_active": True
+                "$or": [{"is_active": True}, {"is_active": {"$exists": False}}]
             },
-            {"_id": 0, "hashed_password": 0}
+            {"_id": 0, "hashed_password": 0, "password_hash": 0}
         ).to_list(100)
+        
+        for r in recruiters:
+            if "is_active" not in r:
+                r["is_active"] = True
         
         return recruiters
 

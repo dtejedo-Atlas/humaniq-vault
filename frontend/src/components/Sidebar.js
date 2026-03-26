@@ -9,7 +9,8 @@ import {
   FolderOpen, 
   Settings, 
   LogOut,
-  Sparkles
+  Sparkles,
+  UserCog
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
@@ -26,6 +27,7 @@ const Sidebar = () => {
     { path: '/search', icon: Search, label: 'Búsqueda' },
     { path: '/jobs', icon: Briefcase, label: 'Vacantes' },
     { path: '/folders', icon: FolderOpen, label: 'Carpetas' },
+    { path: '/users', icon: UserCog, label: 'Usuarios', roles: ['super_admin', 'admin'] },
     { path: '/validation', icon: Sparkles, label: 'Validación', roles: ['super_admin', 'recruiter'] },
     { path: '/admin', icon: Settings, label: 'Admin', roles: ['super_admin'] }
   ];

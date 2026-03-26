@@ -12,12 +12,13 @@ from datetime import datetime, timezone
 import shutil
 
 from models import (
-    User, UserCreate, UserLogin, Token, UserRole,
+    User, UserCreate, UserLogin, Token, UserRole, UserUpdate,
     Candidate, CandidateCreate, CandidateUpdate, CandidateStatus, SeniorityLevel,
     ResumeUpload, ParseStatus, ResumeFile, PreviousCompany, RecruiterNote, AIClassification,
     Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
     DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate,
-    Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse
+    Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse,
+    AssignmentCreate
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
@@ -30,6 +31,8 @@ from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
 from background_processor import background_processor, JobStatus
 from job_matching_service import JobMatchingService
+from user_service import UserService
+from assignment_service import AssignmentService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -43,6 +46,8 @@ db = client[os.environ['DB_NAME']]
 duplicate_detector = DuplicateDetector(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
+user_service = UserService(db)
+assignment_service = AssignmentService(db)
 
 # Create uploads directory (fallback for migration)
 UPLOAD_DIR = ROOT_DIR / "uploads" / "resumes"
@@ -2265,6 +2270,280 @@ async def get_job_matches(
     Alias de POST /jobs/{job_id}/match para conveniencia.
     """
     return await match_job_candidates(job_id, threshold, limit, credentials)
+
+
+# ============= USER MANAGEMENT ENDPOINTS =============
+
+@api_router.get("/users")
+async def list_users(
+    include_inactive: bool = Query(default=False),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Listar todos los usuarios (solo Admin/Super Admin).
+    """
+    try:
+        users = await user_service.list_users_with_stats(current_user)
+        if not include_inactive:
+            users = [u for u in users if u.get("is_active", True)]
+        return {"users": users, "total": len(users)}
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+
+@api_router.post("/users")
+async def create_user(
+    user_data: UserCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Crear nuevo usuario (solo Admin/Super Admin).
+    """
+    try:
+        new_user = await user_service.create_user(user_data, current_user)
+        return new_user
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@api_router.get("/users/me")
+async def get_current_user_details(current_user: User = Depends(get_current_user)):
+    """
+    Obtener detalles del usuario actual (incluye permisos).
+    """
+    user_data = current_user.model_dump()
+    user_data["can_manage_users"] = user_service.can_manage_users(current_user)
+    user_data["can_assign_candidates"] = assignment_service.can_assign(current_user)
+    return user_data
+
+
+@api_router.get("/users/recruiters")
+async def get_recruiters(current_user: User = Depends(get_current_user)):
+    """
+    Obtener lista de reclutadores activos (para asignación de candidatos).
+    Solo Admin/Super Admin pueden ver esta lista.
+    """
+    if not assignment_service.can_assign(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver la lista de reclutadores"
+        )
+    
+    recruiters = await user_service.get_recruiters()
+    return {"recruiters": recruiters}
+
+
+@api_router.get("/users/{user_id}")
+async def get_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener un usuario por ID.
+    """
+    if not user_service.can_manage_users(current_user) and current_user.id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para ver este usuario"
+        )
+    
+    user = await user_service.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    
+    return user
+
+
+@api_router.put("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    update_data: UserUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Actualizar usuario.
+    - Admin/Super Admin: puede actualizar rol, nombre, estado
+    - Usuario normal: solo puede actualizar su propio nombre
+    """
+    try:
+        updated = await user_service.update_user(user_id, update_data, current_user)
+        return updated
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@api_router.delete("/users/{user_id}")
+async def deactivate_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Desactivar usuario (soft delete).
+    Solo Admin/Super Admin.
+    """
+    try:
+        result = await user_service.deactivate_user(user_id, current_user)
+        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+# ============= CANDIDATE ASSIGNMENT ENDPOINTS =============
+
+@api_router.post("/candidates/{candidate_id}/assign")
+async def assign_candidate(
+    candidate_id: str,
+    assignment_data: AssignmentCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Asignar un candidato a un reclutador.
+    Solo Admin/Super Admin pueden asignar.
+    """
+    try:
+        # Validar que el candidate_id del path coincida
+        if assignment_data.candidate_id != candidate_id:
+            assignment_data.candidate_id = candidate_id
+        
+        assignment = await assignment_service.assign_candidate(
+            candidate_id=candidate_id,
+            recruiter_id=assignment_data.recruiter_id,
+            assigned_by=current_user,
+            notes=assignment_data.notes
+        )
+        return assignment
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@api_router.delete("/candidates/{candidate_id}/assign/{recruiter_id}")
+async def unassign_candidate(
+    candidate_id: str,
+    recruiter_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Eliminar asignación de un candidato.
+    Solo Admin/Super Admin.
+    """
+    try:
+        result = await assignment_service.unassign_candidate(
+            candidate_id=candidate_id,
+            recruiter_id=recruiter_id,
+            current_user=current_user
+        )
+        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@api_router.get("/candidates/{candidate_id}/assignments")
+async def get_candidate_assignments(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener todas las asignaciones de un candidato.
+    Todos los usuarios autenticados pueden ver esto.
+    """
+    assignments = await assignment_service.get_candidate_assignments(candidate_id)
+    return {"assignments": assignments}
+
+
+@api_router.get("/assignments/my")
+async def get_my_assignments(current_user: User = Depends(get_current_user)):
+    """
+    Obtener candidatos asignados al usuario actual.
+    """
+    assignments = await assignment_service.get_my_assignments(current_user)
+    return {"assignments": assignments, "total": len(assignments)}
+
+
+@api_router.get("/assignments")
+async def get_all_assignments(current_user: User = Depends(get_current_user)):
+    """
+    Obtener todas las asignaciones activas (solo Admin).
+    """
+    try:
+        assignments = await assignment_service.get_all_assignments(current_user)
+        
+        # Contar candidatos sin asignar
+        unassigned_count = await assignment_service.get_unassigned_candidates_count()
+        
+        return {
+            "assignments": assignments,
+            "total": len(assignments),
+            "unassigned_candidates": unassigned_count
+        }
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+
+@api_router.post("/candidates/{candidate_id}/transfer")
+async def transfer_candidate(
+    candidate_id: str,
+    from_recruiter_id: str = Query(...),
+    to_recruiter_id: str = Query(...),
+    notes: Optional[str] = Query(default=None),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Transferir candidato de un reclutador a otro.
+    Solo Admin/Super Admin.
+    """
+    try:
+        result = await assignment_service.transfer_assignment(
+            candidate_id=candidate_id,
+            from_recruiter_id=from_recruiter_id,
+            to_recruiter_id=to_recruiter_id,
+            current_user=current_user,
+            notes=notes
+        )
+        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@api_router.get("/candidates/{candidate_id}/can-edit")
+async def check_candidate_edit_permission(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Verificar si el usuario actual puede editar un candidato.
+    Retorna información de permisos para la UI.
+    """
+    # Obtener asignaciones del candidato
+    assignments = await assignment_service.get_candidate_assignments(candidate_id)
+    
+    can_edit = assignment_service.can_edit_candidate(current_user, candidate_id, assignments)
+    
+    # Determinar razón para UI
+    reason = None
+    if not can_edit:
+        if current_user.role == UserRole.RECRUITER:
+            reason = "Este candidato no está asignado a ti. Solo puedes ver su información."
+        else:
+            reason = "No tienes permisos de edición."
+    
+    return {
+        "can_edit": can_edit,
+        "reason": reason,
+        "user_role": current_user.role.value,
+        "assignments": assignments
+    }
 
 
 # ============= ROOT ROUTE =============

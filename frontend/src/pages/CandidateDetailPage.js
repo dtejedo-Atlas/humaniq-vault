@@ -7,6 +7,21 @@ import { Badge } from '../components/ui/badge';
 import { Textarea } from '../components/ui/textarea';
 import { Separator } from '../components/ui/separator';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue 
+} from '../components/ui/select';
+import {
   Mail,
   Phone,
   MapPin,
@@ -18,10 +33,17 @@ import {
   Sparkles,
   CheckCircle,
   Edit,
-  ArrowLeft
+  ArrowLeft,
+  UserPlus,
+  Users,
+  Lock,
+  AlertCircle,
+  X,
+  Loader2
 } from 'lucide-react';
-import { candidatesAPI, atlasAPI } from '../api';
+import { candidatesAPI, atlasAPI, assignmentsAPI, usersAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate, formatDateTime } from '../utils/helpers';
 
@@ -29,14 +51,28 @@ const CandidateDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
+  const { user: currentUser } = useAuth();
   const [candidate, setCandidate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
+  
+  // Permission & Assignment state
+  const [canEdit, setCanEdit] = useState(true);
+  const [editReason, setEditReason] = useState(null);
+  const [assignments, setAssignments] = useState([]);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [recruiters, setRecruiters] = useState([]);
+  const [selectedRecruiter, setSelectedRecruiter] = useState('');
+  const [assignmentNotes, setAssignmentNotes] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   useEffect(() => {
     fetchCandidate();
+    checkEditPermission();
   }, [id]);
 
   const fetchCandidate = async () => {
@@ -48,6 +84,66 @@ const CandidateDetailPage = () => {
       toast.error('Error cargando candidato');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkEditPermission = async () => {
+    try {
+      const response = await assignmentsAPI.checkCanEdit(id);
+      setCanEdit(response.data.can_edit);
+      setEditReason(response.data.reason);
+      setAssignments(response.data.assignments || []);
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+    }
+  };
+
+  const loadRecruiters = async () => {
+    try {
+      const response = await usersAPI.getRecruiters();
+      setRecruiters(response.data.recruiters || []);
+    } catch (error) {
+      console.error('Error loading recruiters:', error);
+    }
+  };
+
+  const handleOpenAssignDialog = () => {
+    loadRecruiters();
+    setShowAssignDialog(true);
+  };
+
+  const handleAssignCandidate = async () => {
+    if (!selectedRecruiter) {
+      toast.error('Selecciona un reclutador');
+      return;
+    }
+    
+    setAssigning(true);
+    try {
+      await assignmentsAPI.assignCandidate(id, selectedRecruiter, assignmentNotes || null);
+      toast.success('Candidato asignado correctamente');
+      setShowAssignDialog(false);
+      setSelectedRecruiter('');
+      setAssignmentNotes('');
+      checkEditPermission();
+    } catch (error) {
+      console.error('Error assigning:', error);
+      toast.error(error.response?.data?.detail || 'Error asignando candidato');
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleUnassignCandidate = async (recruiterId) => {
+    if (!window.confirm('¿Eliminar esta asignación?')) return;
+    
+    try {
+      await assignmentsAPI.unassignCandidate(id, recruiterId);
+      toast.success('Asignación eliminada');
+      checkEditPermission();
+    } catch (error) {
+      console.error('Error unassigning:', error);
+      toast.error(error.response?.data?.detail || 'Error eliminando asignación');
     }
   };
 
@@ -124,6 +220,17 @@ const CandidateDetailPage = () => {
       subtitle={candidate.current_title || 'Candidato'}
     >
       <div className="space-y-6">
+        {/* Permission Warning Banner */}
+        {!canEdit && editReason && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+            <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-amber-800">Modo solo lectura</p>
+              <p className="text-sm text-amber-700">{editReason}</p>
+            </div>
+          </div>
+        )}
+
         {/* Header Actions */}
         <div className="flex items-center justify-between">
           <Button variant="outline" onClick={() => navigate('/candidates')}>
@@ -131,11 +238,27 @@ const CandidateDetailPage = () => {
             Volver
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" data-testid="edit-candidate-button">
+            {isAdmin && (
+              <Button 
+                variant="outline" 
+                onClick={handleOpenAssignDialog}
+                data-testid="assign-candidate-button"
+              >
+                <UserPlus className="w-4 h-4 mr-2" />
+                Asignar
+              </Button>
+            )}
+            <Button 
+              variant="outline" 
+              data-testid="edit-candidate-button"
+              disabled={!canEdit}
+              className={!canEdit ? 'opacity-50 cursor-not-allowed' : ''}
+            >
               <Edit className="w-4 h-4 mr-2" />
               Editar
+              {!canEdit && <Lock className="w-3 h-3 ml-1" />}
             </Button>
-            <Button onClick={handleClassify} disabled={classifying} data-testid="classify-button">
+            <Button onClick={handleClassify} disabled={classifying || !canEdit} data-testid="classify-button">
               <Sparkles className="w-4 h-4 mr-2" />
               {classifying ? 'Clasificando...' : 'Clasificar con Atlas'}
             </Button>
@@ -432,6 +555,67 @@ const CandidateDetailPage = () => {
               </CardContent>
             </Card>
 
+            {/* Assignments Section */}
+            <Card className="border-indigo-200">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Users className="w-4 h-4 text-indigo-600" />
+                  Asignaciones
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {assignments.length > 0 ? (
+                  <div className="space-y-2">
+                    {assignments.map((assignment) => (
+                      <div 
+                        key={assignment.id}
+                        className="flex items-center justify-between p-3 bg-indigo-50 rounded-lg"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-indigo-900">
+                            {assignment.recruiter_name}
+                          </p>
+                          <p className="text-xs text-indigo-600">
+                            Asignado por {assignment.assigned_by_name}
+                          </p>
+                          {assignment.notes && (
+                            <p className="text-xs text-indigo-500 mt-1 italic">
+                              {assignment.notes}
+                            </p>
+                          )}
+                        </div>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnassignCandidate(assignment.recruiter_id)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-sm text-slate-500">
+                    <Users className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                    Sin asignaciones
+                    {isAdmin && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={handleOpenAssignDialog}
+                        className="mt-2 block mx-auto"
+                      >
+                        Asignar ahora
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Notes Section */}
             <Card>
               <CardHeader>
@@ -474,6 +658,65 @@ const CandidateDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Assign Candidate Dialog */}
+      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-indigo-600" />
+              Asignar Candidato
+            </DialogTitle>
+            <DialogDescription>
+              Asignar a {candidate?.full_name} a un reclutador del equipo
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reclutador</label>
+              <Select
+                value={selectedRecruiter}
+                onValueChange={setSelectedRecruiter}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona un reclutador" />
+                </SelectTrigger>
+                <SelectContent>
+                  {recruiters
+                    .filter(r => !assignments.some(a => a.recruiter_id === r.id))
+                    .map((recruiter) => (
+                      <SelectItem key={recruiter.id} value={recruiter.id}>
+                        {recruiter.name} ({recruiter.role})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notas (opcional)</label>
+              <Textarea
+                placeholder="Instrucciones o comentarios para el reclutador..."
+                value={assignmentNotes}
+                onChange={(e) => setAssignmentNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleAssignCandidate} 
+              disabled={assigning || !selectedRecruiter}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {assigning && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Asignar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

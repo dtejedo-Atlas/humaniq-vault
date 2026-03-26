@@ -63,9 +63,10 @@ class AssignmentService:
             raise ValueError("Candidato no encontrado")
         
         # Verificar que el reclutador existe y está activo
+        # Nota: algunos usuarios legacy no tienen is_active, asumimos True
         recruiter = await self.db.users.find_one({
             "id": recruiter_id,
-            "is_active": True
+            "$or": [{"is_active": True}, {"is_active": {"$exists": False}}]
         })
         if not recruiter:
             raise ValueError("Reclutador no encontrado o inactivo")

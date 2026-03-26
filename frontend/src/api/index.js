@@ -100,6 +100,40 @@ export const jobsAPI = {
     axios.post(`${API_BASE}/jobs/${id}/match`, null, { params: { threshold, limit } })
 };
 
+// Users (Admin)
+export const usersAPI = {
+  getAll: (includeInactive = false) => 
+    axios.get(`${API_BASE}/users`, { params: { include_inactive: includeInactive } }),
+  getMe: () => axios.get(`${API_BASE}/users/me`),
+  getById: (id) => axios.get(`${API_BASE}/users/${id}`),
+  create: (data) => axios.post(`${API_BASE}/users`, data),
+  update: (id, data) => axios.put(`${API_BASE}/users/${id}`, data),
+  deactivate: (id) => axios.delete(`${API_BASE}/users/${id}`),
+  getRecruiters: () => axios.get(`${API_BASE}/users/recruiters`)
+};
+
+// Assignments
+export const assignmentsAPI = {
+  getCandidateAssignments: (candidateId) => 
+    axios.get(`${API_BASE}/candidates/${candidateId}/assignments`),
+  assignCandidate: (candidateId, recruiterId, notes = null) => 
+    axios.post(`${API_BASE}/candidates/${candidateId}/assign`, { 
+      candidate_id: candidateId, 
+      recruiter_id: recruiterId, 
+      notes 
+    }),
+  unassignCandidate: (candidateId, recruiterId) => 
+    axios.delete(`${API_BASE}/candidates/${candidateId}/assign/${recruiterId}`),
+  checkCanEdit: (candidateId) => 
+    axios.get(`${API_BASE}/candidates/${candidateId}/can-edit`),
+  getMyAssignments: () => axios.get(`${API_BASE}/assignments/my`),
+  getAllAssignments: () => axios.get(`${API_BASE}/assignments`),
+  transferCandidate: (candidateId, fromRecruiterId, toRecruiterId, notes = null) =>
+    axios.post(`${API_BASE}/candidates/${candidateId}/transfer`, null, { 
+      params: { from_recruiter_id: fromRecruiterId, to_recruiter_id: toRecruiterId, notes }
+    })
+};
+
 export default {
   candidatesAPI,
   atlasAPI,
@@ -107,5 +141,7 @@ export default {
   dashboardAPI,
   taxonomyAPI,
   seedAPI,
-  jobsAPI
+  jobsAPI,
+  usersAPI,
+  assignmentsAPI
 };
