@@ -5,9 +5,10 @@ from enum import Enum
 
 class UserRole(str, Enum):
     SUPER_ADMIN = "super_admin"
+    ADMIN = "admin"
     RECRUITER = "recruiter"
     RESEARCHER = "researcher"
-    VIEWER = "viewer"
+    # VIEWER = "viewer"  # Fase futura
 
 class CandidateStatus(str, Enum):
     NEW = "new"
@@ -40,7 +41,9 @@ class User(BaseModel):
     email: EmailStr
     name: str
     role: UserRole
+    is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by: Optional[str] = None  # ID del usuario que lo creó
     last_login: Optional[datetime] = None
 
 class UserCreate(BaseModel):
@@ -395,3 +398,184 @@ class JobMatchResponse(BaseModel):
     matched_candidates: int
     threshold_used: int
     results: List[CandidateMatchResult]
+
+
+
+# ============= CANDIDATE ASSIGNMENT MODELS =============
+
+class AssignmentStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    TRANSFERRED = "transferred"
+
+class CandidateAssignment(BaseModel):
+    """Asignación de candidato a reclutador"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    candidate_id: str
+    candidate_name: str  # Desnormalizado para display rápido
+    recruiter_id: str
+    recruiter_name: str  # Desnormalizado para display rápido
+    assigned_by: str
+    assigned_by_name: str
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    notes: Optional[str] = None
+    status: AssignmentStatus = AssignmentStatus.ACTIVE
+
+class AssignmentCreate(BaseModel):
+    candidate_id: str
+    recruiter_id: str
+    notes: Optional[str] = None
+
+
+# ============= SMART FOLDER MODELS =============
+
+class FolderType(str, Enum):
+    SYSTEM = "system"  # Predefinido, no eliminable
+    USER = "user"      # Creado por usuario, editable
+
+class SmartFolderCriteria(BaseModel):
+    """Criterios de filtrado para smart folder"""
+    industries: List[str] = []           # OR entre valores
+    functional_areas: List[str] = []     # OR entre valores
+    seniority_levels: List[str] = []     # OR entre valores
+    min_experience: Optional[int] = None
+    max_experience: Optional[int] = None
+    skills: List[str] = []               # AND - debe tener todos
+
+class SmartFolder(BaseModel):
+    """Smart Folder para organizar candidatos dinámicamente"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    name: str                            # "CFO - Consumer Goods"
+    description: Optional[str] = None
+    folder_type: FolderType = FolderType.USER
+    criteria: SmartFolderCriteria
+    
+    # Ownership
+    owner_id: Optional[str] = None       # None para folders del sistema
+    owner_name: Optional[str] = None
+    is_shared: bool = True               # Visible para todo el equipo
+    
+    # Stats (calculados dinámicamente)
+    candidate_count: int = 0
+    
+    # Metadata
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SmartFolderCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    criteria: SmartFolderCriteria
+    is_shared: bool = True
+
+class SmartFolderUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    criteria: Optional[SmartFolderCriteria] = None
+    is_shared: Optional[bool] = None
+
+
+# ============= ACTIVITY LOG MODELS =============
+
+class ActivityAction(str, Enum):
+    # Candidatos
+    CANDIDATE_UPLOADED = "candidate_uploaded"
+    CANDIDATE_VIEWED = "candidate_viewed"
+    CANDIDATE_UPDATED = "candidate_updated"
+    CANDIDATE_ASSIGNED = "candidate_assigned"
+    CANDIDATE_UNASSIGNED = "candidate_unassigned"
+    
+    # Vacantes
+    JOB_CREATED = "job_created"
+    JOB_UPDATED = "job_updated"
+    JOB_MATCHED = "job_matched"
+    JOB_DELETED = "job_deleted"
+    
+    # Folders
+    FOLDER_CREATED = "folder_created"
+    FOLDER_UPDATED = "folder_updated"
+    FOLDER_DELETED = "folder_deleted"
+    
+    # Exports
+    EXPORT_GENERATED = "export_generated"
+    
+    # Users
+    USER_CREATED = "user_created"
+    USER_UPDATED = "user_updated"
+    USER_LOGIN = "user_login"
+
+class ActivityLog(BaseModel):
+    """Log de actividad del sistema"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    user_id: str
+    user_name: str
+    action: ActivityAction
+    entity_type: str                     # "candidate", "job", "folder", "user"
+    entity_id: Optional[str] = None
+    entity_name: Optional[str] = None    # Para display sin lookup
+    details: Dict[str, Any] = {}
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ============= EXPORT MODELS =============
+
+class ExportFormat(str, Enum):
+    PDF = "pdf"
+    DOCX = "docx"
+
+class ExportSourceType(str, Enum):
+    JOB = "job"
+    FOLDER = "folder"
+    CUSTOM = "custom"
+
+class ExportRequest(BaseModel):
+    """Request para generar exportación"""
+    source_type: ExportSourceType
+    source_id: Optional[str] = None      # ID de job o folder
+    candidate_ids: List[str] = []        # Si es custom, lista de IDs
+    format: ExportFormat = ExportFormat.PDF
+    include_breakdown: bool = True
+    include_risks: bool = True
+    include_contact_info: bool = False   # Solo para admins
+
+class ExportRecord(BaseModel):
+    """Registro de exportación generada"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    user_id: str
+    user_name: str
+    source_type: ExportSourceType
+    source_id: Optional[str] = None
+    source_name: str                     # Nombre de la vacante/folder
+    format: ExportFormat
+    candidate_count: int
+    file_url: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# ============= USER MANAGEMENT MODELS =============
+
+class UserUpdate(BaseModel):
+    """Schema para actualizar usuario"""
+    name: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
+class UserWithStats(BaseModel):
+    """Usuario con estadísticas"""
+    id: str
+    email: str
+    name: str
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    candidates_assigned: int = 0
+    jobs_created: int = 0
