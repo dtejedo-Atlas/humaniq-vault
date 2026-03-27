@@ -162,6 +162,20 @@ export const exportsAPI = {
   }
 };
 
+// Smart Folders
+export const foldersAPI = {
+  getAll: (includeCounts = true) => 
+    axios.get(`${API_BASE}/folders`, { params: { include_counts: includeCounts } }),
+  getById: (id) => axios.get(`${API_BASE}/folders/${id}`),
+  create: (data) => axios.post(`${API_BASE}/folders`, data),
+  update: (id, data) => axios.put(`${API_BASE}/folders/${id}`, data),
+  delete: (id) => axios.delete(`${API_BASE}/folders/${id}`),
+  getCandidates: (id, skip = 0, limit = 50, sortBy = 'match_score') =>
+    axios.get(`${API_BASE}/folders/${id}/candidates`, { params: { skip, limit, sort_by: sortBy } }),
+  getCount: (id) => axios.get(`${API_BASE}/folders/${id}/count`),
+  getAnalytics: (id) => axios.get(`${API_BASE}/folders/${id}/analytics`)
+};
+
 export default {
   candidatesAPI,
   atlasAPI,
@@ -172,5 +186,6 @@ export default {
   jobsAPI,
   usersAPI,
   assignmentsAPI,
-  exportsAPI
+  exportsAPI,
+  foldersAPI
 };

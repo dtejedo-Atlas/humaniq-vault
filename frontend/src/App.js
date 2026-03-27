@@ -16,6 +16,7 @@ import SearchPage from './pages/SearchPage';
 import JobsPage from './pages/JobsPage';
 import JobDetailPage from './pages/JobDetailPage';
 import FoldersPage from './pages/FoldersPage';
+import FolderViewPage from './pages/FolderViewPage';
 import AdminPage from './pages/AdminPage';
 import ValidationPage from './pages/ValidationPage';
 import UsersPage from './pages/UsersPage';
@@ -136,6 +137,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <FoldersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/folders/:id"
+        element={
+          <ProtectedRoute>
+            <FolderViewPage />
           </ProtectedRoute>
         }
       />

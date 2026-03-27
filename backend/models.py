@@ -583,3 +583,116 @@ class UserWithStats(BaseModel):
     last_login: Optional[datetime] = None
     candidates_assigned: int = 0
     jobs_created: int = 0
+
+
+# ============= SMART FOLDERS MODELS =============
+
+class FolderType(str, Enum):
+    """Tipo de folder"""
+    SYSTEM = "system"       # Predefinido, no editable
+    USER = "user"           # Creado por usuario
+
+class FolderCategory(str, Enum):
+    """Categoría de folder"""
+    VERTICAL = "vertical"   # Por expertise (CFO, Operaciones, etc.)
+    PROCESS = "process"     # Por estado de proceso (Listos para enviar, etc.)
+    CUSTOM = "custom"       # Personalizado por usuario
+
+class SeniorityFilter(BaseModel):
+    """Filtro de seniority para folders"""
+    mode: str = "range"  # "range" o "exact"
+    min_level: Optional[str] = None
+    max_level: Optional[str] = None
+    exact_levels: List[str] = []
+
+class FolderCriteria(BaseModel):
+    """Criterios dinámicos para Smart Folder"""
+    model_config = ConfigDict(extra="ignore")
+    
+    # Expertise
+    functional_area: List[str] = []
+    industry: List[str] = []
+    seniority: Optional[SeniorityFilter] = None
+    
+    # Estado de proceso
+    candidate_status: List[str] = []  # active, in_process, interviewed, ready_to_send
+    last_activity_days: Optional[int] = None
+    min_match_score: Optional[int] = None
+    created_last_days: Optional[int] = None
+    
+    # Asignación
+    assignment_filter: str = "all"  # "mine", "unassigned", "all"
+
+class SmartFolder(BaseModel):
+    """Smart Folder - Vista dinámica de candidatos"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    name: str
+    description: Optional[str] = None
+    icon: str = "folder"
+    color: str = "slate"
+    
+    # Tipo y categoría
+    folder_type: FolderType
+    folder_category: FolderCategory
+    
+    # Criterios dinámicos
+    criteria: FolderCriteria
+    
+    # Ownership
+    created_by: Optional[str] = None  # user_id, null para sistema
+    
+    # Orden y visibilidad
+    sort_order: int = 0
+    is_pinned: bool = False
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class SmartFolderCreate(BaseModel):
+    """Request para crear Smart Folder"""
+    name: str
+    description: Optional[str] = None
+    icon: str = "folder"
+    color: str = "slate"
+    folder_category: FolderCategory = FolderCategory.CUSTOM
+    criteria: FolderCriteria
+    is_pinned: bool = False
+
+class SmartFolderUpdate(BaseModel):
+    """Request para actualizar Smart Folder"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    criteria: Optional[FolderCriteria] = None
+    is_pinned: Optional[bool] = None
+    sort_order: Optional[int] = None
+
+class FolderAnalytics(BaseModel):
+    """Métricas de uso de un folder"""
+    folder_id: str
+    total_views: int = 0
+    views_last_30_days: int = 0
+    total_exports: int = 0
+    candidates_selected: int = 0
+    last_accessed: Optional[datetime] = None
+
+class SmartFolderWithCount(BaseModel):
+    """Smart Folder con conteo de candidatos"""
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    name: str
+    description: Optional[str] = None
+    icon: str
+    color: str
+    folder_type: FolderType
+    folder_category: FolderCategory
+    criteria: FolderCriteria
+    candidate_count: int = 0
+    sort_order: int = 0
+    is_pinned: bool = False
+    analytics: Optional[FolderAnalytics] = None

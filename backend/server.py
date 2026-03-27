@@ -18,7 +18,8 @@ from models import (
     Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
     DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate,
     Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse,
-    AssignmentCreate, ExportFormat, ExportSourceType, ExportRequest
+    AssignmentCreate, ExportFormat, ExportSourceType, ExportRequest,
+    SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType, FolderCategory
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
@@ -34,6 +35,7 @@ from job_matching_service import JobMatchingService
 from user_service import UserService
 from assignment_service import AssignmentService
 from export_service import ExportService
+from smart_folder_service import SmartFolderService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -50,6 +52,7 @@ job_matching_service = JobMatchingService(db, embedding_service)
 user_service = UserService(db)
 assignment_service = AssignmentService(db)
 export_service = ExportService(db, storage_service)
+smart_folder_service = SmartFolderService(db)
 
 # Create uploads directory (fallback for migration)
 UPLOAD_DIR = ROOT_DIR / "uploads" / "resumes"
@@ -82,6 +85,13 @@ async def startup():
         logger.info("✓ Object storage initialized")
     except Exception as e:
         logger.error(f"✗ Storage initialization failed: {e}")
+    
+    # Inicializar Smart Folders del sistema
+    try:
+        await smart_folder_service.initialize_system_folders()
+        logger.info("✓ Smart Folders initialized")
+    except Exception as e:
+        logger.error(f"✗ Smart Folders initialization failed: {e}")
 
 
 # ============= DEPENDENCY FUNCTIONS =============
@@ -2682,6 +2692,175 @@ async def get_export_details(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a esta exportación")
     
     return record
+
+
+# ============= SMART FOLDERS ENDPOINTS =============
+
+@api_router.get("/folders")
+async def list_folders(
+    include_counts: bool = Query(default=True),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Lista todos los Smart Folders (sistema + usuario).
+    Incluye conteo de candidatos por folder.
+    """
+    folders = await smart_folder_service.list_folders(current_user, include_counts)
+    
+    # Separar por categoría
+    verticals = [f for f in folders if f.get("folder_category") == "vertical"]
+    process = [f for f in folders if f.get("folder_category") == "process"]
+    custom = [f for f in folders if f.get("folder_category") == "custom"]
+    
+    return {
+        "folders": folders,
+        "by_category": {
+            "verticals": verticals,
+            "process": process,
+            "custom": custom
+        },
+        "total": len(folders)
+    }
+
+
+@api_router.post("/folders")
+async def create_folder(
+    data: SmartFolderCreate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Crear un nuevo Smart Folder personalizado.
+    """
+    try:
+        folder = await smart_folder_service.create_folder(data, current_user)
+        return folder
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@api_router.get("/folders/{folder_id}")
+async def get_folder(
+    folder_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener detalle de un Smart Folder.
+    """
+    folder = await smart_folder_service.get_folder(folder_id, current_user)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder no encontrado")
+    
+    return folder
+
+
+@api_router.put("/folders/{folder_id}")
+async def update_folder(
+    folder_id: str,
+    data: SmartFolderUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Actualizar un Smart Folder de usuario.
+    Los folders del sistema no pueden modificarse.
+    """
+    try:
+        folder = await smart_folder_service.update_folder(folder_id, data, current_user)
+        return folder
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+
+@api_router.delete("/folders/{folder_id}")
+async def delete_folder(
+    folder_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Eliminar un Smart Folder de usuario.
+    Los folders del sistema no pueden eliminarse.
+    """
+    try:
+        await smart_folder_service.delete_folder(folder_id, current_user)
+        return {"message": "Folder eliminado"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+
+
+@api_router.get("/folders/{folder_id}/candidates")
+async def get_folder_candidates(
+    folder_id: str,
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=100),
+    sort_by: str = Query(default="match_score"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener candidatos que matchean los criterios del folder.
+    Los criterios se evalúan en tiempo real (Smart/Dinámico).
+    """
+    try:
+        result = await smart_folder_service.get_folder_candidates(
+            folder_id, current_user, skip, limit, sort_by
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
+@api_router.get("/folders/{folder_id}/count")
+async def get_folder_count(
+    folder_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener conteo rápido de candidatos en el folder.
+    Útil para actualizar badges en el sidebar.
+    """
+    folder = await smart_folder_service.get_folder(folder_id, current_user)
+    if not folder:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Folder no encontrado")
+    
+    count = await smart_folder_service._count_candidates(folder, current_user)
+    return {"folder_id": folder_id, "count": count}
+
+
+@api_router.get("/folders/{folder_id}/analytics")
+async def get_folder_analytics(
+    folder_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener métricas de uso del folder.
+    """
+    analytics = await smart_folder_service.get_folder_analytics(folder_id)
+    if not analytics:
+        return {
+            "folder_id": folder_id,
+            "total_views": 0,
+            "views_last_30_days": 0,
+            "total_exports": 0,
+            "candidates_selected": 0,
+            "last_accessed": None
+        }
+    return analytics
+
+
+@api_router.post("/folders/initialize")
+async def initialize_system_folders(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Inicializa los folders del sistema (solo Admin).
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede inicializar folders")
+    
+    await smart_folder_service.initialize_system_folders()
+    return {"message": "Folders del sistema inicializados"}
 
 
 # ============= ROOT ROUTE =============

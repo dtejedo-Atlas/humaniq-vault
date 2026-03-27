@@ -66,11 +66,21 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - Trazabilidad: registro en BD de cada exportación
   - Endpoints: POST /api/exports/job/{id}, GET /api/exports/{id}/download
   - Frontend: Dialog de exportación en JobDetailPage
-- [ ] Smart Folders (carpetas dinámicas)
-- [ ] Exportación PDF/DOCX premium
+- [x] **Smart Folders** (27-Mar-2026)
+  - Backend: smart_folder_service.py con criterios dinámicos
+  - 13 folders predefinidos: 9 verticales + 4 de proceso
+  - Verticales: CFO, Operaciones, Comercial, Marketing, RRHH, IT, Legal, Supply Chain, General Management
+  - Proceso: Listos para Enviar, Top Activos, En Evaluación, Recién Ingresados
+  - Sidebar transformado como navegador central de folders
+  - Vista de candidatos por folder con selección y exportación
+  - Metadata de uso: vistas, exportaciones
+  - Endpoints: /api/folders, /api/folders/{id}/candidates
+- [ ] Panel "Mis Candidatos" en Dashboard
 - [ ] Activity Feed (trazabilidad)
 
 ### Fase 3 (Futura)
+- [ ] Registro de Candidatos Restringidos (compliance/ética)
+- [ ] Búsqueda booleana avanzada
 - [ ] Analytics para admin
 - [ ] Exportación de datos
 - [ ] Búsquedas guardadas avanzadas
@@ -272,13 +282,14 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 ## Próximos Pasos
 1. **🟢 COMPLETADO: Multi-usuario y Asignaciones** (26-Mar-2026)
 2. **🟢 COMPLETADO: Exportación PDF/DOCX Premium** (26-Mar-2026)
-3. 🟡 **Smart Folders** - Carpetas dinámicas basadas en criterios
+3. **🟢 COMPLETADO: Smart Folders** (27-Mar-2026)
 4. 🟡 **Panel "Mis Candidatos"** - Vista rápida de asignaciones en Dashboard
 5. 🔵 **Activity Feed** - Trazabilidad de acciones del sistema
-6. 🔵 **Idioma y Ubicación en Job Matching** - Soft matching adicional
+6. 🔵 **Registro de Candidatos Restringidos** - Sistema de compliance/ética (arquitectura base)
+7. 🔵 **Idioma y Ubicación en Job Matching** - Soft matching adicional
 
 ## Deuda Técnica
-- `server.py` tiene ~2700 líneas. Planificar división en routers modulares (/routers/jobs.py, /routers/users.py, /routers/exports.py, etc.)
+- `server.py` tiene ~2900 líneas. Planificar división en routers modulares (/routers/jobs.py, /routers/users.py, /routers/exports.py, /routers/folders.py, etc.)
 
 ## Arquitectura de Búsqueda (Definitiva)
 
