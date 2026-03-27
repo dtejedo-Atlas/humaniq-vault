@@ -11,12 +11,54 @@ class UserRole(str, Enum):
     # VIEWER = "viewer"  # Fase futura
 
 class CandidateStatus(str, Enum):
-    NEW = "new"
-    REVIEWED = "reviewed"
-    CONTACTED = "contacted"
-    IN_PROCESS = "in_process"
-    PLACED = "placed"
-    ARCHIVED = "archived"
+    """Estados del ciclo de vida del candidato en el pipeline de reclutamiento"""
+    NEW = "new"                    # CV recién cargado, sin revisar
+    REVIEWING = "reviewing"        # Recruiter está evaluando el perfil
+    QUALIFIED = "qualified"        # Perfil validado, listo para procesos
+    READY_TO_SEND = "ready_to_send"  # Listo para presentar a cliente
+    SUBMITTED = "submitted"        # Enviado a cliente
+    INTERVIEWED = "interviewed"    # Cliente lo entrevistó
+    OFFER = "offer"               # En negociación de oferta
+    PLACED = "placed"             # Contratado exitosamente
+    REJECTED = "rejected"         # No apto o rechazado
+    ON_HOLD = "on_hold"           # Temporalmente inactivo
+
+# Colores para estados (para UI)
+STATUS_COLORS = {
+    "new": {"bg": "bg-blue-100", "text": "text-blue-800", "label": "Nuevo"},
+    "reviewing": {"bg": "bg-yellow-100", "text": "text-yellow-800", "label": "En Revisión"},
+    "qualified": {"bg": "bg-green-100", "text": "text-green-800", "label": "Calificado"},
+    "ready_to_send": {"bg": "bg-emerald-100", "text": "text-emerald-800", "label": "Listo para Enviar"},
+    "submitted": {"bg": "bg-purple-100", "text": "text-purple-800", "label": "Presentado"},
+    "interviewed": {"bg": "bg-cyan-100", "text": "text-cyan-800", "label": "Entrevistado"},
+    "offer": {"bg": "bg-amber-100", "text": "text-amber-800", "label": "Oferta"},
+    "placed": {"bg": "bg-teal-100", "text": "text-teal-800", "label": "Colocado"},
+    "rejected": {"bg": "bg-gray-100", "text": "text-gray-800", "label": "Descartado"},
+    "on_hold": {"bg": "bg-slate-100", "text": "text-slate-800", "label": "En Pausa"}
+}
+
+# Transiciones válidas de estado
+VALID_STATUS_TRANSITIONS = {
+    "new": ["reviewing", "rejected", "on_hold"],
+    "reviewing": ["qualified", "rejected", "on_hold"],
+    "qualified": ["ready_to_send", "rejected", "on_hold"],
+    "ready_to_send": ["submitted", "qualified", "rejected", "on_hold"],
+    "submitted": ["interviewed", "rejected", "on_hold"],
+    "interviewed": ["offer", "qualified", "rejected", "on_hold"],
+    "offer": ["placed", "rejected", "on_hold"],
+    "placed": [],  # Estado final
+    "rejected": ["reviewing", "on_hold"],  # Puede reactivarse
+    "on_hold": ["reviewing", "qualified", "rejected"]  # Puede reactivarse
+}
+
+class StatusChange(BaseModel):
+    """Registro de cambio de estado para historial"""
+    from_status: str
+    to_status: str
+    changed_by: str           # user_id
+    changed_by_name: str      # nombre del usuario
+    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    notes: Optional[str] = None
 
 class SeniorityLevel(str, Enum):
     ENTRY = "entry"
@@ -112,6 +154,7 @@ class Candidate(BaseModel):
     notes: List[RecruiterNote] = []
     tags: List[str] = []
     status: CandidateStatus = CandidateStatus.NEW
+    status_history: List[StatusChange] = []  # Historial de cambios de estado
     source: Optional[str] = None
     ai_summary: Optional[str] = None
     ai_classification: Optional[AIClassification] = None
@@ -126,6 +169,10 @@ class Candidate(BaseModel):
     # Campos de búsqueda híbrida (solo presentes en resultados de búsqueda)
     match_score: Optional[int] = None
     match_breakdown: Optional[Dict[str, Any]] = None
+    
+    # Tracking de actividad
+    last_activity: Optional[datetime] = None
+    last_activity_type: Optional[str] = None  # status_change, note_added, exported, etc.
     
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -160,6 +207,11 @@ class CandidateUpdate(BaseModel):
     salary_data: Optional[str] = None
     tags: Optional[List[str]] = None
     status: Optional[CandidateStatus] = None
+
+class StatusChangeRequest(BaseModel):
+    """Request para cambiar estado de candidato"""
+    new_status: CandidateStatus
+    notes: Optional[str] = None
 
 class ResumeUpload(BaseModel):
     model_config = ConfigDict(extra="ignore")

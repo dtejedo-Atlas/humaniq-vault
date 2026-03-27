@@ -22,6 +22,14 @@ import {
   SelectValue 
 } from '../components/ui/select';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import {
   Mail,
   Phone,
   MapPin,
@@ -39,13 +47,34 @@ import {
   Lock,
   AlertCircle,
   X,
-  Loader2
+  Loader2,
+  ChevronDown,
+  Send,
+  UserCheck,
+  Clock,
+  XCircle,
+  Pause,
+  History
 } from 'lucide-react';
-import { candidatesAPI, atlasAPI, assignmentsAPI, usersAPI } from '../api';
+import { candidatesAPI, atlasAPI, assignmentsAPI, usersAPI, statusAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate, formatDateTime } from '../utils/helpers';
+import { getSeniorityLabel, formatDate, formatDateTime } from '../utils/helpers';
+
+// Configuración de estados
+const STATUS_CONFIG = {
+  new: { label: 'Nuevo', color: 'bg-blue-100 text-blue-800', icon: Clock },
+  reviewing: { label: 'En Revisión', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+  qualified: { label: 'Calificado', color: 'bg-green-100 text-green-800', icon: CheckCircle },
+  ready_to_send: { label: 'Listo para Enviar', color: 'bg-emerald-100 text-emerald-800', icon: Send },
+  submitted: { label: 'Presentado', color: 'bg-purple-100 text-purple-800', icon: Send },
+  interviewed: { label: 'Entrevistado', color: 'bg-cyan-100 text-cyan-800', icon: UserCheck },
+  offer: { label: 'Oferta', color: 'bg-amber-100 text-amber-800', icon: Sparkles },
+  placed: { label: 'Colocado', color: 'bg-teal-100 text-teal-800', icon: CheckCircle },
+  rejected: { label: 'Descartado', color: 'bg-gray-100 text-gray-800', icon: XCircle },
+  on_hold: { label: 'En Pausa', color: 'bg-slate-100 text-slate-800', icon: Pause }
+};
 
 const CandidateDetailPage = () => {
   const { id } = useParams();
@@ -68,11 +97,18 @@ const CandidateDetailPage = () => {
   const [assignmentNotes, setAssignmentNotes] = useState('');
   const [assigning, setAssigning] = useState(false);
   
+  // Status state
+  const [changingStatus, setChangingStatus] = useState(false);
+  const [statusTransitions, setStatusTransitions] = useState({});
+  const [showStatusHistory, setShowStatusHistory] = useState(false);
+  const [statusHistory, setStatusHistory] = useState([]);
+  
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   useEffect(() => {
     fetchCandidate();
     checkEditPermission();
+    loadStatusConfig();
   }, [id]);
 
   const fetchCandidate = async () => {
@@ -84,6 +120,41 @@ const CandidateDetailPage = () => {
       toast.error('Error cargando candidato');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadStatusConfig = async () => {
+    try {
+      const response = await statusAPI.getConfig();
+      setStatusTransitions(response.data.transitions || {});
+    } catch (error) {
+      console.error('Error loading status config:', error);
+    }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    if (!canEdit || changingStatus) return;
+    
+    setChangingStatus(true);
+    try {
+      await candidatesAPI.changeStatus(id, newStatus);
+      toast.success(`Estado cambiado a ${STATUS_CONFIG[newStatus]?.label || newStatus}`);
+      fetchCandidate();
+    } catch (error) {
+      console.error('Error changing status:', error);
+      toast.error(error.response?.data?.detail || 'Error cambiando estado');
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
+  const loadStatusHistory = async () => {
+    try {
+      const response = await candidatesAPI.getStatusHistory(id);
+      setStatusHistory(response.data.history || []);
+      setShowStatusHistory(true);
+    } catch (error) {
+      console.error('Error loading status history:', error);
     }
   };
 
@@ -282,9 +353,58 @@ const CandidateDetailPage = () => {
                       </CardDescription>
                     )}
                   </div>
-                  <Badge className={getStatusColor(candidate.status)}>
-                    {getStatusLabel(candidate.status)}
-                  </Badge>
+                  
+                  {/* Status Dropdown */}
+                  <div className="flex items-center gap-2">
+                    {canEdit ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            className={`${STATUS_CONFIG[candidate.status]?.color || 'bg-gray-100'} border-0`}
+                            disabled={changingStatus}
+                          >
+                            {changingStatus ? (
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                              STATUS_CONFIG[candidate.status]?.icon && 
+                              React.createElement(STATUS_CONFIG[candidate.status].icon, { className: "w-4 h-4 mr-2" })
+                            )}
+                            {STATUS_CONFIG[candidate.status]?.label || candidate.status}
+                            <ChevronDown className="w-4 h-4 ml-2" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel>Cambiar estado</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
+                          {statusTransitions[candidate.status]?.map((status) => (
+                            <DropdownMenuItem 
+                              key={status}
+                              onClick={() => handleStatusChange(status)}
+                              className="cursor-pointer"
+                            >
+                              <span className={`w-2 h-2 rounded-full mr-2 ${STATUS_CONFIG[status]?.color?.split(' ')[0] || 'bg-gray-200'}`} />
+                              {STATUS_CONFIG[status]?.label || status}
+                            </DropdownMenuItem>
+                          ))}
+                          {(!statusTransitions[candidate.status] || statusTransitions[candidate.status].length === 0) && (
+                            <DropdownMenuItem disabled>
+                              No hay transiciones disponibles
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={loadStatusHistory} className="cursor-pointer">
+                            <History className="w-4 h-4 mr-2" />
+                            Ver historial
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Badge className={STATUS_CONFIG[candidate.status]?.color || 'bg-gray-100 text-gray-800'}>
+                        {STATUS_CONFIG[candidate.status]?.label || candidate.status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -713,6 +833,64 @@ const CandidateDetailPage = () => {
             >
               {assigning && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Asignar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status History Dialog */}
+      <Dialog open={showStatusHistory} onOpenChange={setShowStatusHistory}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5 text-indigo-600" />
+              Historial de Estados
+            </DialogTitle>
+            <DialogDescription>
+              Cambios de estado de {candidate?.full_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto">
+            {statusHistory.length > 0 ? (
+              <div className="space-y-3">
+                {statusHistory.map((change, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg"
+                  >
+                    <div className="flex-shrink-0 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
+                      <span className="text-xs font-medium text-slate-500">{statusHistory.length - index}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Badge variant="outline" className={`${STATUS_CONFIG[change.from_status]?.color || 'bg-gray-100'} text-xs`}>
+                          {STATUS_CONFIG[change.from_status]?.label || change.from_status}
+                        </Badge>
+                        <span className="text-slate-400">→</span>
+                        <Badge variant="outline" className={`${STATUS_CONFIG[change.to_status]?.color || 'bg-gray-100'} text-xs`}>
+                          {STATUS_CONFIG[change.to_status]?.label || change.to_status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        por {change.changed_by_name} • {formatDateTime(change.changed_at)}
+                      </p>
+                      {change.notes && (
+                        <p className="text-xs text-slate-600 mt-1 italic">"{change.notes}"</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-slate-500">
+                <History className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                <p>No hay cambios de estado registrados</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowStatusHistory(false)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

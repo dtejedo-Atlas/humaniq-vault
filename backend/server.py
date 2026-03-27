@@ -19,7 +19,8 @@ from models import (
     DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate,
     Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse,
     AssignmentCreate, ExportFormat, ExportSourceType, ExportRequest,
-    SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType, FolderCategory
+    SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType, FolderCategory,
+    StatusChangeRequest, StatusChange, VALID_STATUS_TRANSITIONS, STATUS_COLORS
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
@@ -2404,6 +2405,124 @@ async def deactivate_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+# ============= CANDIDATE STATUS ENDPOINTS =============
+
+@api_router.put("/candidates/{candidate_id}/status")
+async def change_candidate_status(
+    candidate_id: str,
+    request: StatusChangeRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Cambiar el estado de un candidato.
+    Solo el recruiter asignado o Admin pueden cambiar el estado.
+    """
+    # Obtener candidato
+    candidate = await db.candidates.find_one({"id": candidate_id})
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    current_status = candidate.get("status", "new")
+    new_status = request.new_status.value
+    
+    # Validar transición
+    valid_transitions = VALID_STATUS_TRANSITIONS.get(current_status, [])
+    if new_status not in valid_transitions and current_status != new_status:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Transición no válida: {current_status} → {new_status}. Transiciones permitidas: {valid_transitions}"
+        )
+    
+    # Verificar permisos: Admin puede todo, Recruiter solo si está asignado
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        # Verificar si el recruiter está asignado a este candidato
+        assignment = await db.candidate_assignments.find_one({
+            "candidate_id": candidate_id,
+            "recruiter_id": current_user.id,
+            "status": "active"
+        })
+        if not assignment:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo puedes cambiar el estado de candidatos asignados a ti"
+            )
+    
+    # Crear registro de historial
+    status_change = {
+        "from_status": current_status,
+        "to_status": new_status,
+        "changed_by": current_user.id,
+        "changed_by_name": current_user.name,
+        "changed_at": datetime.now(timezone.utc).isoformat(),
+        "notes": request.notes
+    }
+    
+    # Actualizar candidato
+    now = datetime.now(timezone.utc).isoformat()
+    update_result = await db.candidates.update_one(
+        {"id": candidate_id},
+        {
+            "$set": {
+                "status": new_status,
+                "updated_at": now,
+                "last_activity": now,
+                "last_activity_type": "status_change"
+            },
+            "$push": {
+                "status_history": status_change
+            }
+        }
+    )
+    
+    if update_result.modified_count == 0:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error actualizando estado")
+    
+    logger.info(f"Candidate {candidate_id} status changed: {current_status} → {new_status} by {current_user.email}")
+    
+    return {
+        "candidate_id": candidate_id,
+        "previous_status": current_status,
+        "new_status": new_status,
+        "changed_by": current_user.name,
+        "changed_at": now
+    }
+
+
+@api_router.get("/candidates/{candidate_id}/status-history")
+async def get_candidate_status_history(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Obtener historial de cambios de estado de un candidato.
+    """
+    candidate = await db.candidates.find_one(
+        {"id": candidate_id},
+        {"_id": 0, "status": 1, "status_history": 1}
+    )
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    return {
+        "candidate_id": candidate_id,
+        "current_status": candidate.get("status", "new"),
+        "status_info": STATUS_COLORS.get(candidate.get("status", "new")),
+        "history": candidate.get("status_history", [])
+    }
+
+
+@api_router.get("/status-config")
+async def get_status_config(current_user: User = Depends(get_current_user)):
+    """
+    Obtener configuración de estados (colores, labels, transiciones).
+    Útil para el frontend.
+    """
+    return {
+        "statuses": STATUS_COLORS,
+        "transitions": VALID_STATUS_TRANSITIONS
+    }
 
 
 # ============= CANDIDATE ASSIGNMENT ENDPOINTS =============

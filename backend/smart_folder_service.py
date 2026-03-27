@@ -160,12 +160,12 @@ SYSTEM_FOLDERS = [
     {
         "id": "sys_top_active",
         "name": "Top Candidatos Activos",
-        "description": "Candidatos con alta compatibilidad y actividad reciente",
+        "description": "Candidatos calificados con alta compatibilidad",
         "icon": "star",
         "color": "yellow",
         "folder_category": "process",
         "criteria": {
-            "last_activity_days": 30,
+            "candidate_status": ["qualified", "ready_to_send"],
             "min_match_score": 75
         },
         "sort_order": 102
@@ -173,24 +173,24 @@ SYSTEM_FOLDERS = [
     {
         "id": "sys_in_evaluation",
         "name": "En Evaluación",
-        "description": "Candidatos actualmente en proceso de evaluación",
+        "description": "Candidatos en revisión o calificados pendientes",
         "icon": "clipboard-check",
         "color": "blue",
         "folder_category": "process",
         "criteria": {
-            "candidate_status": ["in_process", "interviewed"]
+            "candidate_status": ["reviewing", "qualified"]
         },
         "sort_order": 103
     },
     {
         "id": "sys_recently_added",
         "name": "Recién Ingresados",
-        "description": "CVs cargados en los últimos 7 días",
+        "description": "CVs nuevos sin revisar",
         "icon": "plus-circle",
         "color": "teal",
         "folder_category": "process",
         "criteria": {
-            "created_last_days": 7
+            "candidate_status": ["new"]
         },
         "sort_order": 104
     }

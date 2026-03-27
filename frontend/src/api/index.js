@@ -13,6 +13,9 @@ export const candidatesAPI = {
     formData.append('note_text', note);
     return axios.post(`${API_BASE}/candidates/${id}/notes`, formData);
   },
+  changeStatus: (id, newStatus, notes = null) => 
+    axios.put(`${API_BASE}/candidates/${id}/status`, { new_status: newStatus, notes }),
+  getStatusHistory: (id) => axios.get(`${API_BASE}/candidates/${id}/status-history`),
   uploadResume: (file, candidateId = null) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -66,6 +69,11 @@ export const searchAPI = {
 export const dashboardAPI = {
   getStats: () => axios.get(`${API_BASE}/dashboard/stats`),
   getRecentActivity: (limit = 10) => axios.get(`${API_BASE}/dashboard/recent-activity`, { params: { limit } })
+};
+
+// Status Config
+export const statusAPI = {
+  getConfig: () => axios.get(`${API_BASE}/status-config`)
 };
 
 // Taxonomy
@@ -181,6 +189,7 @@ export default {
   atlasAPI,
   searchAPI,
   dashboardAPI,
+  statusAPI,
   taxonomyAPI,
   seedAPI,
   jobsAPI,
