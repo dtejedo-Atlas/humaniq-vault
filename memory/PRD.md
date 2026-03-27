@@ -86,6 +86,35 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - Testing: 12/12 tests passed (iteration_7.json)
   - Bug fix: Sidebar overflow corregido con flex-shrink-0 y min-h-0
 
+### Fase 2.5 (Correcciones Operativas) - COMPLETADA ✅ (27-Mar-2026)
+- [x] **Clasificación HR Corregida**
+  - Smart Folder "Recursos Humanos" ahora incluye: human_resources, talent_acquisition, hr
+  - Corregido mapeo de functional_area en otros folders (IT, Supply Chain, Operations)
+  - Endpoint POST /api/folders/initialize?force_update=true para actualizar criterios
+- [x] **Soft Delete de Candidatos**
+  - Endpoint DELETE /api/candidates/{id} marca is_deleted=true
+  - Candidato desaparece de operación pero permanece en BD para trazabilidad
+  - Endpoint POST /api/candidates/{id}/restore (solo Admin) para recuperar
+  - Todas las queries excluyen automáticamente candidatos eliminados
+- [x] **Detección de Duplicados por Niveles**
+  - Alta confianza (>=90%): Email exacto → duplicado casi seguro
+  - Media confianza (70-90%): Teléfono o LinkedIn similares
+  - Baja confianza (<70%): Nombre similar → solo alerta
+  - Endpoint GET /api/candidates/{id}/duplicates retorna duplicados categorizados
+  - Endpoint POST /api/candidates/merge para fusionar duplicados (solo Admin)
+- [x] **Registro Restringido (Lista Negra)**
+  - Botón "Marcar como Restringido" en perfil de candidato
+  - Categorías: ethical_issue, bad_reference, legal_issue, conflict_of_interest, performance_issue, other
+  - Trazabilidad completa: quién, cuándo, motivo, categoría
+  - No es bloqueo automático, solo marca para revisión
+  - Endpoint POST /api/candidates/{id}/restrict
+  - Endpoint POST /api/candidates/{id}/unrestrict (solo Admin)
+- [x] **UI de Alertas**
+  - Banner rojo para candidatos restringidos con info completa
+  - Banner ámbar para duplicados detectados con botón "Ver"
+  - Diálogos de confirmación para eliminar y restringir
+- [x] **Testing**: iteration_8.json - 21/21 backend tests, 100% frontend verified
+
 ### Fase 2.5 (Backlog Operativo) - NO INICIADA
 - [ ] Panel "Mis Candidatos" en Dashboard
 - [ ] Activity Feed (trazabilidad de acciones)
