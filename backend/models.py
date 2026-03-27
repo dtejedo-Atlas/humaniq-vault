@@ -174,6 +174,17 @@ class Candidate(BaseModel):
     last_activity: Optional[datetime] = None
     last_activity_type: Optional[str] = None  # status_change, note_added, exported, etc.
     
+    # Soft delete
+    is_deleted: Optional[bool] = None
+    deleted_at: Optional[str] = None
+    deleted_by: Optional[str] = None
+    deleted_by_name: Optional[str] = None
+    
+    # Restricción (lista negra)
+    is_restricted: Optional[bool] = None
+    restriction_info: Optional[Dict[str, Any]] = None
+    restriction_history: List[Dict[str, Any]] = []
+    
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[str] = None

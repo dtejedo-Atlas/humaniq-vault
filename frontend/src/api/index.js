@@ -8,6 +8,8 @@ export const candidatesAPI = {
   getById: (id) => axios.get(`${API_BASE}/candidates/${id}`),
   create: (data) => axios.post(`${API_BASE}/candidates`, data),
   update: (id, data) => axios.put(`${API_BASE}/candidates/${id}`, data),
+  delete: (id) => axios.delete(`${API_BASE}/candidates/${id}`),
+  restore: (id) => axios.post(`${API_BASE}/candidates/${id}/restore`),
   addNote: (id, note) => {
     const formData = new FormData();
     formData.append('note_text', note);
@@ -16,6 +18,8 @@ export const candidatesAPI = {
   changeStatus: (id, newStatus, notes = null) => 
     axios.put(`${API_BASE}/candidates/${id}/status`, { new_status: newStatus, notes }),
   getStatusHistory: (id) => axios.get(`${API_BASE}/candidates/${id}/status-history`),
+  markRestricted: (id, reason, category, notes = null) =>
+    axios.post(`${API_BASE}/candidates/${id}/restrict`, { reason, category, notes }),
   uploadResume: (file, candidateId = null) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -42,7 +46,14 @@ export const candidatesAPI = {
   getQueueStats: () => axios.get(`${API_BASE}/candidates/queue-stats`),
   getDuplicates: (id) => axios.get(`${API_BASE}/candidates/${id}/duplicates`),
   dismissDuplicate: (candidateId, suggestionId) => 
-    axios.post(`${API_BASE}/candidates/${candidateId}/dismiss-duplicate/${suggestionId}`)
+    axios.post(`${API_BASE}/candidates/${candidateId}/dismiss-duplicate/${suggestionId}`),
+  merge: (sourceId, targetId, options = {}) =>
+    axios.post(`${API_BASE}/candidates/merge`, {
+      source_candidate_id: sourceId,
+      target_candidate_id: targetId,
+      merge_notes: options.mergeNotes ?? true,
+      merge_history: options.mergeHistory ?? true
+    })
 };
 
 // Atlas AI

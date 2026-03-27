@@ -257,7 +257,7 @@ async def get_candidates(
         return results
     
     # Sin búsqueda de texto: solo filtros estructurados
-    query = {}
+    query = {"is_deleted": {"$ne": True}}  # Excluir eliminados
     if status:
         query['status'] = status.value if hasattr(status, 'value') else str(status)
     if industry and industry.strip():
@@ -497,6 +497,198 @@ async def add_candidate_note(
     )
     
     return {"message": "Nota agregada exitosamente"}
+
+
+@api_router.delete("/candidates/{candidate_id}")
+async def delete_candidate(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Soft delete de candidato.
+    El candidato se marca como eliminado pero permanece en BD para trazabilidad.
+    Admin y Recruiters pueden eliminar candidatos individuales.
+    """
+    # Verificar que existe
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "is_deleted": 1, "full_name": 1})
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    if candidate.get("is_deleted"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El candidato ya está eliminado")
+    
+    # Realizar soft delete
+    now = datetime.now(timezone.utc).isoformat()
+    await db.candidates.update_one(
+        {"id": candidate_id},
+        {"$set": {
+            "is_deleted": True,
+            "deleted_at": now,
+            "deleted_by": current_user.id,
+            "deleted_by_name": current_user.name,
+            "updated_at": now
+        }}
+    )
+    
+    logger.info(f"Candidate {candidate_id} soft deleted by {current_user.email}")
+    
+    return {
+        "message": "Candidato eliminado exitosamente",
+        "candidate_id": candidate_id,
+        "deleted_by": current_user.name,
+        "deleted_at": now
+    }
+
+
+@api_router.post("/candidates/{candidate_id}/restore")
+async def restore_candidate(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Restaurar candidato eliminado (solo Admin).
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede restaurar candidatos")
+    
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "is_deleted": 1})
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    if not candidate.get("is_deleted"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El candidato no está eliminado")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    await db.candidates.update_one(
+        {"id": candidate_id},
+        {
+            "$set": {"updated_at": now},
+            "$unset": {"is_deleted": "", "deleted_at": "", "deleted_by": "", "deleted_by_name": ""}
+        }
+    )
+    
+    logger.info(f"Candidate {candidate_id} restored by {current_user.email}")
+    
+    return {"message": "Candidato restaurado exitosamente", "candidate_id": candidate_id}
+
+
+# ============= CANDIDATE RESTRICTION (LISTA NEGRA) =============
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class RestrictionRequest(PydanticBaseModel):
+    reason: str = ""
+    category: str  # ethical_issue, bad_reference, legal_issue, conflict_of_interest, performance_issue, other
+    notes: Optional[str] = None
+
+RESTRICTION_CATEGORIES = {
+    "ethical_issue": "Problema ético",
+    "bad_reference": "Mala referencia",
+    "legal_issue": "Problema legal",
+    "conflict_of_interest": "Conflicto de interés",
+    "performance_issue": "Problema de desempeño",
+    "other": "Otro"
+}
+
+@api_router.post("/candidates/{candidate_id}/restrict")
+async def mark_candidate_restricted(
+    candidate_id: str,
+    request: RestrictionRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Marcar candidato como restringido/no elegible.
+    No bloquea automáticamente, solo registra para revisión.
+    Queda trazado: quién, cuándo, motivo, categoría.
+    """
+    # Verificar que existe
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "full_name": 1, "is_restricted": 1})
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    if request.category not in RESTRICTION_CATEGORIES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Categoría inválida")
+    
+    # Crear registro de restricción
+    now = datetime.now(timezone.utc).isoformat()
+    restriction_entry = {
+        "category": request.category,
+        "category_label": RESTRICTION_CATEGORIES[request.category],
+        "reason": request.reason,
+        "notes": request.notes,
+        "marked_by": current_user.id,
+        "marked_by_name": current_user.name,
+        "marked_at": now
+    }
+    
+    await db.candidates.update_one(
+        {"id": candidate_id},
+        {
+            "$set": {
+                "is_restricted": True,
+                "restriction_info": restriction_entry,
+                "updated_at": now
+            },
+            "$push": {
+                "restriction_history": restriction_entry
+            }
+        }
+    )
+    
+    logger.warning(f"Candidate {candidate_id} marked as RESTRICTED by {current_user.email} - Category: {request.category}")
+    
+    return {
+        "message": "Candidato marcado como restringido",
+        "candidate_id": candidate_id,
+        "category": RESTRICTION_CATEGORIES[request.category],
+        "marked_by": current_user.name,
+        "marked_at": now
+    }
+
+
+@api_router.post("/candidates/{candidate_id}/unrestrict")
+async def remove_candidate_restriction(
+    candidate_id: str,
+    notes: str = Form(None),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Quitar restricción de candidato (solo Admin).
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede quitar restricciones")
+    
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "is_restricted": 1})
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    if not candidate.get("is_restricted"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El candidato no está restringido")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    unrestriction_entry = {
+        "action": "unrestricted",
+        "unrestricted_by": current_user.id,
+        "unrestricted_by_name": current_user.name,
+        "unrestricted_at": now,
+        "notes": notes
+    }
+    
+    await db.candidates.update_one(
+        {"id": candidate_id},
+        {
+            "$set": {
+                "is_restricted": False,
+                "updated_at": now
+            },
+            "$unset": {"restriction_info": ""},
+            "$push": {"restriction_history": unrestriction_entry}
+        }
+    )
+    
+    logger.info(f"Candidate {candidate_id} UNRESTRICTED by {current_user.email}")
+    
+    return {"message": "Restricción removida", "candidate_id": candidate_id}
 
 
 # ============= RESUME UPLOAD & PARSING ROUTES =============
@@ -1655,13 +1847,44 @@ async def get_candidate_duplicates(
     candidate_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Get duplicate suggestions for a candidate"""
-    suggestions = await db.duplicate_suggestions.find(
+    """
+    Get duplicate suggestions for a candidate.
+    Incluye sugerencias pendientes y búsqueda activa de posibles duplicados.
+    """
+    # Obtener sugerencias guardadas
+    saved_suggestions = await db.duplicate_suggestions.find(
         {"new_candidate_id": candidate_id, "status": "pending"},
         {"_id": 0}
     ).to_list(10)
     
-    return suggestions
+    # Buscar duplicados activamente
+    candidate = await db.candidates.find_one(
+        {"id": candidate_id},
+        {"_id": 0, "email": 1, "phone": 1, "linkedin_url": 1, "full_name": 1, "previous_companies": 1}
+    )
+    
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    active_duplicates = await duplicate_detector.detect_duplicates(candidate)
+    
+    # Filtrar auto-match (no comparar consigo mismo)
+    active_duplicates = [d for d in active_duplicates if d.get('candidate_id') != candidate_id]
+    
+    # Categorizar por nivel de confianza
+    high_confidence = [d for d in active_duplicates if d['confidence'] >= 0.9]
+    medium_confidence = [d for d in active_duplicates if 0.7 <= d['confidence'] < 0.9]
+    low_confidence = [d for d in active_duplicates if d['confidence'] < 0.7]
+    
+    return {
+        "saved_suggestions": saved_suggestions,
+        "active_duplicates": {
+            "high_confidence": high_confidence,
+            "medium_confidence": medium_confidence,
+            "low_confidence": low_confidence,
+            "total": len(active_duplicates)
+        }
+    }
 
 
 @api_router.post("/candidates/{candidate_id}/dismiss-duplicate/{suggestion_id}")
@@ -1683,6 +1906,91 @@ async def dismiss_duplicate(
     )
     
     return {"message": "Duplicado descartado"}
+
+
+class MergeRequest(PydanticBaseModel):
+    source_candidate_id: str  # El que se va a eliminar
+    target_candidate_id: str  # El que se va a mantener
+    merge_notes: bool = True  # Combinar notas
+    merge_history: bool = True  # Combinar historial de status
+
+
+@api_router.post("/candidates/merge")
+async def merge_candidates(
+    request: MergeRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Merge de candidatos duplicados (solo Admin).
+    Mantiene el target, transfiere datos del source, y marca el source como eliminado.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede fusionar candidatos")
+    
+    source = await db.candidates.find_one({"id": request.source_candidate_id}, {"_id": 0})
+    target = await db.candidates.find_one({"id": request.target_candidate_id}, {"_id": 0})
+    
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato fuente no encontrado")
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato destino no encontrado")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    updates = {"updated_at": now}
+    push_updates = {}
+    
+    # Transferir notas
+    if request.merge_notes and source.get("notes"):
+        push_updates["notes"] = {"$each": source["notes"]}
+    
+    # Transferir historial de status
+    if request.merge_history and source.get("status_history"):
+        push_updates["status_history"] = {"$each": source["status_history"]}
+    
+    # Transferir archivos de CV si el target no tiene
+    if source.get("resume_files") and not target.get("resume_files"):
+        updates["resume_files"] = source["resume_files"]
+    
+    # Agregar nota del merge
+    merge_note = {
+        "note": f"[MERGE] Información transferida del candidato duplicado: {source.get('full_name')} (ID: {request.source_candidate_id})",
+        "created_by": current_user.name,
+        "created_at": now
+    }
+    if "notes" not in push_updates:
+        push_updates["notes"] = {"$each": [merge_note]}
+    else:
+        push_updates["notes"]["$each"].append(merge_note)
+    
+    # Actualizar target
+    update_ops = {"$set": updates}
+    if push_updates:
+        update_ops["$push"] = push_updates
+    
+    await db.candidates.update_one({"id": request.target_candidate_id}, update_ops)
+    
+    # Soft delete source
+    await db.candidates.update_one(
+        {"id": request.source_candidate_id},
+        {"$set": {
+            "is_deleted": True,
+            "deleted_at": now,
+            "deleted_by": current_user.id,
+            "deleted_by_name": current_user.name,
+            "merged_into": request.target_candidate_id,
+            "updated_at": now
+        }}
+    )
+    
+    logger.info(f"Candidates merged: {request.source_candidate_id} -> {request.target_candidate_id} by {current_user.email}")
+    
+    return {
+        "message": "Candidatos fusionados exitosamente",
+        "target_candidate_id": request.target_candidate_id,
+        "source_candidate_id": request.source_candidate_id,
+        "source_deleted": True,
+        "merged_by": current_user.name
+    }
 
 
 # ============= ADMIN TAXONOMY CRUD ROUTES =============
@@ -2970,16 +3278,18 @@ async def get_folder_analytics(
 
 @api_router.post("/folders/initialize")
 async def initialize_system_folders(
+    force_update: bool = Query(False, description="Forzar actualización de folders existentes"),
     current_user: User = Depends(get_current_user)
 ):
     """
     Inicializa los folders del sistema (solo Admin).
+    Con force_update=True actualiza los criterios de folders existentes.
     """
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede inicializar folders")
     
-    await smart_folder_service.initialize_system_folders()
-    return {"message": "Folders del sistema inicializados"}
+    await smart_folder_service.initialize_system_folders(force_update=force_update)
+    return {"message": "Folders del sistema inicializados" + (" (criterios actualizados)" if force_update else "")}
 
 
 # ============= ROOT ROUTE =============

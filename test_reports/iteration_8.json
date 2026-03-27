@@ -1,0 +1,159 @@
+{
+  "summary": "Iteration 8: Operational Fixes Testing - All features verified. Backend: 21/21 tests passed. Frontend: All UI elements working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_operational_fixes.py",
+    "/app/test_reports/pytest/pytest_operational_fixes.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_operational_fixes.py"
+  ],
+  "success_rate": {
+    "backend": "100% (21/21 tests passed)",
+    "frontend": "100% (All UI elements verified)"
+  },
+  "test_credentials": {
+    "admin": {
+      "email": "test_utf8@atlas.com",
+      "password": "test123456"
+    },
+    "test_candidate_id": "5a242806-04ec-467c-bae2-1b99d0943e61",
+    "restricted_candidate_id": "e75df560-272d-44ba-b902-e859a0638a7b"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 8 validated all operational fixes: 1) HR Smart Folder now correctly includes human_resources, talent_acquisition, and hr functional areas - shows 5 candidates. 2) Soft delete works - DELETE /api/candidates/{id} marks is_deleted=true, candidate disappears from lists but remains in DB. 3) Restore works - POST /api/candidates/{id}/restore (Admin only) removes is_deleted flag. 4) Duplicates detection returns categorized results (high/medium/low confidence) via GET /api/candidates/{id}/duplicates. 5) Restrict candidate works - POST /api/candidates/{id}/restrict with category and reason, full traceability (who, when, why). 6) Unrestrict works - POST /api/candidates/{id}/unrestrict (Admin only). 7) UI shows restriction banner (red) and duplicate alert banner (amber) correctly. 8) Delete and Restrict dialogs work with proper messaging.",
+  "test_results_detail": {
+    "backend_tests": {
+      "status": "PASS",
+      "tests_run": 21,
+      "tests_passed": 21,
+      "test_classes": {
+        "TestAuthentication": {
+          "test_login_success": "PASS - Login with test_utf8@atlas.com successful"
+        },
+        "TestSmartFolderHR": {
+          "test_get_all_folders": "PASS - Retrieved 13 smart folders (grouped by category)",
+          "test_hr_folder_exists": "PASS - HR folder found: Recursos Humanos",
+          "test_hr_folder_criteria_includes_talent_acquisition": "PASS - HR folder criteria includes: human_resources, talent_acquisition, hr",
+          "test_hr_folder_candidate_count": "PASS - HR folder has 5 candidates"
+        },
+        "TestSoftDelete": {
+          "test_get_candidate_before_delete": "PASS - Test candidate exists",
+          "test_delete_candidate_soft_delete": "PASS - Soft delete successful, is_deleted=true",
+          "test_deleted_candidate_not_in_list": "PASS - Deleted candidate not in candidate list"
+        },
+        "TestRestoreCandidate": {
+          "test_restore_deleted_candidate": "PASS - Candidate restored successfully, is_deleted flag removed",
+          "test_restore_non_deleted_candidate_fails": "PASS - Restore non-deleted candidate correctly returns 400"
+        },
+        "TestDuplicateDetection": {
+          "test_get_duplicates_endpoint": "PASS - Duplicates endpoint returns categorized results (high/medium/low confidence)",
+          "test_duplicate_confidence_levels": "PASS - Duplicate confidence levels correctly categorized",
+          "test_duplicate_has_required_fields": "PASS - Duplicate entries have required fields (candidate_id, confidence, reason)"
+        },
+        "TestRestrictCandidate": {
+          "test_mark_candidate_restricted": "PASS - Candidate marked as restricted with category and traceability",
+          "test_restriction_traceability": "PASS - Restriction has full traceability (marked_by, marked_by_name, marked_at, category, category_label)",
+          "test_invalid_restriction_category": "PASS - Invalid category correctly returns 400",
+          "test_unrestrict_candidate": "PASS - Candidate unrestricted successfully",
+          "test_unrestrict_non_restricted_fails": "PASS - Unrestrict non-restricted candidate correctly returns 400"
+        },
+        "TestRestrictedCandidateVerification": {
+          "test_restricted_candidate_exists": "PASS - Restricted candidate exists",
+          "test_restricted_candidate_has_restriction_info": "PASS - Restricted candidate has restriction_info"
+        },
+        "TestCleanup": {
+          "test_cleanup_test_candidates": "PASS - Cleaned up test candidates"
+        }
+      }
+    },
+    "frontend_tests": {
+      "login": {
+        "status": "PASS",
+        "description": "Login with test_utf8@atlas.com successful"
+      },
+      "dashboard": {
+        "status": "PASS",
+        "description": "Dashboard shows HR folder with 5 candidates in sidebar"
+      },
+      "hr_folder_view": {
+        "status": "PASS",
+        "description": "HR folder shows 5 candidates with correct filters (human_resources, talent_acquisition, hr)"
+      },
+      "restricted_candidate_banner": {
+        "status": "PASS",
+        "description": "Restricted candidate shows red alert banner with category, reason, and traceability"
+      },
+      "duplicate_alert_banner": {
+        "status": "PASS",
+        "description": "Test candidate shows amber duplicate alert with 'Email idéntico' match"
+      },
+      "delete_button": {
+        "status": "PASS",
+        "description": "Delete button visible and clickable"
+      },
+      "delete_dialog": {
+        "status": "PASS",
+        "description": "Delete dialog shows correct title, message, and traceability note"
+      },
+      "restrict_button": {
+        "status": "PASS",
+        "description": "Restrict button visible and clickable"
+      },
+      "restrict_dialog": {
+        "status": "PASS",
+        "description": "Restrict dialog shows category dropdown, notes field, and warning about traceability"
+      }
+    }
+  },
+  "features_verified": {
+    "smart_folder_hr": {
+      "status": "VERIFIED",
+      "details": "HR folder contains 5 candidates with functional_area in ['human_resources', 'talent_acquisition', 'hr']"
+    },
+    "soft_delete": {
+      "status": "VERIFIED",
+      "details": "DELETE /api/candidates/{id} marks is_deleted=true, candidate disappears from lists but exists in BD"
+    },
+    "restore": {
+      "status": "VERIFIED",
+      "details": "POST /api/candidates/{id}/restore (Admin only) removes is_deleted flag"
+    },
+    "duplicates_detection": {
+      "status": "VERIFIED",
+      "details": "GET /api/candidates/{id}/duplicates returns duplicates categorized by confidence (high>=0.9, medium 0.7-0.9, low<0.7)"
+    },
+    "restrict_candidate": {
+      "status": "VERIFIED",
+      "details": "POST /api/candidates/{id}/restrict marks is_restricted=true with category, reason, and full traceability"
+    },
+    "unrestrict": {
+      "status": "VERIFIED",
+      "details": "POST /api/candidates/{id}/unrestrict (Admin only) removes restriction"
+    },
+    "ui_restriction_banner": {
+      "status": "VERIFIED",
+      "details": "Red banner visible on restricted candidate profile with category, reason, and who/when"
+    },
+    "ui_duplicate_banner": {
+      "status": "VERIFIED",
+      "details": "Amber banner visible when duplicates detected with match type and 'Ver' button"
+    },
+    "ui_delete_restrict_buttons": {
+      "status": "VERIFIED",
+      "details": "Eliminar and Restringir buttons visible in candidate profile header"
+    }
+  }
+}

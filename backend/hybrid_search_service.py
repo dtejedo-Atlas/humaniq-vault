@@ -60,7 +60,7 @@ class HybridSearchService:
     
     def _build_mongo_query(self, filters: dict) -> dict:
         """Construye query MongoDB desde filtros estructurados"""
-        query = {}
+        query = {"is_deleted": {"$ne": True}}  # Siempre excluir eliminados
         
         if status := filters.get('status'):
             if status.strip():

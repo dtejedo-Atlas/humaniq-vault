@@ -54,7 +54,10 @@ import {
   Clock,
   XCircle,
   Pause,
-  History
+  History,
+  Trash2,
+  ShieldAlert,
+  AlertTriangle
 } from 'lucide-react';
 import { candidatesAPI, atlasAPI, assignmentsAPI, usersAPI, statusAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
@@ -103,13 +106,31 @@ const CandidateDetailPage = () => {
   const [showStatusHistory, setShowStatusHistory] = useState(false);
   const [statusHistory, setStatusHistory] = useState([]);
   
+  // Delete & Restrict state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showRestrictDialog, setShowRestrictDialog] = useState(false);
+  const [restrictReason, setRestrictReason] = useState('');
+  const [restrictCategory, setRestrictCategory] = useState('');
+  const [restricting, setRestricting] = useState(false);
+  
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
+  // Duplicates state
+  const [duplicates, setDuplicates] = useState(null);
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false);
 
   useEffect(() => {
     fetchCandidate();
     checkEditPermission();
     loadStatusConfig();
   }, [id]);
+  
+  useEffect(() => {
+    if (candidate) {
+      fetchDuplicates();
+    }
+  }, [candidate?.id]);
 
   const fetchCandidate = async () => {
     try {
@@ -120,6 +141,18 @@ const CandidateDetailPage = () => {
       toast.error('Error cargando candidato');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchDuplicates = async () => {
+    setLoadingDuplicates(true);
+    try {
+      const response = await candidatesAPI.getDuplicates(id);
+      setDuplicates(response.data);
+    } catch (error) {
+      console.error('Error fetching duplicates:', error);
+    } finally {
+      setLoadingDuplicates(false);
     }
   };
 
@@ -260,6 +293,43 @@ const CandidateDetailPage = () => {
     }
   };
 
+  const handleDeleteCandidate = async () => {
+    setDeleting(true);
+    try {
+      await candidatesAPI.delete(id);
+      toast.success('Candidato eliminado');
+      navigate('/candidates');
+    } catch (error) {
+      console.error('Error deleting candidate:', error);
+      toast.error(error.response?.data?.detail || 'Error eliminando candidato');
+    } finally {
+      setDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
+
+  const handleMarkRestricted = async () => {
+    if (!restrictCategory) {
+      toast.error('Selecciona una categoría');
+      return;
+    }
+    
+    setRestricting(true);
+    try {
+      await candidatesAPI.markRestricted(id, restrictReason, restrictCategory);
+      toast.success('Candidato marcado como restringido');
+      setShowRestrictDialog(false);
+      setRestrictReason('');
+      setRestrictCategory('');
+      await fetchCandidate();
+    } catch (error) {
+      console.error('Error marking restricted:', error);
+      toast.error(error.response?.data?.detail || 'Error marcando como restringido');
+    } finally {
+      setRestricting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Layout title="Cargando..." subtitle="Cargando información del candidato">
@@ -309,6 +379,28 @@ const CandidateDetailPage = () => {
             Volver
           </Button>
           <div className="flex gap-2">
+            {/* Marcar como restringido */}
+            <Button 
+              variant="outline"
+              onClick={() => setShowRestrictDialog(true)}
+              className="text-amber-600 border-amber-300 hover:bg-amber-50"
+              data-testid="restrict-candidate-button"
+            >
+              <ShieldAlert className="w-4 h-4 mr-2" />
+              Restringir
+            </Button>
+            
+            {/* Eliminar candidato */}
+            <Button 
+              variant="outline"
+              onClick={() => setShowDeleteDialog(true)}
+              className="text-red-600 border-red-300 hover:bg-red-50"
+              data-testid="delete-candidate-button"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Eliminar
+            </Button>
+            
             {isAdmin && (
               <Button 
                 variant="outline" 
@@ -334,6 +426,72 @@ const CandidateDetailPage = () => {
               {classifying ? 'Clasificando...' : 'Clasificar con Atlas'}
             </Button>
           </div>
+        </div>
+
+        {/* Alert Banners */}
+        <div className="space-y-3">
+          {/* Restricted Candidate Alert */}
+          {candidate.is_restricted && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3" data-testid="restricted-alert">
+              <ShieldAlert className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h4 className="font-medium text-red-800">Candidato Restringido</h4>
+                <p className="text-sm text-red-700 mt-1">
+                  {candidate.restriction_info?.category_label || 'Motivo no especificado'}
+                  {candidate.restriction_info?.reason && `: ${candidate.restriction_info.reason}`}
+                </p>
+                <p className="text-xs text-red-500 mt-2">
+                  Marcado por {candidate.restriction_info?.marked_by_name} el {new Date(candidate.restriction_info?.marked_at).toLocaleDateString('es-MX')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Duplicate Alert */}
+          {duplicates && duplicates.active_duplicates?.total > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4" data-testid="duplicate-alert">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-medium text-amber-800">Posibles Duplicados Detectados</h4>
+                  <div className="mt-2 space-y-2 text-sm">
+                    {duplicates.active_duplicates.high_confidence?.map((dup, i) => (
+                      <div key={i} className="flex items-center justify-between bg-amber-100 rounded px-2 py-1">
+                        <span className="text-amber-900">
+                          <span className="font-medium">{dup.candidate_name}</span>
+                          <span className="text-amber-700 ml-2">({dup.reason})</span>
+                        </span>
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-xs h-6"
+                          onClick={() => window.open(`/candidates/${dup.candidate_id}`, '_blank')}
+                        >
+                          Ver
+                        </Button>
+                      </div>
+                    ))}
+                    {duplicates.active_duplicates.medium_confidence?.map((dup, i) => (
+                      <div key={i} className="flex items-center justify-between bg-amber-50 rounded px-2 py-1">
+                        <span className="text-amber-800">
+                          <span>{dup.candidate_name}</span>
+                          <span className="text-amber-600 ml-2">({dup.reason})</span>
+                        </span>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="text-xs h-6"
+                          onClick={() => window.open(`/candidates/${dup.candidate_id}`, '_blank')}
+                        >
+                          Ver
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Main Info Grid */}
@@ -891,6 +1049,97 @@ const CandidateDetailPage = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowStatusHistory(false)}>
               Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="w-5 h-5" />
+              Eliminar Candidato
+            </DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de eliminar a <strong>{candidate?.full_name}</strong>?
+              <br />
+              <span className="text-slate-500 text-xs mt-2 block">
+                El candidato será removido de la operación pero se mantendrá en la base de datos para trazabilidad.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteCandidate}
+              disabled={deleting}
+            >
+              {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Restrict Candidate Dialog */}
+      <Dialog open={showRestrictDialog} onOpenChange={setShowRestrictDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <ShieldAlert className="w-5 h-5" />
+              Marcar como Restringido
+            </DialogTitle>
+            <DialogDescription>
+              Marcar a <strong>{candidate?.full_name}</strong> como candidato restringido/no elegible.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Categoría *</label>
+              <Select value={restrictCategory} onValueChange={setRestrictCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona una categoría" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ethical_issue">Problema ético</SelectItem>
+                  <SelectItem value="bad_reference">Mala referencia</SelectItem>
+                  <SelectItem value="legal_issue">Problema legal</SelectItem>
+                  <SelectItem value="conflict_of_interest">Conflicto de interés</SelectItem>
+                  <SelectItem value="performance_issue">Problema de desempeño</SelectItem>
+                  <SelectItem value="other">Otro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Motivo / Notas</label>
+              <Textarea
+                placeholder="Describe el motivo de la restricción..."
+                value={restrictReason}
+                onChange={(e) => setRestrictReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+              <AlertTriangle className="w-4 h-4 inline mr-1" />
+              Esta acción quedará registrada con tu nombre y fecha. El candidato no será bloqueado automáticamente, solo marcado para revisión.
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowRestrictDialog(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleMarkRestricted}
+              disabled={restricting || !restrictCategory}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              {restricting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Marcar como Restringido
             </Button>
           </DialogFooter>
         </DialogContent>

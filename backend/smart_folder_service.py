@@ -47,7 +47,7 @@ SYSTEM_FOLDERS = [
         "color": "blue",
         "folder_category": "vertical",
         "criteria": {
-            "functional_area": ["operations", "supply_chain"],
+            "functional_area": ["operations", "supply_chain", "manufacturing", "quality"],
             "seniority": {"mode": "range", "min_level": "manager", "max_level": "ceo"}
         },
         "sort_order": 2
@@ -86,7 +86,7 @@ SYSTEM_FOLDERS = [
         "color": "purple",
         "folder_category": "vertical",
         "criteria": {
-            "functional_area": ["hr"],
+            "functional_area": ["human_resources", "talent_acquisition", "hr"],
             "seniority": {"mode": "range", "min_level": "manager", "max_level": "ceo"}
         },
         "sort_order": 5
@@ -99,7 +99,7 @@ SYSTEM_FOLDERS = [
         "color": "cyan",
         "folder_category": "vertical",
         "criteria": {
-            "functional_area": ["it_technology"],
+            "functional_area": ["it", "it_technology", "engineering"],
             "seniority": {"mode": "range", "min_level": "senior", "max_level": "ceo"}
         },
         "sort_order": 6
@@ -125,7 +125,7 @@ SYSTEM_FOLDERS = [
         "color": "amber",
         "folder_category": "vertical",
         "criteria": {
-            "functional_area": ["supply_chain", "logistics"],
+            "functional_area": ["supply_chain", "logistics", "procurement"],
             "seniority": {"mode": "range", "min_level": "manager", "max_level": "ceo"}
         },
         "sort_order": 8
@@ -205,8 +205,8 @@ class SmartFolderService:
     
     # ========== INITIALIZATION ==========
     
-    async def initialize_system_folders(self):
-        """Inicializa los folders del sistema si no existen"""
+    async def initialize_system_folders(self, force_update: bool = False):
+        """Inicializa los folders del sistema si no existen o los actualiza si force_update=True"""
         for folder_data in SYSTEM_FOLDERS:
             existing = await self.db.smart_folders.find_one({"id": folder_data["id"]})
             if not existing:
@@ -227,6 +227,20 @@ class SmartFolderService:
                 }
                 await self.db.smart_folders.insert_one(folder_doc)
                 logger.info(f"Created system folder: {folder_data['name']}")
+            elif force_update:
+                # Update existing system folder with new criteria
+                await self.db.smart_folders.update_one(
+                    {"id": folder_data["id"]},
+                    {"$set": {
+                        "criteria": folder_data["criteria"],
+                        "name": folder_data["name"],
+                        "description": folder_data["description"],
+                        "icon": folder_data["icon"],
+                        "color": folder_data["color"],
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+                logger.info(f"Updated system folder: {folder_data['name']}")
         
         logger.info(f"System folders initialized: {len(SYSTEM_FOLDERS)} folders")
     
@@ -439,7 +453,7 @@ class SmartFolderService:
         """Construye MongoDB query desde criterios del folder"""
         
         query = {}
-        conditions = []
+        conditions = [{"is_deleted": {"$ne": True}}]  # Siempre excluir eliminados
         
         # Área funcional
         if criteria.get("functional_area"):
