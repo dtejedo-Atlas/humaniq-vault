@@ -42,7 +42,7 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - SearchPage ejecuta búsqueda automática desde URL params
   - Validado con 6 queries de prueba: 100% consistencia
 
-### Fase 2 (Operacional) - EN PROGRESO
+### Fase 2 (Operacional) - COMPLETADA ✅
 - [x] **Job Matching Engine v1** (25-Mar-2026)
   - Motor de matching candidato-vacante completo
   - Scoring: Funcional 35%, Seniority 20%, Industria 15%, Skills 12%, Experiencia 8%, Semántico 5%, Trayectoria 5%
@@ -75,8 +75,20 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - Vista de candidatos por folder con selección y exportación
   - Metadata de uso: vistas, exportaciones
   - Endpoints: /api/folders, /api/folders/{id}/candidates
+- [x] **Pipeline de Estados de Candidatos** (27-Mar-2026)
+  - 10 estados: new, reviewing, qualified, ready_to_send, submitted, interviewed, offer, placed, rejected, on_hold
+  - Transiciones validadas (no cualquier estado a cualquier otro)
+  - Historial de cambios con timestamp, usuario, y notas
+  - Dropdown interactivo en CandidateDetailPage
+  - Modal de historial de estados
+  - Smart Folders de PROCESO se actualizan automáticamente
+  - Endpoints: PUT /api/candidates/{id}/status, GET /api/candidates/{id}/status-history, GET /api/status-config
+  - Testing: 12/12 tests passed (iteration_7.json)
+  - Bug fix: Sidebar overflow corregido con flex-shrink-0 y min-h-0
+
+### Fase 2.5 (Backlog Operativo) - NO INICIADA
 - [ ] Panel "Mis Candidatos" en Dashboard
-- [ ] Activity Feed (trazabilidad)
+- [ ] Activity Feed (trazabilidad de acciones)
 
 ### Fase 3 (Futura)
 - [ ] Registro de Candidatos Restringidos (compliance/ética)
