@@ -22,7 +22,7 @@
   top: 0;
   left: 0;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden; /* Let child elements handle their own scroll */
   z-index: 50;
 }
 

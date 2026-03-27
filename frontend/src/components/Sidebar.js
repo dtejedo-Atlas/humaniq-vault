@@ -209,9 +209,9 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="atlas-sidebar flex flex-col">
-      {/* Logo */}
-      <div className="p-4 border-b border-slate-700">
+    <div className="atlas-sidebar flex flex-col h-screen">
+      {/* Logo - Fixed */}
+      <div className="flex-shrink-0 p-4 border-b border-slate-700">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 bg-cyan-500 rounded-sm flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
@@ -223,15 +223,15 @@ const Sidebar = () => {
         </div>
       </div>
 
-      {/* Navegación Principal */}
-      <div className="px-3 pt-3">
+      {/* Navegación Principal - Fixed */}
+      <div className="flex-shrink-0 px-3 pt-3">
         <ul className="space-y-0.5">
           {mainNavItems.map(renderNavItem)}
         </ul>
       </div>
 
-      {/* Smart Folders */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 border-t border-slate-700/50 mt-3">
+      {/* Smart Folders - Scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 border-t border-slate-700/50 mt-3">
         {loadingFolders ? (
           <div className="text-xs text-slate-500 px-3 py-2">Cargando folders...</div>
         ) : (
@@ -243,15 +243,15 @@ const Sidebar = () => {
         )}
       </div>
 
-      {/* Navegación Inferior */}
-      <div className="px-3 py-2 border-t border-slate-700">
+      {/* Navegación Inferior - Fixed */}
+      <div className="flex-shrink-0 px-3 py-2 border-t border-slate-700">
         <ul className="space-y-0.5">
           {bottomNavItems.map(renderNavItem)}
         </ul>
       </div>
 
-      {/* Usuario */}
-      <div className="p-3 border-t border-slate-700">
+      {/* Usuario - Fixed */}
+      <div className="flex-shrink-0 p-3 border-t border-slate-700">
         <div className="mb-2 px-2">
           <p className="text-xs text-white font-medium truncate">{user?.name}</p>
           <p className="text-xs text-slate-500 truncate">{user?.email}</p>
