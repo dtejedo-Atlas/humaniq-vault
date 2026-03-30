@@ -30,7 +30,7 @@ const LoginPage = () => {
         toast.success('¡Cuenta creada exitosamente!');
       } else {
         await login(formData.email, formData.password);
-        toast.success('¡Bienvenido a Atlas!');
+        toast.success('¡Bienvenido a Humaniq!');
       }
       navigate('/dashboard');
     } catch (error) {
@@ -48,7 +48,7 @@ const LoginPage = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-sm mb-4">
             <Sparkles className="w-8 h-8 text-cyan-400" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900">Atlas Talent Vault</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Humaniq Talent Vault</h1>
           <p className="text-slate-600 mt-2">Plataforma de reclutamiento ejecutivo con IA</p>
         </div>
 
@@ -57,7 +57,7 @@ const LoginPage = () => {
             <CardTitle>{isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}</CardTitle>
             <CardDescription>
               {isRegister 
-                ? 'Crea tu cuenta para comenzar a usar Atlas' 
+                ? 'Crea tu cuenta para comenzar a usar Humaniq' 
                 : 'Ingresa tus credenciales para acceder'}
             </CardDescription>
           </CardHeader>

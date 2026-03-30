@@ -58,7 +58,7 @@ const ValidationPage = () => {
 
   if (loading) {
     return (
-      <Layout title="Validación de Calidad" subtitle="Tracking de precisión de Atlas IA">
+      <Layout title="Validación de Calidad" subtitle="Tracking de precisión de Humaniq IA">
         <div className="flex items-center justify-center h-64">
           <div className="spinner w-8 h-8 border-4 border-slate-300 border-t-cyan-500 rounded-full"></div>
         </div>
@@ -67,7 +67,7 @@ const ValidationPage = () => {
   }
 
   return (
-    <Layout title="Validación de Calidad" subtitle="Tracking de precisión de Atlas IA">
+    <Layout title="Validación de Calidad" subtitle="Tracking de precisión de Humaniq IA">
       <div className="space-y-6">
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -107,7 +107,7 @@ const ValidationPage = () => {
           <Card>
             <CardHeader>
               <CardTitle>Métricas de Calidad</CardTitle>
-              <CardDescription>Precisión de clasificación de Atlas IA</CardDescription>
+              <CardDescription>Precisión de clasificación de Humaniq IA</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">

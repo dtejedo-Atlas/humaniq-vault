@@ -245,7 +245,7 @@ const UploadPage = () => {
   const overallProgress = totalJobs > 0 ? Math.round((totalProcessed / totalJobs) * 100) : 0;
 
   return (
-    <Layout title="Subir CVs" subtitle="Carga currículums para procesarlos con Atlas IA">
+    <Layout title="Subir CVs" subtitle="Carga currículums para procesarlos con Humaniq IA">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Upload Zone */}
         <Card>
@@ -579,7 +579,7 @@ const UploadPage = () => {
         {/* Instructions */}
         <Card>
           <CardHeader>
-            <CardTitle>Cómo Funciona Atlas IA</CardTitle>
+            <CardTitle>Cómo Funciona Humaniq IA</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -597,7 +597,7 @@ const UploadPage = () => {
                 <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-xl font-bold text-cyan-600">2</span>
                 </div>
-                <h3 className="font-semibold text-slate-900 mb-2">Atlas Analiza</h3>
+                <h3 className="font-semibold text-slate-900 mb-2">Humaniq Analiza</h3>
                 <p className="text-sm text-slate-600">
                   La IA extrae datos y clasifica por industria, área funcional y seniority.
                 </p>

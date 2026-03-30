@@ -97,7 +97,7 @@ const SearchPage = () => {
           <CardHeader>
             <CardTitle>Búsqueda Inteligente</CardTitle>
             <CardDescription>
-              Usa lenguaje natural para buscar candidatos. Atlas IA encontrará perfiles relevantes incluso si no usan las mismas palabras.
+              Usa lenguaje natural para buscar candidatos. Humaniq IA encontrará perfiles relevantes incluso si no usan las mismas palabras.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -217,7 +217,7 @@ const Sidebar = () => {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-bold text-white">Atlas</h1>
+            <h1 className="text-base font-bold text-white">Humaniq</h1>
             <p className="text-xs text-slate-400">Talent Vault</p>
           </div>
         </div>

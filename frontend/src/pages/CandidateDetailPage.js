@@ -255,7 +255,7 @@ const CandidateDetailPage = () => {
     setClassifying(true);
     try {
       await atlasAPI.classify(id);
-      toast.success('Candidato clasificado por Atlas');
+      toast.success('Candidato clasificado por Humaniq IA');
       await fetchCandidate();
     } catch (error) {
       console.error('Error classifying:', error);
@@ -423,7 +423,7 @@ const CandidateDetailPage = () => {
             </Button>
             <Button onClick={handleClassify} disabled={classifying || !canEdit} data-testid="classify-button">
               <Sparkles className="w-4 h-4 mr-2" />
-              {classifying ? 'Clasificando...' : 'Clasificar con Atlas'}
+              {classifying ? 'Clasificando...' : 'Clasificar con Humaniq'}
             </Button>
           </div>
         </div>
@@ -645,7 +645,7 @@ const CandidateDetailPage = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-cyan-900">
                     <Sparkles className="w-5 h-5 text-cyan-500" />
-                    Resumen de Atlas IA
+                    Resumen de Humaniq IA
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -661,7 +661,7 @@ const CandidateDetailPage = () => {
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-cyan-500" />
-                      Clasificación de Atlas
+                      Clasificación de Humaniq
                     </CardTitle>
                     {!candidate.ai_classification.approved_by_recruiter && (
                       <Button
