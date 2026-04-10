@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Search, Filter, Eye, Mail, Phone, MapPin, Building2, Briefcase } from 'lucide-react';
+import { Search, Filter, Eye, Mail, Phone, MapPin, Building2, Briefcase, ArrowUpDown, Calendar, ArrowUp, ArrowDown } from 'lucide-react';
 import { candidatesAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
@@ -31,6 +31,8 @@ const CandidatesPage = () => {
     functional_area: '',
     seniority: ''
   });
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Obtener opciones de taxonomía desde el contexto
   const industries = getIndustryOptions();
@@ -46,12 +48,17 @@ const CandidatesPage = () => {
     }, 500);
 
     return () => clearTimeout(delayDebounce);
-  }, [search, filters]);
+  }, [search, filters, sortBy, sortOrder]);
 
   const fetchCandidates = async () => {
     setLoading(true);
     try {
-      const params = { search, ...filters };
+      const params = { 
+        search, 
+        ...filters,
+        sort_by: sortBy,
+        sort_order: sortOrder
+      };
       // Remove empty filters
       Object.keys(params).forEach(key => !params[key] && delete params[key]);
       
@@ -63,6 +70,22 @@ const CandidatesPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortBy !== field) return <ArrowUpDown className="w-4 h-4 ml-1 opacity-40" />;
+    return sortOrder === 'asc' 
+      ? <ArrowUp className="w-4 h-4 ml-1 text-cyan-600" />
+      : <ArrowDown className="w-4 h-4 ml-1 text-cyan-600" />;
   };
 
   const handleViewCandidate = (candidateId) => {
@@ -135,7 +158,56 @@ const CandidatesPage = () => {
               </Select>
             </div>
 
-            {(search || filters.status || filters.industry || filters.seniority) && (
+            {/* Sort Options */}
+            <div className="mt-4 flex items-center gap-4 flex-wrap">
+              <span className="text-sm text-slate-600 font-medium">Ordenar por:</span>
+              <div className="flex gap-2">
+                <Button
+                  variant={sortBy === 'created_at' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSort('created_at')}
+                  className="flex items-center"
+                  data-testid="sort-date"
+                >
+                  <Calendar className="w-4 h-4 mr-1" />
+                  Fecha
+                  <SortIcon field="created_at" />
+                </Button>
+                <Button
+                  variant={sortBy === 'industry' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSort('industry')}
+                  className="flex items-center"
+                  data-testid="sort-industry"
+                >
+                  <Building2 className="w-4 h-4 mr-1" />
+                  Industria
+                  <SortIcon field="industry" />
+                </Button>
+                <Button
+                  variant={sortBy === 'full_name' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSort('full_name')}
+                  className="flex items-center"
+                  data-testid="sort-name"
+                >
+                  Nombre
+                  <SortIcon field="full_name" />
+                </Button>
+                <Button
+                  variant={sortBy === 'seniority' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handleSort('seniority')}
+                  className="flex items-center"
+                  data-testid="sort-seniority"
+                >
+                  Seniority
+                  <SortIcon field="seniority" />
+                </Button>
+              </div>
+            </div>
+
+            {(search || filters.status || filters.industry || filters.seniority || sortBy !== 'created_at') && (
               <div className="mt-4 flex items-center gap-2">
                 <span className="text-sm text-slate-600">Filtros activos:</span>
                 <Button
@@ -144,6 +216,8 @@ const CandidatesPage = () => {
                   onClick={() => {
                     setSearch('');
                     setFilters({ status: '', industry: '', functional_area: '', seniority: '' });
+                    setSortBy('created_at');
+                    setSortOrder('desc');
                   }}
                 >
                   Limpiar Filtros

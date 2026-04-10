@@ -218,6 +218,8 @@ async def get_candidates(
     seniority: Optional[SeniorityLevel] = None,
     search: Optional[str] = None,
     use_semantic: bool = True,
+    sort_by: str = Query(default="created_at", description="Campo para ordenar: created_at, industry, full_name, seniority"),
+    sort_order: str = Query(default="desc", description="Orden: asc o desc"),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -267,7 +269,12 @@ async def get_candidates(
     if seniority:
         query['seniority'] = seniority.value if hasattr(seniority, 'value') else str(seniority)
     
-    candidates = await db.candidates.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    # Determinar orden
+    sort_direction = 1 if sort_order == 'asc' else -1
+    valid_sort_fields = ['created_at', 'industry', 'full_name', 'seniority', 'updated_at', 'functional_area']
+    sort_field = sort_by if sort_by in valid_sort_fields else 'created_at'
+    
+    candidates = await db.candidates.find(query, {"_id": 0}).sort(sort_field, sort_direction).skip(skip).limit(limit).to_list(limit)
     
     # Parse dates
     for candidate in candidates:
