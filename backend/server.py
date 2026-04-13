@@ -904,6 +904,23 @@ async def upload_resume(
                 source="CV Upload",
                 created_by=current_user.id
             )
+            
+            # Inferir current_title y current_company de previous_companies si no vienen directamente
+            if not candidate.current_title and candidate.previous_companies:
+                # Ordenar por fecha de fin (más reciente primero) o tomar el primero
+                most_recent = candidate.previous_companies[0]
+                candidate.current_title = most_recent.title
+                candidate.current_company = most_recent.company_name
+            
+            # Construir location desde city/state si no viene
+            if not candidate.location:
+                parts = []
+                if parsed_data.get('city'):
+                    parts.append(parsed_data.get('city'))
+                if parsed_data.get('state'):
+                    parts.append(parsed_data.get('state'))
+                if parts:
+                    candidate.location = ", ".join(parts)
         except Exception as e:
             result.status = "failed"
             result.add_error(
