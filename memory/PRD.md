@@ -162,6 +162,36 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - [ ] **Publicación Externa de Vacantes** - URLs públicas con branding Humaniq
 - [ ] **Tracking de Origen de Candidatos** - Parámetros de fuente en aplicaciones
 
+### Sistema de Gestión de Duplicados (Completado - 13-Abr-2026)
+#### Fase 1 - Crítica (COMPLETADO)
+- [x] **Detección Mejorada de Duplicados V2**
+  - L1 (email idéntico): Bloqueo duro, ofrece actualizar CV existente
+  - L2 (linkedin idéntico): Bloqueo duro
+  - L3-L5 (teléfono+nombre, nombre+empresas): Sugerencias para revisión
+  - Normalización avanzada (case-insensitive, acentos, espacios)
+- [x] **Panel de Revisión de Duplicados** (`/duplicates`)
+  - Vista de grupos duplicados con estadísticas
+  - Comparación lado a lado de candidatos
+  - Score de completitud para decidir registro principal
+- [x] **Sistema de Merge Manual**
+  - Selección de registro principal
+  - Opciones granulares: experiencia, educación, skills, notas, CVs
+  - Consolidación automática de datos
+  - Auditoría completa (quién, cuándo, qué cambios)
+  - El registro secundario queda marcado como merged (soft delete)
+- [x] **Endpoint Update-CV** para duplicados bloqueados
+  - Permite actualizar CV de candidato existente en lugar de crear duplicado
+
+#### Fase 2 - Versionado (PENDIENTE)
+- [ ] Modelo cv_versions completo
+- [ ] Flujo de "Actualizar CV" con historial
+- [ ] UI para ver historial de versiones
+
+#### Fase 3 - Alertas (PENDIENTE)
+- [ ] Comparador de versiones con diff
+- [ ] Alertas por diferencias significativas
+- [ ] Panel de cambios recientes
+
 ### Fase 4 (Futura)
 - [ ] Registro de Candidatos Restringidos (compliance/ética)
 - [ ] Búsqueda booleana avanzada

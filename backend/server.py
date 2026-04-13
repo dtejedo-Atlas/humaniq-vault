@@ -29,6 +29,7 @@ from atlas_service import atlas_service, classify_seniority
 from document_parser import DocumentParser
 from storage_service import storage_service, init_storage
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
+from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
@@ -49,6 +50,8 @@ db = client[os.environ['DB_NAME']]
 
 # Initialize services
 duplicate_detector = DuplicateDetector(db)
+duplicate_detector_v2 = DuplicateDetectorV2(db)
+candidate_merger = CandidateMerger(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
 user_service = UserService(db)
@@ -859,24 +862,58 @@ async def upload_resume(
     
     result.stage_reached = ProcessingStage.DUPLICATE_DETECTION
     
-    # ===== ETAPA 4: DETECCIÓN DE DUPLICADOS =====
-    duplicates = []
+    # ===== ETAPA 4: DETECCIÓN DE DUPLICADOS (V2 con bloqueo duro) =====
+    
+    # 4A: Primero verificar duplicados DUROS (L1: email, L2: linkedin)
+    hard_duplicate = None
     try:
-        duplicates = await duplicate_detector.detect_duplicates(parsed_data)
+        hard_duplicate = await duplicate_detector_v2.detect_hard_duplicates(parsed_data)
     except Exception as e:
-        logger.error(f"Error detecting duplicates: {str(e)}")
+        logger.error(f"Error detecting hard duplicates: {str(e)}")
         warnings.append("Error en detección de duplicados")
     
-    # Si hay duplicado de alta confianza, retornar para revisión
-    if duplicates and max(d['confidence'] for d in duplicates) >= 0.90:
-        result.status = "duplicate_detected"
+    # Si hay duplicado DURO, BLOQUEAR y ofrecer actualizar CV existente
+    if hard_duplicate:
+        result.status = "duplicate_blocked"
         result.stage_reached = ProcessingStage.DUPLICATE_DETECTION
         result.processing_time_ms = int((time.time() - start_time) * 1000)
         
         response = result.to_response()
-        response["duplicates"] = duplicates
+        response["duplicate_blocked"] = True
+        response["existing_candidate"] = hard_duplicate
         response["parsed_data"] = parsed_data
-        response["message"] = "Se detectaron posibles duplicados. Por favor revisa antes de continuar."
+        response["message"] = (
+            f"Este candidato ya existe en el sistema ({hard_duplicate['reason']}). "
+            f"¿Deseas actualizar su CV existente?"
+        )
+        response["actions"] = {
+            "update_cv": f"/api/candidates/{hard_duplicate['candidate_id']}/update-cv",
+            "view_candidate": f"/candidates/{hard_duplicate['candidate_id']}"
+        }
+        return response
+    
+    # 4B: Verificar duplicados SUAVES (L3-L5: teléfono+nombre, nombre+empresas, etc.)
+    soft_duplicates = []
+    try:
+        soft_duplicates = await duplicate_detector_v2.detect_soft_duplicates(parsed_data)
+    except Exception as e:
+        logger.error(f"Error detecting soft duplicates: {str(e)}")
+    
+    # Si hay duplicados suaves de alta confianza (>=85%), sugerir revisión
+    if soft_duplicates and soft_duplicates[0]['confidence'] >= 0.85:
+        result.status = "duplicate_suggested"
+        result.stage_reached = ProcessingStage.DUPLICATE_DETECTION
+        result.processing_time_ms = int((time.time() - start_time) * 1000)
+        
+        response = result.to_response()
+        response["duplicate_suggested"] = True
+        response["potential_duplicates"] = soft_duplicates
+        response["parsed_data"] = parsed_data
+        response["message"] = "Se encontraron posibles duplicados. Revisa antes de continuar."
+        response["actions"] = {
+            "create_anyway": "/api/candidates/create-confirmed",
+            "merge": "/api/candidates/merge"
+        }
         return response
     
     # ===== ETAPA 5: CREAR/ACTUALIZAR CANDIDATO =====
@@ -1064,10 +1101,10 @@ async def upload_resume(
             
             await db.candidates.insert_one(candidate_doc)
             
-            # Guardar sugerencias de duplicados si hay
-            if duplicates:
+            # Guardar sugerencias de duplicados si hay (duplicados suaves)
+            if soft_duplicates:
                 await DuplicateSuggestion.create_suggestion(
-                    db, candidate_id, duplicates, current_user.id
+                    db, candidate_id, soft_duplicates, current_user.id
                 )
                 
         except Exception as e:
@@ -1147,7 +1184,7 @@ async def upload_resume(
     
     response = result.to_response()
     response["parsed_data"] = parsed_data
-    response["has_low_confidence_duplicates"] = len(duplicates) > 0 and max(d['confidence'] for d in duplicates) < 0.90 if duplicates else False
+    response["has_low_confidence_duplicates"] = len(soft_duplicates) > 0 and soft_duplicates[0]['confidence'] < 0.85 if soft_duplicates else False
     
     return response
 
@@ -1991,10 +2028,14 @@ async def dismiss_duplicate(
 
 
 class MergeRequest(PydanticBaseModel):
-    source_candidate_id: str  # El que se va a eliminar
-    target_candidate_id: str  # El que se va a mantener
+    primary_candidate_id: str  # El que se va a mantener
+    secondary_candidate_id: str  # El que se va a fusionar
+    merge_experience: bool = True  # Combinar experiencia laboral
+    merge_education: bool = True  # Combinar educación
+    merge_skills: bool = True  # Combinar skills
     merge_notes: bool = True  # Combinar notas
-    merge_history: bool = True  # Combinar historial de status
+    keep_all_cvs: bool = True  # Conservar CVs de ambos como versiones
+    use_secondary_contact: bool = False  # Usar info de contacto del secundario
 
 
 @api_router.post("/candidates/merge")
@@ -2003,76 +2044,321 @@ async def merge_candidates(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Merge de candidatos duplicados (solo Admin).
-    Mantiene el target, transfiere datos del source, y marca el source como eliminado.
+    Merge de candidatos duplicados (Admin y Reclutadores con permiso).
+    Mantiene el primary, transfiere datos del secondary, y marca el secondary como eliminado.
     """
-    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede fusionar candidatos")
+    # Verificar permisos
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.RECRUITER]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sin permiso para fusionar candidatos")
     
-    source = await db.candidates.find_one({"id": request.source_candidate_id}, {"_id": 0})
-    target = await db.candidates.find_one({"id": request.target_candidate_id}, {"_id": 0})
+    try:
+        merge_options = {
+            "merge_experience": request.merge_experience,
+            "merge_education": request.merge_education,
+            "merge_skills": request.merge_skills,
+            "merge_notes": request.merge_notes,
+            "keep_all_cvs": request.keep_all_cvs,
+            "use_secondary_contact": request.use_secondary_contact
+        }
+        
+        result = await candidate_merger.merge_candidates(
+            primary_id=request.primary_candidate_id,
+            secondary_id=request.secondary_candidate_id,
+            merge_options=merge_options,
+            merged_by=current_user.id
+        )
+        
+        logger.info(f"Candidates merged: {request.secondary_candidate_id} -> {request.primary_candidate_id} by {current_user.email}")
+        
+        return {
+            "success": True,
+            "message": "Candidatos fusionados exitosamente",
+            "primary_candidate_id": request.primary_candidate_id,
+            "secondary_candidate_id": request.secondary_candidate_id,
+            "changes": result.get("changes", []),
+            "audit_id": result.get("audit_id"),
+            "merged_by": current_user.name
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error merging candidates: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al fusionar: {str(e)}")
+
+
+@api_router.get("/duplicates/review")
+async def get_all_duplicates_for_review(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all detected duplicate groups for manual review.
+    Returns groups of candidates that appear to be duplicates.
+    """
+    try:
+        duplicate_groups = await duplicate_detector_v2.get_all_duplicate_groups()
+        
+        # Enrich with additional info
+        for group in duplicate_groups:
+            for candidate in group['candidates']:
+                # Add resume info
+                full_candidate = await db.candidates.find_one(
+                    {"id": candidate['id']},
+                    {"_id": 0, "resume_files": 1, "status": 1, "seniority": 1}
+                )
+                if full_candidate:
+                    candidate['has_resume'] = bool(full_candidate.get('resume_files'))
+                    candidate['status'] = full_candidate.get('status', 'nuevo')
+                    candidate['seniority'] = full_candidate.get('seniority')
+        
+        return {
+            "total_groups": len(duplicate_groups),
+            "duplicate_groups": duplicate_groups
+        }
+    except Exception as e:
+        logger.error(f"Error getting duplicates for review: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/duplicates/stats")
+async def get_duplicate_stats(
+    current_user: User = Depends(get_current_user)
+):
+    """Get statistics about duplicates in the system"""
+    try:
+        duplicate_groups = await duplicate_detector_v2.get_all_duplicate_groups()
+        
+        total_duplicates = sum(g['count'] for g in duplicate_groups)
+        by_type = {}
+        for g in duplicate_groups:
+            match_type = g['match_type']
+            by_type[match_type] = by_type.get(match_type, 0) + g['count']
+        
+        # Get pending suggestions
+        pending_suggestions = await db.duplicate_suggestions.count_documents({"status": "pending"})
+        
+        # Get merge history count
+        merge_count = await db.merge_audit_log.count_documents({})
+        
+        return {
+            "total_duplicate_groups": len(duplicate_groups),
+            "total_duplicate_records": total_duplicates,
+            "by_match_type": by_type,
+            "pending_suggestions": pending_suggestions,
+            "total_merges_performed": merge_count
+        }
+    except Exception as e:
+        logger.error(f"Error getting duplicate stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/duplicates/merge-history")
+async def get_merge_history(
+    limit: int = 50,
+    current_user: User = Depends(get_current_user)
+):
+    """Get history of merge operations"""
+    merges = await db.merge_audit_log.find(
+        {},
+        {"_id": 0}
+    ).sort("merged_at", -1).limit(limit).to_list(limit)
     
-    if not source:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato fuente no encontrado")
-    if not target:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato destino no encontrado")
+    # Enrich with user names
+    for merge in merges:
+        user = await db.users.find_one({"id": merge.get("merged_by")}, {"_id": 0, "name": 1, "email": 1})
+        if user:
+            merge["merged_by_name"] = user.get("name")
+            merge["merged_by_email"] = user.get("email")
     
-    now = datetime.now(timezone.utc).isoformat()
-    updates = {"updated_at": now}
-    push_updates = {}
+    return {"merges": merges}
+
+
+@api_router.get("/candidates/{candidate_id}/merge-preview/{other_candidate_id}")
+async def get_merge_preview(
+    candidate_id: str,
+    other_candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get a side-by-side preview of two candidates for merge decision.
+    """
+    candidate1 = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    candidate2 = await db.candidates.find_one({"id": other_candidate_id}, {"_id": 0})
     
-    # Transferir notas
-    if request.merge_notes and source.get("notes"):
-        push_updates["notes"] = {"$each": source["notes"]}
+    if not candidate1 or not candidate2:
+        raise HTTPException(status_code=404, detail="Uno o ambos candidatos no encontrados")
     
-    # Transferir historial de status
-    if request.merge_history and source.get("status_history"):
-        push_updates["status_history"] = {"$each": source["status_history"]}
+    # Calculate completeness scores
+    def calc_completeness(c):
+        score = 0
+        if c.get('full_name'): score += 10
+        if c.get('email'): score += 10
+        if c.get('phone'): score += 5
+        if c.get('current_title'): score += 10
+        if c.get('current_company'): score += 10
+        if c.get('years_experience'): score += 10
+        if c.get('previous_companies'): score += len(c['previous_companies']) * 5
+        if c.get('skills'): score += min(len(c['skills']), 10) * 2
+        if c.get('resume_files'): score += 15
+        if c.get('notes'): score += 5
+        return score
     
-    # Transferir archivos de CV si el target no tiene
-    if source.get("resume_files") and not target.get("resume_files"):
-        updates["resume_files"] = source["resume_files"]
+    # Find differences
+    differences = []
     
-    # Agregar nota del merge
-    merge_note = {
-        "note": f"[MERGE] Información transferida del candidato duplicado: {source.get('full_name')} (ID: {request.source_candidate_id})",
-        "created_by": current_user.name,
-        "created_at": now
-    }
-    if "notes" not in push_updates:
-        push_updates["notes"] = {"$each": [merge_note]}
-    else:
-        push_updates["notes"]["$each"].append(merge_note)
+    # Compare experiences
+    exp1 = {(e.get('company_name', '').lower(), e.get('title', '').lower()) 
+            for e in (candidate1.get('previous_companies') or [])}
+    exp2 = {(e.get('company_name', '').lower(), e.get('title', '').lower()) 
+            for e in (candidate2.get('previous_companies') or [])}
     
-    # Actualizar target
-    update_ops = {"$set": updates}
-    if push_updates:
-        update_ops["$push"] = push_updates
+    only_in_1 = exp1 - exp2
+    only_in_2 = exp2 - exp1
     
-    await db.candidates.update_one({"id": request.target_candidate_id}, update_ops)
+    if only_in_1:
+        differences.append(f"Experiencias solo en candidato 1: {len(only_in_1)}")
+    if only_in_2:
+        differences.append(f"Experiencias solo en candidato 2: {len(only_in_2)}")
     
-    # Soft delete source
-    await db.candidates.update_one(
-        {"id": request.source_candidate_id},
-        {"$set": {
-            "is_deleted": True,
-            "deleted_at": now,
-            "deleted_by": current_user.id,
-            "deleted_by_name": current_user.name,
-            "merged_into": request.target_candidate_id,
-            "updated_at": now
-        }}
-    )
-    
-    logger.info(f"Candidates merged: {request.source_candidate_id} -> {request.target_candidate_id} by {current_user.email}")
+    # Compare skills
+    skills1 = set(candidate1.get('skills') or [])
+    skills2 = set(candidate2.get('skills') or [])
+    skills_diff = skills1.symmetric_difference(skills2)
+    if skills_diff:
+        differences.append(f"Skills diferentes: {len(skills_diff)}")
     
     return {
-        "message": "Candidatos fusionados exitosamente",
-        "target_candidate_id": request.target_candidate_id,
-        "source_candidate_id": request.source_candidate_id,
-        "source_deleted": True,
-        "merged_by": current_user.name
+        "candidate_1": {
+            "id": candidate1['id'],
+            "full_name": candidate1.get('full_name'),
+            "email": candidate1.get('email'),
+            "phone": candidate1.get('phone'),
+            "current_title": candidate1.get('current_title'),
+            "current_company": candidate1.get('current_company'),
+            "years_experience": candidate1.get('years_experience'),
+            "industry": candidate1.get('industry'),
+            "seniority": candidate1.get('seniority'),
+            "experience_count": len(candidate1.get('previous_companies') or []),
+            "skills_count": len(candidate1.get('skills') or []),
+            "has_resume": bool(candidate1.get('resume_files')),
+            "created_at": candidate1.get('created_at'),
+            "completeness_score": calc_completeness(candidate1)
+        },
+        "candidate_2": {
+            "id": candidate2['id'],
+            "full_name": candidate2.get('full_name'),
+            "email": candidate2.get('email'),
+            "phone": candidate2.get('phone'),
+            "current_title": candidate2.get('current_title'),
+            "current_company": candidate2.get('current_company'),
+            "years_experience": candidate2.get('years_experience'),
+            "industry": candidate2.get('industry'),
+            "seniority": candidate2.get('seniority'),
+            "experience_count": len(candidate2.get('previous_companies') or []),
+            "skills_count": len(candidate2.get('skills') or []),
+            "has_resume": bool(candidate2.get('resume_files')),
+            "created_at": candidate2.get('created_at'),
+            "completeness_score": calc_completeness(candidate2)
+        },
+        "differences": differences,
+        "recommendation": "candidate_1" if calc_completeness(candidate1) >= calc_completeness(candidate2) else "candidate_2"
     }
+
+
+@api_router.post("/candidates/{candidate_id}/update-cv")
+async def update_candidate_cv(
+    candidate_id: str,
+    file: UploadFile = File(...),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Update CV for an existing candidate (for L1/L2 duplicate handling).
+    Creates a new CV version instead of creating a duplicate candidate.
+    """
+    user = await get_current_user(credentials)
+    
+    # Verify candidate exists
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    
+    # Validate file
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Archivo sin nombre")
+    
+    file_ext = file.filename.split('.')[-1].lower()
+    if file_ext not in ['pdf', 'docx']:
+        raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF o DOCX")
+    
+    try:
+        file_data = await file.read()
+        
+        # Upload new CV
+        storage_result = storage_service.upload_resume(
+            file_data, candidate_id, file.filename, file.content_type
+        )
+        
+        # Get current version number
+        current_versions = await db.cv_versions.count_documents({"candidate_id": candidate_id})
+        new_version = current_versions + 1
+        
+        # Mark all existing versions as not current
+        await db.cv_versions.update_many(
+            {"candidate_id": candidate_id},
+            {"$set": {"is_current": False}}
+        )
+        
+        # Create new version record
+        cv_version = {
+            "id": str(uuid.uuid4()),
+            "candidate_id": candidate_id,
+            "version": new_version,
+            "file_key": storage_result['storage_path'],
+            "file_name": file.filename,
+            "file_type": file.content_type,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "uploaded_by": user.id,
+            "source": "update",
+            "is_current": True,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.cv_versions.insert_one(cv_version)
+        
+        # Update candidate's main resume info
+        resume_file = {
+            "file_name": file.filename,
+            "file_path": storage_result['storage_path'],
+            "file_type": file.content_type,
+            "upload_date": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.candidates.update_one(
+            {"id": candidate_id},
+            {
+                "$set": {
+                    "resume_file_key": storage_result['storage_path'],
+                    "resume_file_name": file.filename,
+                    "resume_file_type": file.content_type,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                },
+                "$push": {
+                    "resume_files": resume_file
+                }
+            }
+        )
+        
+        logger.info(f"CV updated for candidate {candidate_id}: version {new_version}")
+        
+        return {
+            "success": True,
+            "message": f"CV actualizado exitosamente (versión {new_version})",
+            "candidate_id": candidate_id,
+            "version": new_version,
+            "file_name": file.filename
+        }
+        
+    except Exception as e:
+        logger.error(f"Error updating CV: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error actualizando CV: {str(e)}")
 
 
 # ============= ADMIN TAXONOMY CRUD ROUTES =============

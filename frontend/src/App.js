@@ -20,6 +20,7 @@ import FolderViewPage from './pages/FolderViewPage';
 import AdminPage from './pages/AdminPage';
 import ValidationPage from './pages/ValidationPage';
 import UsersPage from './pages/UsersPage';
+import DuplicatesPage from './pages/DuplicatesPage';
 
 // Configure axios defaults
 axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
@@ -169,6 +170,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <UsersPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/duplicates"
+        element={
+          <ProtectedRoute>
+            <DuplicatesPage />
           </ProtectedRoute>
         }
       />

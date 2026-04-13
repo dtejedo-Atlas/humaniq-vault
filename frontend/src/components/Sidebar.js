@@ -22,7 +22,8 @@ import {
   Star,
   ClipboardCheck,
   PlusCircle,
-  FolderPlus
+  FolderPlus,
+  GitMerge
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
@@ -98,8 +99,8 @@ const Sidebar = () => {
 
   const bottomNavItems = [
     { path: '/jobs', icon: Briefcase, label: 'Vacantes' },
+    { path: '/duplicates', icon: GitMerge, label: 'Duplicados', roles: ['super_admin', 'admin', 'recruiter'] },
     { path: '/users', icon: UserCog, label: 'Usuarios', roles: ['super_admin', 'admin'] },
-    { path: '/validation', icon: Sparkles, label: 'Validación', roles: ['super_admin', 'recruiter'] },
     { path: '/admin', icon: Settings, label: 'Admin', roles: ['super_admin'] }
   ];
 
