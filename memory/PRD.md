@@ -147,8 +147,16 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - Tooltips explicativos en cada campo
   - Logo oficial de Humaniq integrado
 
-#### Fase B.2 (Pendiente)
-- [ ] **Ingesta Inteligente de Vacantes** - Upload PDF/Word de JD, parsing automático con IA
+#### Fase B.2 (Completada - 13-Abr-2026)
+- [x] **Ingesta Inteligente de Vacantes**
+  - Endpoint `POST /api/jobs/parse-jd` para procesar documentos
+  - Soporte para PDF y DOCX
+  - Parsing con Claude AI (claude-sonnet-4-5)
+  - Extracción automática de: título, empresa, industria, área funcional, seniority, experiencia, ubicación, salario, esquema laboral, responsabilidades, requisitos
+  - Validación y normalización de taxonomía
+  - Score de confianza y notas de extracción
+  - UI integrada en JobFormWizard con zona de upload
+  - Preview editable antes de guardar
 
 #### Fase C (Pendiente)
 - [ ] **Publicación Externa de Vacantes** - URLs públicas con branding Humaniq

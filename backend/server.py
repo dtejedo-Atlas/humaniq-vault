@@ -2626,6 +2626,74 @@ async def seed_initial_data():
 
 # ============= JOB / VACANTES ENDPOINTS =============
 
+@api_router.post("/jobs/parse-jd")
+async def parse_job_description(
+    file: UploadFile = File(...),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """
+    Parse a Job Description document (PDF/DOCX) and extract structured data.
+    
+    Returns structured job data that can be used to pre-fill the job creation form.
+    The user should review and edit before saving.
+    """
+    user = await get_current_user(credentials)
+    
+    # Validar tipo de archivo
+    file_ext = file.filename.split('.')[-1].lower() if file.filename else ''
+    if file_ext not in ['pdf', 'docx']:
+        raise HTTPException(
+            status_code=400, 
+            detail="Formato no soportado. Solo se permiten archivos PDF o DOCX."
+        )
+    
+    try:
+        # Leer archivo
+        file_data = await file.read()
+        
+        if len(file_data) == 0:
+            raise HTTPException(status_code=400, detail="El archivo está vacío")
+        
+        if len(file_data) > 10 * 1024 * 1024:  # 10MB limit
+            raise HTTPException(status_code=400, detail="El archivo excede el límite de 10MB")
+        
+        # Extraer texto
+        try:
+            extracted_text = DocumentParser.extract_text_from_bytes(file_data, file.content_type)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Error extrayendo texto: {str(e)}")
+        
+        if not extracted_text or len(extracted_text.strip()) < 50:
+            raise HTTPException(
+                status_code=400, 
+                detail="No se pudo extraer suficiente texto del documento. Verifica que el archivo contenga texto legible."
+            )
+        
+        logger.info(f"JD text extracted: {len(extracted_text)} chars from {file.filename}")
+        
+        # Parsear con AI
+        from atlas_service import atlas_service
+        parsed_data = await atlas_service.parse_job_description(extracted_text)
+        
+        # Agregar metadata
+        parsed_data["_source_file"] = file.filename
+        parsed_data["_text_length"] = len(extracted_text)
+        parsed_data["_parsed_by"] = user.id
+        
+        logger.info(f"JD parsed successfully: {parsed_data.get('title', 'No title')} - Confidence: {parsed_data.get('confidence_score', 0)}")
+        
+        return {
+            "success": True,
+            "data": parsed_data,
+            "message": "Documento procesado. Revisa y ajusta la información antes de guardar."
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error parsing JD: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error procesando documento: {str(e)}")
+
 @api_router.post("/jobs", response_model=Job)
 async def create_job(
     job_data: JobCreate,

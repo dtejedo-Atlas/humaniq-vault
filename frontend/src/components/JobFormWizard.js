@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from '../components/ui/tooltip';
 import { Badge } from '../components/ui/badge';
+import { Alert, AlertDescription } from '../components/ui/alert';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -30,9 +31,16 @@ import {
   Home,
   Building,
   Loader2,
-  Eye
+  Eye,
+  Upload,
+  FileText,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2
 } from 'lucide-react';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
+import { jobsAPI } from '../api';
+import { toast } from 'sonner';
 import { 
   MEXICO_STATES, 
   COUNTRIES, 
@@ -91,6 +99,9 @@ const FieldTooltip = ({ content }) => (
 const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState(initialData || initialFormData);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const fileInputRef = useRef(null);
   const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
 
   const industries = getIndustryOptions();
@@ -98,6 +109,79 @@ const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validar extensión
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (!['pdf', 'docx'].includes(ext)) {
+      toast.error('Solo se permiten archivos PDF o DOCX');
+      return;
+    }
+
+    // Validar tamaño (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error('El archivo excede el límite de 10MB');
+      return;
+    }
+
+    setUploading(true);
+    setUploadResult(null);
+
+    try {
+      const response = await jobsAPI.parseJD(file);
+      const { data } = response.data;
+
+      // Pre-llenar el formulario con los datos extraídos
+      setFormData(prev => ({
+        ...prev,
+        title: data.title || prev.title,
+        company: data.company || prev.company,
+        industry: data.industry || prev.industry,
+        functional_area: data.functional_area || prev.functional_area,
+        seniority: data.seniority || prev.seniority,
+        min_experience: data.min_experience ?? prev.min_experience,
+        max_experience: data.max_experience ?? prev.max_experience,
+        job_objective: data.job_objective || prev.job_objective,
+        role_context: data.role_context || prev.role_context,
+        responsibilities: data.responsibilities || prev.responsibilities,
+        required_experience: data.required_experience || prev.required_experience,
+        non_negotiables: data.non_negotiables || prev.non_negotiables,
+        location_country: data.location_country || prev.location_country,
+        location_state: data.location_state || prev.location_state,
+        location_city: data.location_city || prev.location_city,
+        salary_min: data.salary_min ?? prev.salary_min,
+        salary_max: data.salary_max ?? prev.salary_max,
+        work_scheme: data.work_scheme || prev.work_scheme,
+        schedule: data.schedule || prev.schedule,
+      }));
+
+      setUploadResult({
+        success: true,
+        confidence: data.confidence_score,
+        notes: data.extraction_notes,
+        filename: file.name
+      });
+
+      toast.success('Documento procesado correctamente. Revisa la información extraída.');
+    } catch (error) {
+      console.error('Error uploading JD:', error);
+      const errorMsg = error.response?.data?.detail || 'Error procesando el documento';
+      toast.error(errorMsg);
+      setUploadResult({
+        success: false,
+        error: errorMsg
+      });
+    } finally {
+      setUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   const isStep1Valid = () => {
@@ -144,9 +228,92 @@ const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false
     onSubmit(jobData);
   };
 
+  // Upload Section Component
+  const renderUploadSection = () => (
+    <div className="mb-6 p-4 border-2 border-dashed border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx"
+        onChange={handleFileUpload}
+        className="hidden"
+        id="jd-upload"
+      />
+      
+      <div className="text-center">
+        {uploading ? (
+          <div className="py-4">
+            <Loader2 className="w-8 h-8 animate-spin text-cyan-600 mx-auto mb-2" />
+            <p className="text-sm text-slate-600">Procesando documento con IA...</p>
+            <p className="text-xs text-slate-400 mt-1">Esto puede tomar unos segundos</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Sparkles className="w-5 h-5 text-cyan-600" />
+              <span className="font-medium text-slate-700">Ingesta Inteligente</span>
+            </div>
+            <p className="text-sm text-slate-500 mb-3">
+              Sube un PDF o Word con la descripción de la vacante y extraeremos la información automáticamente
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Cargar Job Description
+            </Button>
+            <p className="text-xs text-slate-400 mt-2">PDF o DOCX, máximo 10MB</p>
+          </>
+        )}
+      </div>
+
+      {uploadResult && (
+        <div className="mt-4">
+          {uploadResult.success ? (
+            <Alert className="bg-green-50 border-green-200">
+              <CheckCircle2 className="w-4 h-4 text-green-600" />
+              <AlertDescription className="text-green-800">
+                <div className="font-medium">Documento procesado: {uploadResult.filename}</div>
+                <div className="text-sm mt-1">
+                  Confianza: {Math.round((uploadResult.confidence || 0) * 100)}%
+                  {uploadResult.notes && (
+                    <span className="block text-green-600 mt-1">{uploadResult.notes}</span>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="bg-red-50 border-red-200">
+              <AlertCircle className="w-4 h-4 text-red-600" />
+              <AlertDescription className="text-red-800">
+                {uploadResult.error}
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   // Step 1: Información Básica
   const renderStep1 = () => (
     <div className="space-y-5">
+      {/* Upload Section */}
+      {renderUploadSection()}
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-white px-2 text-slate-500">o completa manualmente</span>
+        </div>
+      </div>
+
       {/* Título y Empresa */}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -642,7 +809,7 @@ const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false
         <CardHeader>
           <CardTitle>{STEPS[currentStep - 1].title}</CardTitle>
           <CardDescription>
-            {currentStep === 1 && 'Define la información básica del puesto'}
+            {currentStep === 1 && 'Carga un documento o completa la información básica del puesto'}
             {currentStep === 2 && 'Describe el objetivo, contexto y responsabilidades'}
             {currentStep === 3 && 'Especifica requisitos, ubicación y compensación'}
             {currentStep === 4 && 'Revisa la información antes de guardar'}

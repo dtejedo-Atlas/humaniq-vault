@@ -290,6 +290,190 @@ Responde SOLO con JSON válido.
                 "recommendation": "No se pudo analizar"
             }
 
+    async def parse_job_description(self, jd_text: str) -> dict:
+        """
+        Parse a Job Description document and extract structured data.
+        
+        This is designed to extract information from various JD formats:
+        - Formal corporate JDs
+        - Informal role descriptions
+        - Recruitment agency briefs
+        - LinkedIn-style postings
+        
+        Args:
+            jd_text: Raw text extracted from PDF/DOCX
+            
+        Returns:
+            dict with structured job data matching the Job model
+        """
+        taxonomy_section = build_taxonomy_prompt_section()
+        
+        chat = LlmChat(
+            api_key=self.api_key,
+            session_id=f"parse-jd-{id(jd_text)}",
+            system_message=f"""Eres Humaniq AI, un experto en análisis de descripciones de puestos (Job Descriptions) para reclutamiento ejecutivo en México y Latinoamérica.
+
+Tu tarea es extraer y estructurar información de descripciones de vacantes. Los documentos pueden venir en varios formatos:
+- JDs corporativas formales
+- Briefs de agencias de reclutamiento
+- Publicaciones estilo LinkedIn
+- Descripciones informales
+
+IMPORTANTE:
+1. Extrae TODA la información disponible, incluso si está implícita
+2. Si algún campo no está claro, usa tu mejor juicio basado en el contexto
+3. Para industria y área funcional, DEBES usar las keys canónicas de la taxonomía
+4. Si el salario aparece en USD, conviértelo a MXN (usa 17.5 como tipo de cambio aproximado)
+5. Si la ubicación no está clara pero hay pistas (nombre de empresa conocida, contexto), infiere lo más probable
+
+{taxonomy_section}
+
+NIVELES DE SENIORITY (usar estos valores exactos):
+- trainee: Becario / Trainee (0-1 años)
+- entry: Entry Level (0-2 años)
+- junior: Junior / Coordinador (1-4 años)
+- mid: Mid Level / Especialista (3-7 años)
+- senior: Senior (5-12 años)
+- lead: Lead / Líder (7-15 años)
+- manager: Gerente / Manager (8-20 años)
+- director: Director (10-25 años)
+- vp: VP / Vicepresidente (12-30 años)
+- c_level: C-Level (15+ años)
+
+ESQUEMAS DE TRABAJO:
+- on_site: Presencial
+- hybrid: Híbrido
+- remote: Remoto
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional:
+{{
+    "title": "Título del puesto (limpio, sin empresa)",
+    "company": "Nombre de la empresa o null si no se menciona",
+    "industry": "key_canonica_de_industria",
+    "functional_area": "key_canonica_de_area_funcional",
+    "seniority": "nivel_seniority",
+    "min_experience": numero_años_minimos,
+    "max_experience": numero_años_maximos_o_null,
+    "job_objective": "Objetivo principal del puesto (1-2 párrafos)",
+    "role_context": "Contexto de la empresa, equipo o situación del rol",
+    "responsibilities": "Responsabilidades principales (formato bullet points con •)",
+    "required_experience": "Experiencia profesional requerida (descripción)",
+    "non_negotiables": "Requisitos indispensables / no negociables (formato bullet points con •)",
+    "location_country": "País (default México)",
+    "location_state": "Estado/Región o null",
+    "location_city": "Ciudad o null",
+    "salary_min": numero_salario_minimo_mensual_MXN_o_null,
+    "salary_max": numero_salario_maximo_mensual_MXN_o_null,
+    "work_scheme": "on_site|hybrid|remote",
+    "schedule": "Horario/jornada o null",
+    "confidence_score": 0.0_a_1.0,
+    "extraction_notes": "Notas sobre la extracción, campos inferidos o dudas"
+}}
+"""
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        
+        message = UserMessage(
+            text=f"""Analiza la siguiente descripción de vacante y extrae toda la información estructurada.
+
+DOCUMENTO DE VACANTE:
+{jd_text[:12000]}
+
+Responde SOLO con JSON válido.
+"""
+        )
+        
+        response = await chat.send_message(message)
+        
+        try:
+            response_text = response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            
+            parsed_data = json.loads(response_text.strip())
+            
+            # Validar y normalizar campos críticos
+            # Industria
+            industry_key = parsed_data.get('industry')
+            if industry_key and not get_industry_by_key(industry_key):
+                parsed_data['industry'] = self._normalize_to_key(industry_key, 'industry')
+            
+            # Área funcional
+            functional_area_key = parsed_data.get('functional_area')
+            if functional_area_key and not get_functional_area_by_key(functional_area_key):
+                parsed_data['functional_area'] = self._normalize_to_key(functional_area_key, 'functional_area')
+            
+            # Asegurar que los números sean números
+            for field in ['min_experience', 'max_experience', 'salary_min', 'salary_max']:
+                if parsed_data.get(field) is not None:
+                    try:
+                        parsed_data[field] = int(parsed_data[field]) if parsed_data[field] else None
+                    except (ValueError, TypeError):
+                        parsed_data[field] = None
+            
+            # Defaults
+            if not parsed_data.get('location_country'):
+                parsed_data['location_country'] = 'México'
+            if not parsed_data.get('work_scheme'):
+                parsed_data['work_scheme'] = 'on_site'
+            if not parsed_data.get('seniority'):
+                parsed_data['seniority'] = 'manager'
+            if parsed_data.get('min_experience') is None:
+                parsed_data['min_experience'] = 0
+            
+            return parsed_data
+            
+        except json.JSONDecodeError as e:
+            return {
+                "error": f"Error parseando respuesta de AI: {str(e)}",
+                "raw_response": response[:500] if response else None,
+                "title": "Vacante sin título",
+                "industry": "professional_services",
+                "functional_area": "general_management",
+                "seniority": "manager",
+                "min_experience": 0,
+                "location_country": "México",
+                "work_scheme": "on_site",
+                "confidence_score": 0.0,
+                "extraction_notes": "Error en parsing. Revise el documento manualmente."
+            }
+
+    def _normalize_to_key(self, value: str, taxonomy_type: str) -> str:
+        """
+        Normalize a taxonomy value to its canonical key.
+        Falls back to a default if not found.
+        """
+        from taxonomy import get_all_industries, get_all_functional_areas
+        
+        value_lower = (value or "").lower().strip().replace(" ", "_").replace("-", "_")
+        
+        if taxonomy_type == 'industry':
+            industries = get_all_industries()
+            # Try exact match
+            for ind in industries:
+                if ind['key'] == value_lower:
+                    return ind['key']
+                if value_lower in ind['name_es'].lower() or value_lower in ind['name_en'].lower():
+                    return ind['key']
+            # Default
+            return 'professional_services'
+        
+        elif taxonomy_type == 'functional_area':
+            areas = get_all_functional_areas()
+            # Try exact match
+            for area in areas:
+                if area['key'] == value_lower:
+                    return area['key']
+                if value_lower in area['name_es'].lower() or value_lower in area['name_en'].lower():
+                    return area['key']
+            # Default
+            return 'general_management'
+        
+        return value
+
 
 def classify_seniority(title: str, years_experience: float) -> dict:
     """

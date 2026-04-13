@@ -117,7 +117,16 @@ export const jobsAPI = {
   update: (id, data) => axios.put(`${API_BASE}/jobs/${id}`, data),
   delete: (id) => axios.delete(`${API_BASE}/jobs/${id}`),
   getMatches: (id, threshold = 60, limit = 50) => 
-    axios.post(`${API_BASE}/jobs/${id}/match`, null, { params: { threshold, limit } })
+    axios.post(`${API_BASE}/jobs/${id}/match`, null, { params: { threshold, limit } }),
+  // Ingesta Inteligente - Parse Job Description from PDF/DOCX
+  parseJD: (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return axios.post(`${API_BASE}/jobs/parse-jd`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000 // 60s timeout for AI parsing
+    });
+  }
 };
 
 // Users (Admin)
