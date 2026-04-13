@@ -145,12 +145,13 @@ const CandidatesPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value=" ">Todos los niveles</SelectItem>
-                  <SelectItem value="entry">Inicial</SelectItem>
-                  <SelectItem value="junior">Junior</SelectItem>
-                  <SelectItem value="mid">Mid</SelectItem>
+                  <SelectItem value="trainee">Becario/Trainee</SelectItem>
+                  <SelectItem value="entry">Entrada</SelectItem>
+                  <SelectItem value="junior">Junior/Coordinador</SelectItem>
+                  <SelectItem value="mid">Mid-Level</SelectItem>
                   <SelectItem value="senior">Senior</SelectItem>
                   <SelectItem value="lead">Lead</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="manager">Gerente</SelectItem>
                   <SelectItem value="director">Director</SelectItem>
                   <SelectItem value="vp">VP</SelectItem>
                   <SelectItem value="c_level">C-Level</SelectItem>

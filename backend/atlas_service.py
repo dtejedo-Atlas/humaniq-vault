@@ -290,4 +290,109 @@ Responde SOLO con JSON válido.
                 "recommendation": "No se pudo analizar"
             }
 
+
+def classify_seniority(title: str, years_experience: float) -> dict:
+    """
+    Clasifica el seniority basándose en título del puesto y años de experiencia.
+    
+    Lógica transparente:
+    1. Primero busca keywords en el título del puesto
+    2. Si encuentra match, valida contra años de experiencia
+    3. Si hay conflicto, prioriza años de experiencia (más objetivo)
+    4. Retorna el seniority con explicación
+    
+    Args:
+        title: Título del puesto más reciente
+        years_experience: Años de experiencia total
+    
+    Returns:
+        dict con 'seniority', 'confidence', 'reason'
+    """
+    from models import SENIORITY_TITLE_KEYWORDS, SENIORITY_LEVELS
+    
+    title_lower = (title or "").lower().strip()
+    years = float(years_experience) if years_experience else 0
+    
+    # Paso 1: Detectar seniority por título
+    title_seniority = None
+    title_match_keyword = None
+    
+    # Buscar de más senior a menos senior para dar prioridad a títulos altos
+    search_order = ["c_level", "vp", "director", "manager", "lead", "senior", "mid", "junior", "entry", "trainee"]
+    
+    import re
+    for level in search_order:
+        keywords = SENIORITY_TITLE_KEYWORDS.get(level, [])
+        for kw in keywords:
+            # Buscar palabra completa o al inicio/fin de palabra compuesta
+            pattern = r'\b' + re.escape(kw) + r'\b'
+            if re.search(pattern, title_lower):
+                title_seniority = level
+                title_match_keyword = kw
+                break
+        if title_seniority:
+            break
+    
+    # Paso 2: Determinar seniority por años de experiencia
+    years_seniority = None
+    for level, config in SENIORITY_LEVELS.items():
+        if config["years_min"] <= years <= config["years_max"]:
+            years_seniority = level
+            break
+    
+    # Si años exceden el máximo de c_level, asignar c_level
+    if not years_seniority and years > 40:
+        years_seniority = "c_level"
+    elif not years_seniority:
+        years_seniority = "entry"  # Default para casos extraños
+    
+    # Paso 3: Resolver conflictos
+    final_seniority = None
+    confidence = "high"
+    reason = ""
+    
+    if title_seniority and years_seniority:
+        title_level = SENIORITY_LEVELS.get(title_seniority, {}).get("level", 5)
+        years_level = SENIORITY_LEVELS.get(years_seniority, {}).get("level", 5)
+        
+        # Si coinciden o están cerca (±1 nivel), usar título
+        if abs(title_level - years_level) <= 1:
+            final_seniority = title_seniority
+            confidence = "high"
+            reason = f"Título '{title_match_keyword}' coincide con {years} años de experiencia"
+        # Si título indica más seniority que años, confiar en título (puede ser promoción rápida)
+        elif title_level > years_level:
+            final_seniority = title_seniority
+            confidence = "medium"
+            reason = f"Título '{title_match_keyword}' indica nivel alto para {years} años (posible fast-track)"
+        # Si años indican más que título, usar años (título puede estar desactualizado)
+        else:
+            final_seniority = years_seniority
+            confidence = "medium"
+            reason = f"{years} años de experiencia sugieren nivel más alto que título actual"
+    elif title_seniority:
+        final_seniority = title_seniority
+        confidence = "medium"
+        reason = f"Basado en título '{title_match_keyword}' (sin años de experiencia)"
+    elif years_seniority:
+        final_seniority = years_seniority
+        confidence = "medium"
+        reason = f"Basado en {years} años de experiencia (título no determinante)"
+    else:
+        final_seniority = "mid"  # Default conservador
+        confidence = "low"
+        reason = "No se pudo determinar, asignado nivel medio por defecto"
+    
+    return {
+        "seniority": final_seniority,
+        "seniority_label": SENIORITY_LEVELS.get(final_seniority, {}).get("label", final_seniority),
+        "confidence": confidence,
+        "reason": reason,
+        "title_detected": title_seniority,
+        "years_detected": years_seniority,
+        "input_title": title,
+        "input_years": years
+    }
+
+
 atlas_service = AtlasAIService()

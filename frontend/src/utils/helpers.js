@@ -66,12 +66,13 @@ export const getStatusLabel = (status) => {
 
 export const getSeniorityLabel = (seniority) => {
   const labels = {
-    entry: 'Inicial',
-    junior: 'Junior',
-    mid: 'Mid',
+    trainee: 'Becario/Trainee',
+    entry: 'Entrada',
+    junior: 'Junior/Coordinador',
+    mid: 'Mid-Level',
     senior: 'Senior',
     lead: 'Lead',
-    manager: 'Manager',
+    manager: 'Gerente',
     director: 'Director',
     vp: 'VP',
     c_level: 'C-Level'

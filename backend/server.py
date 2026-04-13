@@ -20,11 +20,12 @@ from models import (
     Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse,
     AssignmentCreate, ExportFormat, ExportSourceType, ExportRequest,
     SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType, FolderCategory,
-    StatusChangeRequest, StatusChange, VALID_STATUS_TRANSITIONS, STATUS_COLORS
+    StatusChangeRequest, StatusChange, VALID_STATUS_TRANSITIONS, STATUS_COLORS,
+    SENIORITY_LEVELS, SENIORITY_TITLE_KEYWORDS
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
-from atlas_service import atlas_service
+from atlas_service import atlas_service, classify_seniority
 from document_parser import DocumentParser
 from storage_service import storage_service, init_storage
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
@@ -2438,6 +2439,144 @@ async def get_taxonomy_lookup(current_user: User = Depends(get_current_user)):
         "industries": {ind["key"]: {"name_es": ind["name_es"], "name_en": ind["name_en"]} for ind in industries},
         "functional_areas": {area["key"]: {"name_es": area["name_es"], "name_en": area["name_en"]} for area in areas}
     }
+
+
+@api_router.get("/taxonomy/seniority-levels")
+async def get_seniority_levels(current_user: User = Depends(get_current_user)):
+    """Get seniority levels configuration"""
+    return {
+        "levels": SENIORITY_LEVELS,
+        "keywords": SENIORITY_TITLE_KEYWORDS
+    }
+
+
+@api_router.post("/candidates/{candidate_id}/reclassify-seniority")
+async def reclassify_candidate_seniority(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reclasifica el seniority de un candidato usando la nueva lógica.
+    Basado en: título del puesto + años de experiencia.
+    """
+    candidate = await db.candidates.find_one(
+        {"id": candidate_id},
+        {"_id": 0, "id": 1, "full_name": 1, "current_title": 1, "years_experience": 1, "seniority": 1, "previous_companies": 1}
+    )
+    
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    # Obtener título - usar current_title o el más reciente de previous_companies
+    title = candidate.get("current_title")
+    if not title and candidate.get("previous_companies"):
+        title = candidate["previous_companies"][0].get("title", "")
+    
+    years = candidate.get("years_experience", 0)
+    old_seniority = candidate.get("seniority")
+    
+    # Clasificar
+    result = classify_seniority(title, years)
+    new_seniority = result["seniority"]
+    
+    # Actualizar si cambió
+    if new_seniority != old_seniority:
+        await db.candidates.update_one(
+            {"id": candidate_id},
+            {"$set": {
+                "seniority": new_seniority,
+                "seniority_classification": result,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+    
+    return {
+        "candidate_id": candidate_id,
+        "candidate_name": candidate.get("full_name"),
+        "old_seniority": old_seniority,
+        "new_seniority": new_seniority,
+        "changed": new_seniority != old_seniority,
+        "classification_details": result
+    }
+
+
+@api_router.post("/admin/reclassify-all-seniority")
+async def reclassify_all_seniority(
+    dry_run: bool = Query(True, description="Si es True, solo simula sin guardar cambios"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Reclasifica el seniority de TODOS los candidatos usando la nueva lógica.
+    Solo Admin puede ejecutar esto.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo Admin puede ejecutar reclasificación masiva")
+    
+    candidates = await db.candidates.find(
+        {"is_deleted": {"$ne": True}},
+        {"_id": 0, "id": 1, "full_name": 1, "current_title": 1, "years_experience": 1, "seniority": 1, "previous_companies": 1}
+    ).to_list(5000)
+    
+    results = {
+        "total_processed": 0,
+        "changed": 0,
+        "unchanged": 0,
+        "examples_changed": [],
+        "by_new_seniority": {}
+    }
+    
+    for candidate in candidates:
+        title = candidate.get("current_title")
+        if not title and candidate.get("previous_companies"):
+            title = candidate["previous_companies"][0].get("title", "")
+        
+        years = candidate.get("years_experience", 0)
+        old_seniority = candidate.get("seniority")
+        
+        classification = classify_seniority(title, years)
+        new_seniority = classification["seniority"]
+        
+        results["total_processed"] += 1
+        
+        # Contar por nuevo seniority
+        if new_seniority not in results["by_new_seniority"]:
+            results["by_new_seniority"][new_seniority] = 0
+        results["by_new_seniority"][new_seniority] += 1
+        
+        if new_seniority != old_seniority:
+            results["changed"] += 1
+            
+            # Guardar ejemplos (máximo 10)
+            if len(results["examples_changed"]) < 10:
+                results["examples_changed"].append({
+                    "name": candidate.get("full_name"),
+                    "title": title,
+                    "years": years,
+                    "old_seniority": old_seniority,
+                    "new_seniority": new_seniority,
+                    "reason": classification["reason"]
+                })
+            
+            # Si no es dry_run, actualizar
+            if not dry_run:
+                await db.candidates.update_one(
+                    {"id": candidate["id"]},
+                    {"$set": {
+                        "seniority": new_seniority,
+                        "seniority_classification": classification,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }}
+                )
+        else:
+            results["unchanged"] += 1
+    
+    results["dry_run"] = dry_run
+    if dry_run:
+        results["message"] = "Simulación completada. Usa dry_run=false para aplicar cambios."
+    else:
+        results["message"] = f"Reclasificación completada. {results['changed']} candidatos actualizados."
+    
+    return results
 
 
 # ============= SEED DATA ROUTE =============

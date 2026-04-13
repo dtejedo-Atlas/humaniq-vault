@@ -61,15 +61,44 @@ class StatusChange(BaseModel):
     notes: Optional[str] = None
 
 class SeniorityLevel(str, Enum):
-    ENTRY = "entry"
-    JUNIOR = "junior"
-    MID = "mid"
-    SENIOR = "senior"
-    LEAD = "lead"
-    MANAGER = "manager"
-    DIRECTOR = "director"
-    VP = "vp"
-    C_LEVEL = "c_level"
+    TRAINEE = "trainee"       # Becario / Practicante
+    ENTRY = "entry"           # Entrada / Recién egresado
+    JUNIOR = "junior"         # Junior / Coordinador
+    MID = "mid"               # Mid-level / Especialista
+    SENIOR = "senior"         # Senior
+    LEAD = "lead"             # Lead / Líder técnico
+    MANAGER = "manager"       # Gerente
+    DIRECTOR = "director"     # Director
+    VP = "vp"                 # VP / Vicepresidente
+    C_LEVEL = "c_level"       # C-Level (CEO, CFO, etc.)
+
+# Mapeo de seniority a niveles numéricos para scoring y ordenamiento
+SENIORITY_LEVELS = {
+    "trainee": {"level": 0, "label": "Becario/Trainee", "years_min": 0, "years_max": 1},
+    "entry": {"level": 1, "label": "Entrada", "years_min": 0, "years_max": 2},
+    "junior": {"level": 2, "label": "Junior/Coordinador", "years_min": 1, "years_max": 4},
+    "mid": {"level": 3, "label": "Mid-Level", "years_min": 3, "years_max": 7},
+    "senior": {"level": 4, "label": "Senior", "years_min": 5, "years_max": 12},
+    "lead": {"level": 5, "label": "Lead", "years_min": 7, "years_max": 15},
+    "manager": {"level": 6, "label": "Gerente", "years_min": 8, "years_max": 20},
+    "director": {"level": 7, "label": "Director", "years_min": 10, "years_max": 25},
+    "vp": {"level": 8, "label": "VP", "years_min": 12, "years_max": 30},
+    "c_level": {"level": 9, "label": "C-Level", "years_min": 15, "years_max": 40}
+}
+
+# Keywords para detectar seniority desde título del puesto
+SENIORITY_TITLE_KEYWORDS = {
+    "trainee": ["intern", "internship", "becario", "becaria", "practicante", "trainee", "pasante", "aprendiz"],
+    "entry": ["entry", "graduate", "egresado", "recién egresado", "auxiliar", "asistente jr"],
+    "junior": ["junior", "jr", "coordinator", "coordinador", "coordinadora", "analyst", "analista", "associate", "asociado"],
+    "mid": ["specialist", "especialista", "consultant", "consultor", "professional", "profesional", "engineer", "ingeniero"],
+    "senior": ["senior", "sr", "lead analyst", "expert", "experto", "principal"],
+    "lead": ["lead", "líder", "lider", "team lead", "tech lead", "head of"],
+    "manager": ["manager", "gerente", "jefe", "jefa", "supervisor", "superintendent", "superintendente"],
+    "director": ["director", "directora", "head", "regional"],
+    "vp": ["vp", "vice president", "vicepresidente", "vice presidente", "svp", "evp"],
+    "c_level": ["ceo", "cfo", "coo", "cto", "cio", "cmo", "chro", "chief", "presidente", "president", "managing director", "director general", "country manager", "socio", "partner", "fundador", "founder", "owner", "dueño", "general manager"]
+}
 
 class ParseStatus(str, Enum):
     PENDING = "pending"
