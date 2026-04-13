@@ -369,8 +369,14 @@ class JobStatus(str, Enum):
     CLOSED = "closed"
     DRAFT = "draft"
 
+class WorkScheme(str, Enum):
+    """Esquema de trabajo"""
+    ON_SITE = "on_site"
+    HYBRID = "hybrid"
+    REMOTE = "remote"
+
 class Job(BaseModel):
-    """Modelo de Vacante para Job Matching Engine"""
+    """Modelo de Vacante para Job Matching Engine - v2 Rediseñado"""
     model_config = ConfigDict(extra="ignore")
     
     id: str
@@ -386,22 +392,37 @@ class Job(BaseModel):
     min_experience: int = 0                       # Años mínimos
     max_experience: Optional[int] = None          # Años máximos (opcional)
     
-    # Skills
-    required_skills: List[str] = []               # Skills obligatorios
-    preferred_skills: List[str] = []              # Skills deseables
+    # ===== NUEVOS CAMPOS v2 =====
+    # Objetivo y contexto
+    job_objective: Optional[str] = None           # Objetivo principal del puesto
+    role_context: Optional[str] = None            # Contexto de empresa/industria
     
-    # Descripción estructurada
-    responsibilities: Optional[str] = None        # Responsabilidades clave
-    requirements: Optional[str] = None            # Requisitos no negociables (texto)
-    nice_to_have: Optional[str] = None            # Deseables (texto)
-    description: Optional[str] = None             # Descripción completa libre
-    role_context: Optional[str] = None            # Contexto del rol
+    # Responsabilidades y requisitos
+    responsibilities: Optional[str] = None        # Responsabilidades principales
+    required_experience: Optional[str] = None     # Experiencia requerida (descriptiva)
+    non_negotiables: Optional[str] = None         # Requisitos no negociables
     
-    # Ubicación (soft matching - no descarte)
-    location_city: Optional[str] = None
-    location_state: Optional[str] = None
+    # Ubicación estructurada
     location_country: str = "México"
-    remote_option: bool = False
+    location_state: Optional[str] = None
+    location_city: Optional[str] = None
+    
+    # Compensación
+    salary_min: Optional[int] = None              # Salario mínimo (MXN)
+    salary_max: Optional[int] = None              # Salario máximo (MXN)
+    salary_currency: str = "MXN"                  # Moneda
+    
+    # Esquema laboral
+    work_scheme: WorkScheme = WorkScheme.ON_SITE  # presencial/híbrido/remoto
+    schedule: Optional[str] = None                # Jornada/horario
+    
+    # ===== CAMPOS DEPRECADOS (mantener por compatibilidad) =====
+    required_skills: List[str] = []               # DEPRECADO - mantener vacío
+    preferred_skills: List[str] = []              # DEPRECADO - mantener vacío
+    requirements: Optional[str] = None            # DEPRECADO - usar non_negotiables
+    nice_to_have: Optional[str] = None            # DEPRECADO
+    description: Optional[str] = None             # DEPRECADO - usar job_objective + responsibilities
+    remote_option: bool = False                   # DEPRECADO - usar work_scheme
     
     # Idioma (para Fase B - soft matching)
     language_requirements: Optional[List[str]] = None  # ["spanish:fluent", "english:advanced"]
@@ -416,7 +437,8 @@ class Job(BaseModel):
     embedding: Optional[List[float]] = None
 
 class JobCreate(BaseModel):
-    """Schema para crear vacante"""
+    """Schema para crear vacante - v2 Rediseñado"""
+    # Paso 1: Información básica
     title: str
     company: Optional[str] = None
     industry: str
@@ -424,20 +446,35 @@ class JobCreate(BaseModel):
     seniority: str
     min_experience: int = 0
     max_experience: Optional[int] = None
+    
+    # Paso 2: Contexto y responsabilidades
+    job_objective: Optional[str] = None
+    role_context: Optional[str] = None
+    responsibilities: Optional[str] = None
+    
+    # Paso 3: Requisitos, ubicación y salario
+    required_experience: Optional[str] = None
+    non_negotiables: Optional[str] = None
+    location_country: str = "México"
+    location_state: Optional[str] = None
+    location_city: Optional[str] = None
+    salary_min: Optional[int] = None
+    salary_max: Optional[int] = None
+    salary_currency: str = "MXN"
+    work_scheme: WorkScheme = WorkScheme.ON_SITE
+    schedule: Optional[str] = None
+    
+    # Campos deprecados (mantener por compatibilidad)
     required_skills: List[str] = []
     preferred_skills: List[str] = []
-    responsibilities: Optional[str] = None
+    responsibilities_old: Optional[str] = None    # alias del campo antiguo
     requirements: Optional[str] = None
     nice_to_have: Optional[str] = None
     description: Optional[str] = None
-    role_context: Optional[str] = None
-    location_city: Optional[str] = None
-    location_state: Optional[str] = None
-    location_country: str = "México"
     remote_option: bool = False
 
 class JobUpdate(BaseModel):
-    """Schema para actualizar vacante"""
+    """Schema para actualizar vacante - v2"""
     title: Optional[str] = None
     company: Optional[str] = None
     industry: Optional[str] = None
@@ -445,16 +482,28 @@ class JobUpdate(BaseModel):
     seniority: Optional[str] = None
     min_experience: Optional[int] = None
     max_experience: Optional[int] = None
+    
+    # Nuevos campos v2
+    job_objective: Optional[str] = None
+    role_context: Optional[str] = None
+    responsibilities: Optional[str] = None
+    required_experience: Optional[str] = None
+    non_negotiables: Optional[str] = None
+    location_country: Optional[str] = None
+    location_state: Optional[str] = None
+    location_city: Optional[str] = None
+    salary_min: Optional[int] = None
+    salary_max: Optional[int] = None
+    salary_currency: Optional[str] = None
+    work_scheme: Optional[WorkScheme] = None
+    schedule: Optional[str] = None
+    
+    # Deprecados
     required_skills: Optional[List[str]] = None
     preferred_skills: Optional[List[str]] = None
-    responsibilities: Optional[str] = None
     requirements: Optional[str] = None
     nice_to_have: Optional[str] = None
     description: Optional[str] = None
-    role_context: Optional[str] = None
-    location_city: Optional[str] = None
-    location_state: Optional[str] = None
-    location_country: Optional[str] = None
     remote_option: Optional[bool] = None
     status: Optional[JobStatus] = None
 

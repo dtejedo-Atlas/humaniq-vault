@@ -1,7 +1,9 @@
-# Atlas Talent Vault - Product Requirements Document
+# Humaniq Talent Vault - Product Requirements Document
 
 ## Descripción General
 Sistema de reclutamiento AI para firma de headhunting en México. Permite subir CVs, extraer datos automáticamente, clasificar candidatos con IA, y realizar búsquedas semánticas avanzadas.
+
+**Nombre del sistema:** Humaniq Talent Vault (antes Atlas Talent Vault)
 
 ## Stakeholders
 - **Usuario Principal:** Reclutadores ejecutivos
@@ -119,7 +121,40 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - [ ] Panel "Mis Candidatos" en Dashboard
 - [ ] Activity Feed (trazabilidad de acciones)
 
-### Fase 3 (Futura)
+### Fase 3 (Mejoras Operativas) - EN PROGRESO ✅
+#### Fase A (Completada - 13-Abr-2026)
+- [x] **Descarga de CV Original** - Botón en perfil de candidato
+- [x] **Métricas de Vacantes en Dashboard** - Alertas de vacantes sin candidatos
+- [x] **Mejora de Seniority** - Nuevos niveles Trainee/Junior, lógica Título vs Años
+
+#### Subfase B.0 (Completada - 13-Abr-2026)
+- [x] **Taxonomía Actualizada**
+  - Agregada industria: `fintech` (Fintech / Tecnología Financiera)
+  - Actualizado: `real_estate` ahora incluye "Desarrollo Inmobiliario"
+  - Sistema de aliases para clasificación AI mejorada
+  - Total: 23 industrias, 24 áreas funcionales
+
+#### Fase B.1 (Completada - 13-Abr-2026)
+- [x] **Rediseño del Formulario de Vacantes (Wizard)**
+  - Formulario wizard de 4 pasos con preview
+  - Paso 1: Información básica (título, empresa, área, industria, seniority, experiencia)
+  - Paso 2: Contexto y responsabilidades (objetivo, contexto, responsabilidades)
+  - Paso 3: Requisitos y ubicación (experiencia requerida, no negociables, ubicación, salario, esquema laboral)
+  - Paso 4: Preview final antes de guardar
+  - Nuevos campos: `job_objective`, `role_context`, `responsibilities`, `required_experience`, `non_negotiables`, `salary_min`, `salary_max`, `work_scheme`, `schedule`
+  - Ubicación estructurada: País + Estado (dropdown para México) + Ciudad
+  - Esquema laboral: Presencial / Híbrido / Remoto
+  - Tooltips explicativos en cada campo
+  - Logo oficial de Humaniq integrado
+
+#### Fase B.2 (Pendiente)
+- [ ] **Ingesta Inteligente de Vacantes** - Upload PDF/Word de JD, parsing automático con IA
+
+#### Fase C (Pendiente)
+- [ ] **Publicación Externa de Vacantes** - URLs públicas con branding Humaniq
+- [ ] **Tracking de Origen de Candidatos** - Parámetros de fuente en aplicaciones
+
+### Fase 4 (Futura)
 - [ ] Registro de Candidatos Restringidos (compliance/ética)
 - [ ] Búsqueda booleana avanzada
 - [ ] Analytics para admin
