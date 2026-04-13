@@ -53,7 +53,8 @@ export const candidatesAPI = {
       target_candidate_id: targetId,
       merge_notes: options.mergeNotes ?? true,
       merge_history: options.mergeHistory ?? true
-    })
+    }),
+  downloadCV: (id) => `${API_BASE}/candidates/${id}/download-cv`
 };
 
 // Atlas AI

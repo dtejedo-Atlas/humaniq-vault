@@ -1687,26 +1687,27 @@ async def approve_atlas_classification(
 
 @api_router.get("/dashboard/stats")
 async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
-    """Get dashboard statistics"""
+    """Get dashboard statistics including job metrics"""
     
-    total_candidates = await db.candidates.count_documents({})
+    total_candidates = await db.candidates.count_documents({"is_deleted": {"$ne": True}})
     
     # Candidates this month
     from datetime import timedelta
     month_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
     new_this_month = await db.candidates.count_documents({
-        "created_at": {"$gte": month_ago}
+        "created_at": {"$gte": month_ago},
+        "is_deleted": {"$ne": True}
     })
     
     # By status
     by_status = {}
     for status in CandidateStatus:
-        count = await db.candidates.count_documents({"status": status.value})
+        count = await db.candidates.count_documents({"status": status.value, "is_deleted": {"$ne": True}})
         by_status[status.value] = count
     
     # By industry (top 5)
     industry_pipeline = [
-        {"$match": {"industry": {"$ne": None}}},
+        {"$match": {"industry": {"$ne": None}, "is_deleted": {"$ne": True}}},
         {"$group": {"_id": "$industry", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
         {"$limit": 5}
@@ -1716,7 +1717,7 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     
     # By functional area (top 5)
     area_pipeline = [
-        {"$match": {"functional_area": {"$ne": None}}},
+        {"$match": {"functional_area": {"$ne": None}, "is_deleted": {"$ne": True}}},
         {"$group": {"_id": "$functional_area", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
         {"$limit": 5}
@@ -1727,8 +1728,63 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     # By seniority
     by_seniority = {}
     for seniority in SeniorityLevel:
-        count = await db.candidates.count_documents({"seniority": seniority.value})
+        count = await db.candidates.count_documents({"seniority": seniority.value, "is_deleted": {"$ne": True}})
         by_seniority[seniority.value] = count
+    
+    # ========== JOB METRICS ==========
+    # Total active jobs
+    total_jobs = await db.jobs.count_documents({"status": "open"})
+    
+    # Get all open jobs with their shortlist counts
+    jobs_cursor = db.jobs.find(
+        {"status": "open"},
+        {"_id": 0, "id": 1, "title": 1, "company_name": 1, "shortlist": 1, "created_at": 1}
+    )
+    jobs_list = await jobs_cursor.to_list(100)
+    
+    # Calculate job metrics
+    jobs_without_candidates = []
+    jobs_low_match = []  # < 3 candidates
+    jobs_high_volume = []  # > 10 candidates
+    top_jobs = []
+    
+    for job in jobs_list:
+        shortlist_count = len(job.get('shortlist', []))
+        job_info = {
+            "id": job.get('id'),
+            "title": job.get('title'),
+            "company": job.get('company_name'),
+            "candidates": shortlist_count
+        }
+        
+        if shortlist_count == 0:
+            jobs_without_candidates.append(job_info)
+        elif shortlist_count < 3:
+            jobs_low_match.append(job_info)
+        elif shortlist_count > 10:
+            jobs_high_volume.append(job_info)
+        
+        top_jobs.append(job_info)
+    
+    # Sort top jobs by candidate count
+    top_jobs.sort(key=lambda x: x['candidates'], reverse=True)
+    
+    job_metrics = {
+        "total_active_jobs": total_jobs,
+        "jobs_without_candidates": {
+            "count": len(jobs_without_candidates),
+            "jobs": jobs_without_candidates[:5]  # Top 5
+        },
+        "jobs_low_match": {
+            "count": len(jobs_low_match),
+            "jobs": jobs_low_match[:5]
+        },
+        "jobs_high_volume": {
+            "count": len(jobs_high_volume),
+            "jobs": jobs_high_volume[:5]
+        },
+        "top_jobs_with_candidates": top_jobs[:5]
+    }
     
     return {
         "total_candidates": total_candidates,
@@ -1736,7 +1792,8 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
         "by_status": by_status,
         "by_industry": by_industry,
         "by_functional_area": by_functional_area,
-        "by_seniority": by_seniority
+        "by_seniority": by_seniority,
+        "job_metrics": job_metrics
     }
 
 
@@ -3110,6 +3167,66 @@ async def download_export(
             "Content-Disposition": f"attachment; filename={filename}"
         }
     )
+
+
+@api_router.get("/candidates/{candidate_id}/download-cv")
+async def download_candidate_cv(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Descargar CV original del candidato (PDF/DOCX).
+    """
+    # Obtener candidato
+    candidate = await db.candidates.find_one(
+        {"id": candidate_id},
+        {"_id": 0, "resume_files": 1, "full_name": 1}
+    )
+    
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    resume_files = candidate.get('resume_files', [])
+    if not resume_files:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El candidato no tiene CV adjunto")
+    
+    # Tomar el primer archivo (más reciente normalmente)
+    resume = resume_files[0]
+    file_path = resume.get('file_path')
+    file_name = resume.get('file_name', 'cv.pdf')
+    file_type = resume.get('file_type', 'application/pdf')
+    
+    if not file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ruta del archivo no encontrada")
+    
+    # Intentar primero desde storage remoto
+    try:
+        if file_path.startswith('atlas-talent-vault/'):
+            file_bytes, content_type = storage_service.get_object(file_path)
+            return Response(
+                content=file_bytes,
+                media_type=content_type or file_type,
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"{file_name}\""
+                }
+            )
+    except Exception as e:
+        logger.warning(f"Could not fetch from remote storage: {e}")
+    
+    # Fallback: archivo local
+    local_path = ROOT_DIR / file_path
+    if local_path.exists():
+        with open(local_path, 'rb') as f:
+            file_bytes = f.read()
+        return Response(
+            content=file_bytes,
+            media_type=file_type,
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{file_name}\""
+            }
+        )
+    
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Archivo no encontrado en storage")
 
 
 @api_router.get("/exports")

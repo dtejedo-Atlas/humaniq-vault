@@ -48,6 +48,7 @@ import {
   AlertCircle,
   X,
   Loader2,
+  Download,
   ChevronDown,
   Send,
   UserCheck,
@@ -379,6 +380,39 @@ const CandidateDetailPage = () => {
             Volver
           </Button>
           <div className="flex gap-2">
+            {/* Descargar CV Original */}
+            {candidate?.resume_files?.length > 0 && (
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  const token = localStorage.getItem('token');
+                  const url = candidatesAPI.downloadCV(id);
+                  // Crear link temporal con auth header
+                  fetch(url, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  })
+                  .then(res => res.blob())
+                  .then(blob => {
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = candidate.resume_files[0]?.file_name || 'cv.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(downloadUrl);
+                    toast.success('CV descargado');
+                  })
+                  .catch(() => toast.error('Error descargando CV'));
+                }}
+                className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                data-testid="download-cv-button"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Descargar CV
+              </Button>
+            )}
+            
             {/* Marcar como restringido */}
             <Button 
               variant="outline"

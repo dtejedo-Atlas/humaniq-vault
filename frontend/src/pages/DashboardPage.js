@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Users, UserPlus, Building2, Briefcase, TrendingUp, Clock } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Users, UserPlus, Building2, Briefcase, TrendingUp, Clock, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react';
 import { dashboardAPI, seedAPI } from '../api';
 import { toast } from 'sonner';
 import { formatRelativeTime } from '../utils/helpers';
+import { useNavigate } from 'react-router-dom';
 
 const DashboardPage = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -59,20 +62,22 @@ const DashboardPage = () => {
       testId: 'new-candidates-stat'
     },
     {
+      title: 'Vacantes Activas',
+      value: stats?.job_metrics?.total_active_jobs || 0,
+      icon: Briefcase,
+      color: 'bg-purple-500',
+      testId: 'active-jobs-stat'
+    },
+    {
       title: 'Industrias',
       value: Object.keys(stats?.by_industry || {}).length,
       icon: Building2,
-      color: 'bg-purple-500',
-      testId: 'industries-stat'
-    },
-    {
-      title: 'Áreas Funcionales',
-      value: Object.keys(stats?.by_functional_area || {}).length,
-      icon: Briefcase,
       color: 'bg-orange-500',
-      testId: 'functional-areas-stat'
+      testId: 'industries-stat'
     }
   ];
+
+  const jobMetrics = stats?.job_metrics;
 
   return (
     <Layout title="Dashboard" subtitle="Visión general de tu base de talento">
@@ -98,6 +103,121 @@ const DashboardPage = () => {
             );
           })}
         </div>
+
+        {/* Job Metrics - Operational Focus */}
+        {jobMetrics && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Jobs Without Candidates - ALERT */}
+            <Card className={jobMetrics.jobs_without_candidates?.count > 0 ? 'border-red-300 bg-red-50' : ''}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    {jobMetrics.jobs_without_candidates?.count > 0 ? (
+                      <AlertTriangle className="w-4 h-4 text-red-600" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    )}
+                    Sin Candidatos
+                  </CardTitle>
+                  <span className={`text-2xl font-bold ${jobMetrics.jobs_without_candidates?.count > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {jobMetrics.jobs_without_candidates?.count || 0}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {jobMetrics.jobs_without_candidates?.jobs?.length > 0 ? (
+                  <div className="space-y-2">
+                    {jobMetrics.jobs_without_candidates.jobs.slice(0, 3).map((job, i) => (
+                      <div 
+                        key={i} 
+                        className="text-xs p-2 bg-white rounded cursor-pointer hover:bg-red-100 transition-colors"
+                        onClick={() => navigate(`/jobs/${job.id}`)}
+                      >
+                        <div className="font-medium text-slate-800 truncate">{job.title}</div>
+                        <div className="text-slate-500">{job.company}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-green-600">Todas las vacantes tienen candidatos</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Jobs Low Match - WARNING */}
+            <Card className={jobMetrics.jobs_low_match?.count > 0 ? 'border-amber-300 bg-amber-50' : ''}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    {jobMetrics.jobs_low_match?.count > 0 ? (
+                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                    ) : (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    )}
+                    Bajo Match (&lt;3)
+                  </CardTitle>
+                  <span className={`text-2xl font-bold ${jobMetrics.jobs_low_match?.count > 0 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {jobMetrics.jobs_low_match?.count || 0}
+                  </span>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {jobMetrics.jobs_low_match?.jobs?.length > 0 ? (
+                  <div className="space-y-2">
+                    {jobMetrics.jobs_low_match.jobs.slice(0, 3).map((job, i) => (
+                      <div 
+                        key={i} 
+                        className="text-xs p-2 bg-white rounded cursor-pointer hover:bg-amber-100 transition-colors flex justify-between items-center"
+                        onClick={() => navigate(`/jobs/${job.id}`)}
+                      >
+                        <div>
+                          <div className="font-medium text-slate-800 truncate">{job.title}</div>
+                          <div className="text-slate-500">{job.company}</div>
+                        </div>
+                        <span className="text-amber-700 font-semibold">{job.candidates}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-green-600">Todas las vacantes tienen buen match</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Top Jobs - SUCCESS */}
+            <Card className="border-cyan-300 bg-cyan-50">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-cyan-600" />
+                    Top Vacantes
+                  </CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {jobMetrics.top_jobs_with_candidates?.length > 0 ? (
+                  <div className="space-y-2">
+                    {jobMetrics.top_jobs_with_candidates.slice(0, 3).map((job, i) => (
+                      <div 
+                        key={i} 
+                        className="text-xs p-2 bg-white rounded cursor-pointer hover:bg-cyan-100 transition-colors flex justify-between items-center"
+                        onClick={() => navigate(`/jobs/${job.id}`)}
+                      >
+                        <div>
+                          <div className="font-medium text-slate-800 truncate">{job.title}</div>
+                          <div className="text-slate-500">{job.company}</div>
+                        </div>
+                        <span className="text-cyan-700 font-semibold bg-cyan-100 px-2 py-0.5 rounded">{job.candidates}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500">No hay vacantes activas</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
