@@ -20,8 +20,9 @@ INDUSTRIES = [
     {"key": "transportation", "name_es": "Transporte", "name_en": "Transportation"},
     {"key": "pharmaceutical", "name_es": "Farmacéutica", "name_en": "Pharmaceutical"},
     {"key": "construction", "name_es": "Construcción", "name_en": "Construction"},
-    {"key": "real_estate", "name_es": "Bienes Raíces", "name_en": "Real Estate"},
+    {"key": "real_estate", "name_es": "Bienes Raíces / Desarrollo Inmobiliario", "name_en": "Real Estate"},
     {"key": "financial_services", "name_es": "Servicios Financieros", "name_en": "Financial Services"},
+    {"key": "fintech", "name_es": "Fintech / Tecnología Financiera", "name_en": "Fintech / Financial Technology"},
     {"key": "technology", "name_es": "Tecnología", "name_en": "Technology"},
     {"key": "hospitality", "name_es": "Hospitalidad", "name_en": "Hospitality"},
     {"key": "industrial_services", "name_es": "Servicios Industriales", "name_en": "Industrial Services"},
@@ -36,6 +37,31 @@ INDUSTRIES = [
     {"key": "media_entertainment", "name_es": "Medios y Entretenimiento", "name_en": "Media and Entertainment"},
     {"key": "education", "name_es": "Educación", "name_en": "Education"},
 ]
+
+# Aliases/sinónimos para clasificación AI
+# Mapea términos comunes a sus keys canónicas
+INDUSTRY_ALIASES = {
+    "real_estate": [
+        "bienes raíces", "bienes raices", "real estate", "desarrollo inmobiliario", 
+        "sector inmobiliario", "inmobiliaria", "inmobiliario", "property development",
+        "real estate development", "desarrolladora", "fibra"
+    ],
+    "fintech": [
+        "fintech", "tecnología financiera", "financial technology", "neobank", 
+        "neobanco", "payments", "pagos digitales", "crypto", "blockchain",
+        "insurtech", "wealthtech", "regtech", "lending platform"
+    ],
+    "financial_services": [
+        "banca", "banco", "bank", "banking", "seguros", "insurance", 
+        "asset management", "wealth management", "inversiones", "afore",
+        "casa de bolsa", "servicios financieros"
+    ],
+    "energy": [
+        "energía", "energy", "oil & gas", "oil and gas", "petróleo", "gas natural",
+        "renovables", "renewable energy", "solar", "eólica", "eolica", "pemex",
+        "hidrocarburos", "upstream", "downstream", "midstream"
+    ],
+}
 
 # Áreas Funcionales
 FUNCTIONAL_AREAS = [
@@ -102,11 +128,16 @@ def build_taxonomy_prompt_section() -> str:
     """
     Construye la sección del prompt que lista la taxonomía para el LLM.
     El LLM debe usar las keys canónicas en sus respuestas.
+    Incluye aliases para mejorar la clasificación.
     """
-    industries_text = "\n".join([
-        f"  - key: \"{i['key']}\" (ES: {i['name_es']} / EN: {i['name_en']})"
-        for i in INDUSTRIES
-    ])
+    # Construir lista de industrias con aliases relevantes
+    industries_lines = []
+    for i in INDUSTRIES:
+        aliases = INDUSTRY_ALIASES.get(i['key'], [])
+        alias_hint = f" (aliases: {', '.join(aliases[:3])}...)" if aliases else ""
+        industries_lines.append(f"  - key: \"{i['key']}\" (ES: {i['name_es']} / EN: {i['name_en']}){alias_hint}")
+    
+    industries_text = "\n".join(industries_lines)
     
     areas_text = "\n".join([
         f"  - key: \"{a['key']}\" (ES: {a['name_es']} / EN: {a['name_en']})"
@@ -117,8 +148,19 @@ def build_taxonomy_prompt_section() -> str:
 TAXONOMÍA DE INDUSTRIAS (responde SOLO con el 'key'):
 {industries_text}
 
+NOTAS IMPORTANTES DE CLASIFICACIÓN:
+- "Desarrollo Inmobiliario", "Bienes Raíces", "Real Estate" → usar key "real_estate"
+- "Fintech", "Tecnología Financiera", "Neobancos" → usar key "fintech"  
+- "Banca tradicional", "Seguros", "Asset Management" → usar key "financial_services"
+- "Oil & Gas", "Petróleo", "Energía renovable" → usar key "energy"
+
 TAXONOMÍA DE ÁREAS FUNCIONALES (responde SOLO con el 'key'):
 {areas_text}
+
+IMPORTANTE: No confundir industria con área funcional:
+- "Manufactura" como INDUSTRIA = empresa que fabrica productos
+- "Manufactura/Producción" como ÁREA FUNCIONAL = rol de producción/planta en cualquier empresa
+- "Contabilidad/Administración" siempre es ÁREA FUNCIONAL, nunca industria
 """
 
 
@@ -130,3 +172,71 @@ def get_all_industries() -> list:
 def get_all_functional_areas() -> list:
     """Retorna todas las áreas funcionales"""
     return FUNCTIONAL_AREAS.copy()
+
+
+def get_industry_aliases() -> dict:
+    """Retorna los aliases de industrias para clasificación AI"""
+    return INDUSTRY_ALIASES.copy()
+
+
+def resolve_industry_alias(term: str) -> str:
+    """
+    Resuelve un término a su key canónica de industria.
+    Si el término es un alias conocido, retorna la key correspondiente.
+    Si no, retorna el término original.
+    """
+    term_lower = term.lower().strip()
+    
+    # Buscar en aliases
+    for key, aliases in INDUSTRY_ALIASES.items():
+        if term_lower in [a.lower() for a in aliases]:
+            return key
+    
+    # Buscar coincidencia directa en keys
+    for industry in INDUSTRIES:
+        if term_lower == industry["key"]:
+            return industry["key"]
+        if term_lower == industry["name_es"].lower() or term_lower == industry["name_en"].lower():
+            return industry["key"]
+    
+    return term
+
+
+def build_taxonomy_prompt_section() -> str:
+    """
+    Construye la sección del prompt que lista la taxonomía para el LLM.
+    El LLM debe usar las keys canónicas en sus respuestas.
+    Incluye aliases para mejorar la clasificación.
+    """
+    # Construir lista de industrias con aliases relevantes
+    industries_lines = []
+    for i in INDUSTRIES:
+        aliases = INDUSTRY_ALIASES.get(i['key'], [])
+        alias_hint = f" (aliases: {', '.join(aliases[:3])}...)" if aliases else ""
+        industries_lines.append(f"  - key: \"{i['key']}\" (ES: {i['name_es']} / EN: {i['name_en']}){alias_hint}")
+    
+    industries_text = "\n".join(industries_lines)
+    
+    areas_text = "\n".join([
+        f"  - key: \"{a['key']}\" (ES: {a['name_es']} / EN: {a['name_en']})"
+        for a in FUNCTIONAL_AREAS
+    ])
+    
+    return f"""
+TAXONOMÍA DE INDUSTRIAS (responde SOLO con el 'key'):
+{industries_text}
+
+NOTAS IMPORTANTES DE CLASIFICACIÓN:
+- "Desarrollo Inmobiliario", "Bienes Raíces", "Real Estate" → usar key "real_estate"
+- "Fintech", "Tecnología Financiera", "Neobancos" → usar key "fintech"  
+- "Banca tradicional", "Seguros", "Asset Management" → usar key "financial_services"
+- "Oil & Gas", "Petróleo", "Energía renovable" → usar key "energy"
+
+TAXONOMÍA DE ÁREAS FUNCIONALES (responde SOLO con el 'key'):
+{areas_text}
+
+IMPORTANTE: No confundir industria con área funcional:
+- "Manufactura" como INDUSTRIA = empresa que fabrica productos
+- "Manufactura/Producción" como ÁREA FUNCIONAL = rol de producción/planta en cualquier empresa
+- "Contabilidad/Administración" siempre es ÁREA FUNCIONAL, nunca industria
+"""
