@@ -39,6 +39,7 @@ from user_service import UserService
 from assignment_service import AssignmentService
 from export_service import ExportService
 from smart_folder_service import SmartFolderService
+from cv_version_service import CVVersionService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -52,6 +53,7 @@ db = client[os.environ['DB_NAME']]
 duplicate_detector = DuplicateDetector(db)
 duplicate_detector_v2 = DuplicateDetectorV2(db)
 candidate_merger = CandidateMerger(db)
+cv_version_service = CVVersionService(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
 user_service = UserService(db)
@@ -1100,6 +1102,37 @@ async def upload_resume(
                 resume['upload_date'] = resume['upload_date'].isoformat()
             
             await db.candidates.insert_one(candidate_doc)
+            
+            # Crear primera versión de CV
+            if candidate.resume_files and len(candidate.resume_files) > 0:
+                resume = candidate.resume_files[0]
+                parsed_snapshot = {
+                    "full_name": candidate.full_name,
+                    "current_title": candidate.current_title,
+                    "current_company": candidate.current_company,
+                    "years_experience": candidate.years_experience,
+                    "industry": candidate.industry,
+                    "functional_area": candidate.functional_area,
+                    "seniority": candidate.seniority,
+                    "skills": candidate.skills,
+                    "previous_companies": [c.model_dump() if hasattr(c, 'model_dump') else c for c in (candidate.previous_companies or [])],
+                    "education": [e.model_dump() if hasattr(e, 'model_dump') else e for e in (candidate.education or [])],
+                    "languages": candidate.languages,
+                    "email": candidate.email,
+                    "phone": candidate.phone,
+                    "parsed_at": datetime.now(timezone.utc).isoformat()
+                }
+                
+                await cv_version_service.create_version(
+                    candidate_id=candidate_id,
+                    file_key=resume.file_path,
+                    file_name=resume.file_name,
+                    file_type=resume.file_type or "application/pdf",
+                    uploaded_by=current_user.id,
+                    uploaded_by_name=current_user.name,
+                    upload_source="manual",
+                    parsed_snapshot=parsed_snapshot
+                )
             
             # Guardar sugerencias de duplicados si hay (duplicados suaves)
             if soft_duplicates:
@@ -2268,11 +2301,12 @@ async def get_merge_preview(
 async def update_candidate_cv(
     candidate_id: str,
     file: UploadFile = File(...),
+    notes: Optional[str] = None,
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
     """
-    Update CV for an existing candidate (for L1/L2 duplicate handling).
-    Creates a new CV version instead of creating a duplicate candidate.
+    Update CV for an existing candidate.
+    Creates a new CV version with parsed snapshot for comparison.
     """
     user = await get_current_user(credentials)
     
@@ -2291,37 +2325,54 @@ async def update_candidate_cv(
     
     try:
         file_data = await file.read()
+        file_size = len(file_data)
         
-        # Upload new CV
+        # Upload new CV to storage
         storage_result = storage_service.upload_resume(
             file_data, candidate_id, file.filename, file.content_type
         )
         
-        # Get current version number
-        current_versions = await db.cv_versions.count_documents({"candidate_id": candidate_id})
-        new_version = current_versions + 1
+        # Extract and parse new CV
+        parsed_snapshot = None
+        try:
+            extracted_text = DocumentParser.extract_text_from_bytes(file_data, file.content_type)
+            if extracted_text and len(extracted_text.strip()) > 50:
+                from atlas_service import atlas_service
+                parsed_data = await atlas_service.parse_resume(extracted_text)
+                
+                # Build snapshot with key fields for comparison
+                parsed_snapshot = {
+                    "full_name": parsed_data.get("full_name"),
+                    "current_title": parsed_data.get("current_title"),
+                    "current_company": parsed_data.get("current_company"),
+                    "years_experience": parsed_data.get("years_experience"),
+                    "industry": parsed_data.get("industry"),
+                    "functional_area": parsed_data.get("functional_area"),
+                    "seniority": parsed_data.get("seniority"),
+                    "skills": parsed_data.get("skills", []),
+                    "previous_companies": parsed_data.get("previous_companies", []),
+                    "education": parsed_data.get("education", []),
+                    "languages": parsed_data.get("languages", []),
+                    "email": parsed_data.get("email"),
+                    "phone": parsed_data.get("phone"),
+                    "parsed_at": datetime.now(timezone.utc).isoformat()
+                }
+        except Exception as e:
+            logger.warning(f"Could not parse updated CV for {candidate_id}: {str(e)}")
         
-        # Mark all existing versions as not current
-        await db.cv_versions.update_many(
-            {"candidate_id": candidate_id},
-            {"$set": {"is_current": False}}
+        # Create new version using service
+        cv_version = await cv_version_service.create_version(
+            candidate_id=candidate_id,
+            file_key=storage_result['storage_path'],
+            file_name=file.filename,
+            file_type=file.content_type,
+            file_size=file_size,
+            uploaded_by=user.id,
+            uploaded_by_name=user.name,
+            upload_source="update",
+            parsed_snapshot=parsed_snapshot,
+            notes=notes
         )
-        
-        # Create new version record
-        cv_version = {
-            "id": str(uuid.uuid4()),
-            "candidate_id": candidate_id,
-            "version": new_version,
-            "file_key": storage_result['storage_path'],
-            "file_name": file.filename,
-            "file_type": file.content_type,
-            "uploaded_at": datetime.now(timezone.utc).isoformat(),
-            "uploaded_by": user.id,
-            "source": "update",
-            "is_current": True,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        await db.cv_versions.insert_one(cv_version)
         
         # Update candidate's main resume info
         resume_file = {
@@ -2331,34 +2382,233 @@ async def update_candidate_cv(
             "upload_date": datetime.now(timezone.utc).isoformat()
         }
         
+        # Also update candidate profile if parsed data is available
+        update_data = {
+            "resume_file_key": storage_result['storage_path'],
+            "resume_file_name": file.filename,
+            "resume_file_type": file.content_type,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "last_cv_update": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Optionally update profile fields from new CV (if parsed)
+        if parsed_snapshot:
+            # Update fields that might have changed
+            if parsed_snapshot.get("current_title"):
+                update_data["current_title"] = parsed_snapshot["current_title"]
+            if parsed_snapshot.get("current_company"):
+                update_data["current_company"] = parsed_snapshot["current_company"]
+            if parsed_snapshot.get("years_experience"):
+                update_data["years_experience"] = parsed_snapshot["years_experience"]
+            if parsed_snapshot.get("skills"):
+                # Merge skills (keep existing + add new)
+                existing_skills = set(candidate.get("skills") or [])
+                new_skills = set(parsed_snapshot.get("skills") or [])
+                update_data["skills"] = list(existing_skills | new_skills)
+        
         await db.candidates.update_one(
             {"id": candidate_id},
             {
-                "$set": {
-                    "resume_file_key": storage_result['storage_path'],
-                    "resume_file_name": file.filename,
-                    "resume_file_type": file.content_type,
-                    "updated_at": datetime.now(timezone.utc).isoformat()
-                },
-                "$push": {
-                    "resume_files": resume_file
-                }
+                "$set": update_data,
+                "$push": {"resume_files": resume_file}
             }
         )
         
-        logger.info(f"CV updated for candidate {candidate_id}: version {new_version}")
+        logger.info(f"CV updated for candidate {candidate_id}: version {cv_version['version']}")
         
         return {
             "success": True,
-            "message": f"CV actualizado exitosamente (versión {new_version})",
+            "message": f"CV actualizado exitosamente (versión {cv_version['version']})",
             "candidate_id": candidate_id,
-            "version": new_version,
-            "file_name": file.filename
+            "version": cv_version['version'],
+            "file_name": file.filename,
+            "has_parsed_snapshot": parsed_snapshot is not None
         }
         
     except Exception as e:
         logger.error(f"Error updating CV: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error actualizando CV: {str(e)}")
+
+
+# ============= CV VERSION ENDPOINTS =============
+
+@api_router.get("/candidates/{candidate_id}/cv-versions")
+async def get_candidate_cv_versions(
+    candidate_id: str,
+    include_inactive: bool = False,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get all CV versions for a candidate.
+    Returns list sorted by version descending (newest first).
+    """
+    # Verify candidate exists
+    candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "id": 1, "full_name": 1})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    
+    versions = await cv_version_service.get_versions(candidate_id, include_inactive)
+    
+    # Format response (without full snapshot)
+    formatted_versions = []
+    for v in versions:
+        formatted_versions.append({
+            "id": v.get("id"),
+            "version": v.get("version"),
+            "file_name": v.get("file_name"),
+            "file_type": v.get("file_type"),
+            "file_size": v.get("file_size"),
+            "uploaded_at": v.get("uploaded_at"),
+            "uploaded_by": v.get("uploaded_by"),
+            "uploaded_by_name": v.get("uploaded_by_name"),
+            "upload_source": v.get("upload_source"),
+            "is_current": v.get("is_current"),
+            "is_active": v.get("is_active"),
+            "notes": v.get("notes"),
+            "has_snapshot": v.get("parsed_snapshot") is not None
+        })
+    
+    return {
+        "candidate_id": candidate_id,
+        "candidate_name": candidate.get("full_name"),
+        "total_versions": len(formatted_versions),
+        "versions": formatted_versions
+    }
+
+
+@api_router.get("/candidates/{candidate_id}/cv-versions/{version}")
+async def get_candidate_cv_version(
+    candidate_id: str,
+    version: int,
+    include_snapshot: bool = False,
+    current_user: User = Depends(get_current_user)
+):
+    """Get a specific CV version with optional parsed snapshot"""
+    version_doc = await cv_version_service.get_version(candidate_id, version)
+    
+    if not version_doc:
+        raise HTTPException(status_code=404, detail="Versión no encontrada")
+    
+    response = {
+        "id": version_doc.get("id"),
+        "candidate_id": version_doc.get("candidate_id"),
+        "version": version_doc.get("version"),
+        "file_name": version_doc.get("file_name"),
+        "file_type": version_doc.get("file_type"),
+        "file_size": version_doc.get("file_size"),
+        "uploaded_at": version_doc.get("uploaded_at"),
+        "uploaded_by": version_doc.get("uploaded_by"),
+        "uploaded_by_name": version_doc.get("uploaded_by_name"),
+        "upload_source": version_doc.get("upload_source"),
+        "is_current": version_doc.get("is_current"),
+        "notes": version_doc.get("notes")
+    }
+    
+    if include_snapshot:
+        response["parsed_snapshot"] = version_doc.get("parsed_snapshot")
+    
+    return response
+
+
+@api_router.get("/candidates/{candidate_id}/cv-versions/{version}/download")
+async def download_cv_version(
+    candidate_id: str,
+    version: int,
+    current_user: User = Depends(get_current_user)
+):
+    """Download a specific version of a candidate's CV"""
+    version_doc = await cv_version_service.get_version(candidate_id, version)
+    
+    if not version_doc:
+        raise HTTPException(status_code=404, detail="Versión no encontrada")
+    
+    file_key = version_doc.get("file_key")
+    if not file_key:
+        raise HTTPException(status_code=404, detail="Archivo no disponible")
+    
+    try:
+        file_data = storage_service.download_file(file_key)
+        
+        if not file_data:
+            raise HTTPException(status_code=404, detail="Archivo no encontrado en almacenamiento")
+        
+        file_name = version_doc.get("file_name", f"cv_v{version}.pdf")
+        content_type = version_doc.get("file_type", "application/pdf")
+        
+        return Response(
+            content=file_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{file_name}"'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error downloading CV version: {str(e)}")
+        raise HTTPException(status_code=500, detail="Error descargando archivo")
+
+
+@api_router.get("/candidates/{candidate_id}/cv-versions/{version1}/compare/{version2}")
+async def compare_cv_versions(
+    candidate_id: str,
+    version1: int,
+    version2: int,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Compare two CV versions and return differences.
+    Useful for detecting changes in candidate's profile over time.
+    """
+    comparison = await cv_version_service.compare_versions(candidate_id, version1, version2)
+    
+    if comparison.get("error"):
+        raise HTTPException(status_code=404, detail=comparison["error"])
+    
+    return comparison
+
+
+@api_router.post("/admin/cv-versions/migrate")
+async def migrate_existing_cvs(
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN, UserRole.ADMIN]))
+):
+    """
+    Migrate existing CVs to the cv_versions collection.
+    Should be run once after deploying the versioning feature.
+    """
+    result = await cv_version_service.migrate_existing_cvs()
+    return {
+        "success": True,
+        "message": "Migración completada",
+        **result
+    }
+
+
+@api_router.get("/admin/cv-versions/stats")
+async def get_cv_version_stats(
+    current_user: User = Depends(require_role([UserRole.SUPER_ADMIN, UserRole.ADMIN]))
+):
+    """Get statistics about CV versions in the system"""
+    total_versions = await db.cv_versions.count_documents({})
+    candidates_with_versions = len(await db.cv_versions.distinct("candidate_id"))
+    
+    # Candidates with multiple versions
+    pipeline = [
+        {"$group": {"_id": "$candidate_id", "count": {"$sum": 1}}},
+        {"$match": {"count": {"$gt": 1}}}
+    ]
+    multi_version_candidates = len(await db.cv_versions.aggregate(pipeline).to_list(10000))
+    
+    # Versions by source
+    source_pipeline = [
+        {"$group": {"_id": "$upload_source", "count": {"$sum": 1}}}
+    ]
+    by_source = {r["_id"]: r["count"] for r in await db.cv_versions.aggregate(source_pipeline).to_list(100)}
+    
+    return {
+        "total_versions": total_versions,
+        "candidates_with_versions": candidates_with_versions,
+        "candidates_with_multiple_versions": multi_version_candidates,
+        "versions_by_source": by_source
+    }
 
 
 # ============= ADMIN TAXONOMY CRUD ROUTES =============

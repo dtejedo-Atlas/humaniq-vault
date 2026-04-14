@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import CVVersionHistory from '../components/CVVersionHistory';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -817,34 +818,12 @@ const CandidateDetailPage = () => {
 
           {/* Right Column - Side Info */}
           <div className="space-y-6">
-            {/* Resume Files */}
-            {candidate.resume_files?.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Currículums</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {candidate.resume_files.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-2 p-3 bg-slate-50 rounded-sm"
-                      >
-                        <FileText className="w-4 h-4 text-slate-400" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {file.file_name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {formatDate(file.upload_date)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {/* CV Version History */}
+            <CVVersionHistory 
+              candidateId={candidate.id} 
+              candidateName={candidate.full_name}
+              onVersionUpdated={() => loadCandidate()}
+            />
 
             {/* Metadata */}
             <Card>

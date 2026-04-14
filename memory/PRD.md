@@ -182,10 +182,23 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - [x] **Endpoint Update-CV** para duplicados bloqueados
   - Permite actualizar CV de candidato existente en lugar de crear duplicado
 
-#### Fase 2 - Versionado (PENDIENTE)
-- [ ] Modelo cv_versions completo
-- [ ] Flujo de "Actualizar CV" con historial
-- [ ] UI para ver historial de versiones
+#### Fase 2 - Versionado (COMPLETADO - 14-Abr-2026)
+- [x] Modelo `CVVersion` con snapshot completo del parsing
+- [x] Servicio `CVVersionService` con CRUD y comparación
+- [x] Migración de 108 CVs existentes a `cv_versions`
+- [x] Endpoints completos:
+  - `GET /candidates/{id}/cv-versions` - Listar versiones
+  - `GET /candidates/{id}/cv-versions/{v}` - Detalle de versión
+  - `GET /candidates/{id}/cv-versions/{v}/download` - Descargar
+  - `GET /candidates/{id}/cv-versions/{v1}/compare/{v2}` - Comparar
+  - `POST /candidates/{id}/update-cv` - Subir nueva versión
+- [x] UI `CVVersionHistory` integrada en perfil de candidato
+  - Lista de versiones con metadata
+  - Botón "Nueva versión" para actualizar CV
+  - Comparación side-by-side de versiones
+  - Descarga por versión
+- [x] Flujo de upload actualizado para crear versión con snapshot
+- [x] Auditoría completa (quién, cuándo, origen)
 
 #### Fase 3 - Alertas (PENDIENTE)
 - [ ] Comparador de versiones con diff

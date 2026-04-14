@@ -60,6 +60,86 @@ class StatusChange(BaseModel):
     changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     notes: Optional[str] = None
 
+
+class CVUploadSource(str, Enum):
+    """Origen del upload de CV"""
+    MANUAL = "manual"           # Upload manual inicial
+    UPDATE = "update"           # Actualización de CV existente
+    MERGE = "merge"             # CV transferido desde merge de duplicados
+    MIGRATION = "migration"     # Migración de datos históricos
+
+
+class CVVersion(BaseModel):
+    """
+    Modelo para versionado de CVs.
+    Cada candidato puede tener múltiples versiones de CV con historial completo.
+    """
+    model_config = ConfigDict(extra="ignore")
+    
+    id: str
+    candidate_id: str
+    version: int                              # Número incremental (1, 2, 3...)
+    
+    # Información del archivo
+    file_key: str                             # Ruta en storage
+    file_name: str                            # Nombre original del archivo
+    file_type: str                            # MIME type
+    file_size: Optional[int] = None           # Tamaño en bytes
+    
+    # Metadata de upload
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    uploaded_by: str                          # user_id
+    uploaded_by_name: Optional[str] = None    # Nombre del usuario
+    upload_source: CVUploadSource = CVUploadSource.MANUAL
+    
+    # Snapshot del parsing al momento del upload
+    # Permite comparar cómo cambió el perfil entre versiones
+    parsed_snapshot: Optional[Dict[str, Any]] = None
+    
+    # Estado
+    is_current: bool = True                   # Solo uno por candidato debe ser True
+    is_active: bool = True                    # False = soft deleted
+    
+    # Notas opcionales
+    notes: Optional[str] = None
+    
+    # Referencia a merge si aplica
+    merged_from_candidate_id: Optional[str] = None
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+
+
+class CVVersionCreate(BaseModel):
+    """Schema para crear nueva versión de CV"""
+    candidate_id: str
+    file_key: str
+    file_name: str
+    file_type: str
+    file_size: Optional[int] = None
+    upload_source: CVUploadSource = CVUploadSource.MANUAL
+    parsed_snapshot: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+
+
+class CVVersionResponse(BaseModel):
+    """Schema para respuesta de versión de CV"""
+    id: str
+    candidate_id: str
+    version: int
+    file_name: str
+    file_type: str
+    file_size: Optional[int] = None
+    uploaded_at: datetime
+    uploaded_by: str
+    uploaded_by_name: Optional[str] = None
+    upload_source: str
+    is_current: bool
+    notes: Optional[str] = None
+    has_snapshot: bool = False
+
+
 class SeniorityLevel(str, Enum):
     TRAINEE = "trainee"       # Becario / Practicante
     ENTRY = "entry"           # Entrada / Recién egresado
