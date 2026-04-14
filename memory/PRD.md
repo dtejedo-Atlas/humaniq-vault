@@ -406,17 +406,39 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 
 ---
 
+## Estabilización Pre-Deploy (14-Abr-2026) ✅
+
+### Checklist Completado:
+1. ✅ **Bug de Merge corregido** - TypeError en `duplicate_detector_v2.py` al ordenar experiencias con fechas `None`
+2. ✅ **Duplicados fusionados** - 7 merges exitosos, 0 duplicados activos restantes
+3. ✅ **CV Versioning E2E** - Upload, historial, comparación y descarga funcionando
+4. ✅ **Sistema E2E** - Upload → Search → Smart Folders → Status → Matching → Export → Download CV
+5. ✅ **Permisos validados** - Admin vs Recruiter (nota: PUT API sin validación, UI sí valida)
+6. ✅ **Backup documentado** - mongodump para colecciones críticas
+
+### Bugs Corregidos:
+- `duplicate_detector_v2.py` línea 399: `x.get('start_date', '')` → `x.get('start_date') or ''`
+- `server.py` línea 2530: `storage_service.download_file()` → `storage_service.get_object()`
+- `server.py` línea 956: `candidate.location` → `candidate.city/state` (modelo actualizado)
+
+### Estado de la Base de Datos:
+- 31 candidatos activos
+- 7 registros merged (soft deleted)
+- 109 versiones de CV
+- 10 usuarios
+- 5 vacantes
+- 0 duplicados pendientes
+
 ## Próximos Pasos
-1. **🟢 COMPLETADO: Multi-usuario y Asignaciones** (26-Mar-2026)
-2. **🟢 COMPLETADO: Exportación PDF/DOCX Premium** (26-Mar-2026)
-3. **🟢 COMPLETADO: Smart Folders** (27-Mar-2026)
-4. 🟡 **Panel "Mis Candidatos"** - Vista rápida de asignaciones en Dashboard
-5. 🔵 **Activity Feed** - Trazabilidad de acciones del sistema
-6. 🔵 **Registro de Candidatos Restringidos** - Sistema de compliance/ética (arquitectura base)
-7. 🔵 **Idioma y Ubicación en Job Matching** - Soft matching adicional
+1. 🟢 **COMPLETADO: Estabilización Pre-Deploy** (14-Abr-2026)
+2. 🟡 **Panel "Mis Candidatos"** - Vista rápida de asignaciones en Dashboard
+3. 🔵 **Activity Feed** - Trazabilidad de acciones del sistema
+4. 🔵 **Fase 3: Alertas por Diferencias** - Notificaciones de cambios significativos en CVs
+5. 🔵 **Fase C: Publicación Externa** - URLs públicas de vacantes
 
 ## Deuda Técnica
-- `server.py` tiene ~2900 líneas. Planificar división en routers modulares (/routers/jobs.py, /routers/users.py, /routers/exports.py, /routers/folders.py, etc.)
+- `server.py` tiene ~4200 líneas. Planificar división en routers modulares
+- PUT `/api/candidates/{id}` no valida permisos de asignación (UI sí lo hace)
 
 ## Arquitectura de Búsqueda (Definitiva)
 

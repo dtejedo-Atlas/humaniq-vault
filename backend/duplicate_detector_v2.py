@@ -395,8 +395,8 @@ class CandidateMerger:
                     existing_keys.add(key)
                     merge_log.append(f"Experiencia agregada: {exp.get('title')} en {exp.get('company_name')}")
             
-            # Sort by start date descending
-            combined_exp.sort(key=lambda x: x.get('start_date', ''), reverse=True)
+            # Sort by start date descending (handle None values safely)
+            combined_exp.sort(key=lambda x: x.get('start_date') or '', reverse=True)
             merged_data['previous_companies'] = combined_exp
         
         # Merge education

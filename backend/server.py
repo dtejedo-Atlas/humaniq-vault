@@ -953,14 +953,11 @@ async def upload_resume(
                 candidate.current_company = most_recent.company_name
             
             # Construir location desde city/state si no viene
-            if not candidate.location:
-                parts = []
+            if not candidate.city and not candidate.state:
                 if parsed_data.get('city'):
-                    parts.append(parsed_data.get('city'))
+                    candidate.city = parsed_data.get('city')
                 if parsed_data.get('state'):
-                    parts.append(parsed_data.get('state'))
-                if parts:
-                    candidate.location = ", ".join(parts)
+                    candidate.state = parsed_data.get('state')
         except Exception as e:
             result.status = "failed"
             result.add_error(
@@ -2527,13 +2524,13 @@ async def download_cv_version(
         raise HTTPException(status_code=404, detail="Archivo no disponible")
     
     try:
-        file_data = storage_service.download_file(file_key)
+        file_data, storage_content_type = storage_service.get_object(file_key)
         
         if not file_data:
             raise HTTPException(status_code=404, detail="Archivo no encontrado en almacenamiento")
         
         file_name = version_doc.get("file_name", f"cv_v{version}.pdf")
-        content_type = version_doc.get("file_type", "application/pdf")
+        content_type = version_doc.get("file_type") or storage_content_type or "application/pdf"
         
         return Response(
             content=file_data,
@@ -2542,6 +2539,8 @@ async def download_cv_version(
                 "Content-Disposition": f'attachment; filename="{file_name}"'
             }
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error downloading CV version: {str(e)}")
         raise HTTPException(status_code=500, detail="Error descargando archivo")
