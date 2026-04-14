@@ -142,6 +142,33 @@ def require_role(required_roles: List[UserRole]):
     return role_checker
 
 
+async def verify_candidate_edit_permission(candidate_id: str, current_user: User) -> None:
+    """
+    Verifica si el usuario puede editar un candidato.
+    - Admin/Super Admin: puede editar cualquiera
+    - Recruiter: solo puede editar si está asignado a él
+    
+    Raises HTTPException 403 si no tiene permiso.
+    """
+    # Admin y Super Admin tienen acceso completo
+    if current_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        return
+    
+    # Para Recruiters, verificar asignación activa
+    assignments = await assignment_service.get_candidate_assignments(candidate_id)
+    
+    for assignment in assignments:
+        if (assignment.get("recruiter_id") == current_user.id and 
+            assignment.get("status") == "active"):
+            return
+    
+    # Si llegamos aquí, el recruiter no tiene permiso
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No tienes permiso para editar este candidato. Solo puedes editar candidatos asignados a ti."
+    )
+
+
 # ============= AUTHENTICATION ROUTES =============
 
 @api_router.post("/auth/register", response_model=User)
@@ -458,6 +485,9 @@ async def update_candidate(
             detail="Candidato no encontrado"
         )
     
+    # Verificar permisos de edición
+    await verify_candidate_edit_permission(candidate_id, current_user)
+    
     # Update fields
     update_dict = {k: v for k, v in update_data.model_dump(exclude_unset=True).items() if v is not None}
     update_dict['updated_at'] = datetime.now(timezone.utc).isoformat()
@@ -492,6 +522,9 @@ async def add_candidate_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Candidato no encontrado"
         )
+    
+    # Verificar permisos de edición
+    await verify_candidate_edit_permission(candidate_id, current_user)
     
     note = RecruiterNote(
         note=note_text,
@@ -618,6 +651,9 @@ async def mark_candidate_restricted(
     candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "full_name": 1, "is_restricted": 1})
     if not candidate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
+    
+    # Verificar permisos de edición
+    await verify_candidate_edit_permission(candidate_id, current_user)
     
     if request.category not in RESTRICTION_CATEGORIES:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Categoría inválida")
@@ -2312,6 +2348,9 @@ async def update_candidate_cv(
     if not candidate:
         raise HTTPException(status_code=404, detail="Candidato no encontrado")
     
+    # Verificar permisos de edición
+    await verify_candidate_edit_permission(candidate_id, user)
+    
     # Validate file
     if not file.filename:
         raise HTTPException(status_code=400, detail="Archivo sin nombre")
@@ -3002,6 +3041,9 @@ async def reclassify_candidate_seniority(
     if not candidate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidato no encontrado")
     
+    # Verificar permisos de edición
+    await verify_candidate_edit_permission(candidate_id, current_user)
+    
     # Obtener título - usar current_title o el más reciente de previous_companies
     title = candidate.get("current_title")
     if not title and candidate.get("previous_companies"):
@@ -3569,7 +3611,7 @@ async def change_candidate_status(
     # Verificar permisos: Admin puede todo, Recruiter solo si está asignado
     if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
         # Verificar si el recruiter está asignado a este candidato
-        assignment = await db.candidate_assignments.find_one({
+        assignment = await db.assignments.find_one({
             "candidate_id": candidate_id,
             "recruiter_id": current_user.id,
             "status": "active"

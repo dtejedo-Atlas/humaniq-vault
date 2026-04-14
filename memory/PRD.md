@@ -413,13 +413,25 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 2. ✅ **Duplicados fusionados** - 7 merges exitosos, 0 duplicados activos restantes
 3. ✅ **CV Versioning E2E** - Upload, historial, comparación y descarga funcionando
 4. ✅ **Sistema E2E** - Upload → Search → Smart Folders → Status → Matching → Export → Download CV
-5. ✅ **Permisos validados** - Admin vs Recruiter (nota: PUT API sin validación, UI sí valida)
+5. ✅ **Permisos validados en API** - Recruiters solo pueden editar candidatos asignados (backend + frontend)
 6. ✅ **Backup documentado** - mongodump para colecciones críticas
 
 ### Bugs Corregidos:
 - `duplicate_detector_v2.py` línea 399: `x.get('start_date', '')` → `x.get('start_date') or ''`
 - `server.py` línea 2530: `storage_service.download_file()` → `storage_service.get_object()`
 - `server.py` línea 956: `candidate.location` → `candidate.city/state` (modelo actualizado)
+- `server.py` línea 3614: `db.candidate_assignments` → `db.assignments` (colección correcta)
+- `duplicate_detector_v2.py` línea 500: `db.candidate_assignments` → `db.assignments`
+
+### Validación de Permisos API (14-Abr-2026):
+| Endpoint | Admin | Recruiter (asignado) | Recruiter (no asignado) |
+|----------|-------|---------------------|------------------------|
+| PUT /candidates/{id} | ✅ | ✅ | ❌ Bloqueado |
+| POST /candidates/{id}/notes | ✅ | ✅ | ❌ Bloqueado |
+| PUT /candidates/{id}/status | ✅ | ✅ | ❌ Bloqueado |
+| POST /candidates/{id}/restrict | ✅ | ✅ | ❌ Bloqueado |
+| POST /candidates/{id}/update-cv | ✅ | ✅ | ❌ Bloqueado |
+| POST /candidates/{id}/reclassify-seniority | ✅ | ✅ | ❌ Bloqueado |
 
 ### Estado de la Base de Datos:
 - 31 candidatos activos

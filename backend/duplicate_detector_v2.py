@@ -497,7 +497,7 @@ class CandidateMerger:
         await self.db.merge_audit_log.insert_one(audit_record)
         
         # Update any assignments to point to primary
-        await self.db.candidate_assignments.update_many(
+        await self.db.assignments.update_many(
             {"candidate_id": secondary_id},
             {"$set": {"candidate_id": primary_id, "migrated_from_merge": True}}
         )
