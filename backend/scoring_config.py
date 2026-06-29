@@ -1,23 +1,70 @@
 """
-Scoring Configuration v2.1
-==========================
+Scoring Configuration v2.2
+===========================
 Configuración centralizada de pesos, thresholds y penalties para el sistema de ranking.
+
+IMPORTANTE: Este archivo es la ÚNICA fuente de verdad para los pesos de scoring.
+No definir pesos en otros archivos - importarlos desde aquí.
 """
 
-# ============= PESOS DE SCORING =============
+# =============================================================================
+# PESOS DE SCORING - DOS SISTEMAS PARA DIFERENTES CASOS DE USO
+# =============================================================================
+#
+# ¿Por qué hay dos sets de pesos?
+# --------------------------------
+# 
+# 1. SEARCH_WEIGHTS (búsqueda libre):
+#    - Se usa cuando el usuario escribe una query de texto libre (ej: "CFO fintech")
+#    - El peso semántico es MAYOR (0.13) porque la query es ambigua y necesitamos
+#      interpretar la intención del usuario usando embeddings
+#    - No hay skills explícitos ni requisitos de experiencia definidos
+#
+# 2. JOB_MATCH_WEIGHTS (match contra vacante):
+#    - Se usa cuando matcheamos candidatos contra una vacante específica
+#    - La vacante tiene skills requeridos y años de experiencia explícitos
+#    - El peso de skills (0.12) y experiencia (0.08) son mayores porque están definidos
+#    - El peso semántico es MENOR (0.05) porque ya tenemos criterios estructurados
+#
+# =============================================================================
 
-WEIGHTS = {
+# Pesos para BÚSQUEDA LIBRE (query de texto)
+# El usuario escribe algo como "gerente de operaciones automotriz"
+SEARCH_WEIGHTS = {
     "funcional": 0.40,      # Área funcional principal - mayor peso
     "seniority": 0.20,      # Nivel jerárquico correcto
     "industria": 0.15,      # Coincidencia de industria
-    "semantico": 0.13,      # Similitud semántica (inteligencia contextual)
+    "semantico": 0.13,      # Similitud semántica - MAYOR porque la query es ambigua
     "trayectoria": 0.05,    # Progresión y consistencia de carrera
     "keywords": 0.05,       # Match textual directo
     "estabilidad": 0.02,    # Análisis de rotación laboral
 }
 
+# Alias para compatibilidad con código existente
+WEIGHTS = SEARCH_WEIGHTS
+
 # Verificar que suman 100%
-assert abs(sum(WEIGHTS.values()) - 1.0) < 0.001, "Los pesos deben sumar 1.0"
+assert abs(sum(SEARCH_WEIGHTS.values()) - 1.0) < 0.001, "SEARCH_WEIGHTS deben sumar 1.0"
+
+
+# Pesos para JOB MATCHING (match contra vacante específica)
+# La vacante tiene required_skills, years_experience, etc. definidos explícitamente
+JOB_MATCH_WEIGHTS = {
+    "funcional": 0.35,      # Área funcional (ligeramente menor, skills compensan)
+    "seniority": 0.20,      # Nivel jerárquico - igual de importante
+    "industria": 0.15,      # Industria - igual de importante
+    "skills": 0.12,         # Skills match - MAYOR porque la vacante los define explícitamente
+    "experiencia": 0.08,    # Años de experiencia - MAYOR porque la vacante lo especifica
+    "semantico": 0.05,      # Similitud semántica - MENOR porque ya hay criterios estructurados
+    "trayectoria": 0.05,    # Consistencia de carrera
+}
+
+# Verificar que suman 100%
+assert abs(sum(JOB_MATCH_WEIGHTS.values()) - 1.0) < 0.001, "JOB_MATCH_WEIGHTS deben sumar 1.0"
+
+
+# Threshold mínimo para incluir en resultados de job matching
+JOB_MATCH_THRESHOLD = 60
 
 
 # ============= THRESHOLDS =============

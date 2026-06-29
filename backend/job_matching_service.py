@@ -19,6 +19,8 @@ from scoring_config import (
     PENALTIES,
     SENIORITY_DISTANCE_SCORES,
     MULTIPLICADORES_EXPERIENCIA,
+    JOB_MATCH_WEIGHTS,
+    JOB_MATCH_THRESHOLD,
 )
 from affinity_matrices import (
     get_functional_affinity,
@@ -39,20 +41,6 @@ logger = logging.getLogger(__name__)
 
 # Batch size para procesamiento de candidatos
 CANDIDATE_BATCH_SIZE = 500
-
-# Pesos específicos para Job Matching (ajustados vs búsqueda libre)
-JOB_MATCH_WEIGHTS = {
-    "funcional": 0.35,      # Área funcional
-    "seniority": 0.20,      # Nivel jerárquico
-    "industria": 0.15,      # Industria
-    "skills": 0.12,         # Skills match (más importante en matching)
-    "experiencia": 0.08,    # Años de experiencia
-    "semantico": 0.05,      # Similitud semántica
-    "trayectoria": 0.05,    # Consistencia de carrera
-}
-
-# Threshold mínimo para incluir en resultados de matching
-JOB_MATCH_THRESHOLD = 60
 
 # Mapeo de seniority texto a índice
 SENIORITY_TO_INDEX = {
