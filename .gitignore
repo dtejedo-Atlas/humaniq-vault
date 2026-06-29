@@ -1,94 +1,141 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ===========================================
+# Humaniq Talent Vault - .gitignore
+# ===========================================
 
-# IDE and editors
-.idea/
-.vscode/
+# ============ ARCHIVOS SENSIBLES ============
+
+# Variables de entorno (credenciales)
+.env
+.env.local
+.env.*.local
+*.env
+backend/.env
+frontend/.env
+
+# ============ DATOS DE USUARIOS ============
+
+# CVs y documentos subidos
+backend/uploads/
+uploads/
+
+# Exports generados (shortlists PDF/DOCX)
+backend/exports/
+exports/
+
+# Archivos de documentos (pueden contener datos personales)
+*.pdf
+*.docx
+*.doc
+*.xlsx
+*.xls
+*.pptx
+*.ppt
+
+# ============ ARCHIVOS DE TEST ============
+
+# CVs de prueba en raíz
+test_cv.docx
+maria_ops.docx
+carlos_cfo.docx
+carlos_variant.docx
+*.test.pdf
+*.test.docx
+
+# Archivos temporales de test
+/tmp/
+*.tmp
+
+# ============ PYTHON ============
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ============ NODE.JS / FRONTEND ============
 
 # Dependencies
 node_modules/
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
+frontend/node_modules/
 
-# Testing
-/coverage
+# Build output
+frontend/build/
+frontend/dist/
 
-# Next.js
-/.next/
-/out/
-next-env.d.ts
-*.tsbuildinfo
-
-# Production builds
-/build
-dist/
-dist
-
-# Environment files (comprehensive coverage)
-
-*token.json*
-*credentials.json*
-
-# Logs and debug files
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.pnpm-debug.log*
-dump.rdb
 
-# System files
+# ============ IDE / EDITOR ============
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============ OS FILES ============
+
+# macOS
 .DS_Store
-*.pem
+.AppleDouble
+.LSOverride
 
-# Python
-__pycache__/
-*pyc*
-venv/
-.venv/
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Development tools
-chainlit.md
-.chainlit
-.ipynb_checkpoints/
-.ac
+# ============ LOGS ============
 
-# Deployment
-.vercel
+*.log
+logs/
+*.log.*
 
-# Data and databases
-agenthub/agents/youtube/db
+# ============ BACKUPS ============
 
-# Archive files and large assets
-**/*.zip
-**/*.tar.gz
-**/*.tar
-**/*.tgz
-*.pack
-*.deb
-*.dylib
+*.bak
+*.backup
+*.old
 
-# Build caches
-.cache/
+# ============ EMERGENT PLATFORM ============
 
-# Mobile development
-android-sdk/ frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/0.pack
--e 
-# Environment files
-*.env
-*.env.*
--e 
-# Environment and credential files
-.env
-.env.*
-*.env
-credentials.json
+# Emergent internal files (keep .emergent folder)
+# .emergent/ - DO NOT IGNORE, needed for platform
+
+# ============ SECURITY ============
+
+# Private keys
 *.pem
 *.key
-.credentials
+*.crt
+*.p12
+
+# Secrets
+secrets.json
+credentials.json
+service-account*.json
+frontend/node_modules/.cache/default-development/0.pack
