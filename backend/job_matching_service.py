@@ -3,9 +3,13 @@ Job Matching Service
 ====================
 Motor de matching de candidatos contra vacantes.
 Usa el modelo de scoring v2.1 adaptado para evaluación estructurada.
+
+Changelog:
+- v2.2 (2026-06): Pre-filtro en MongoDB para escalabilidad, procesamiento en lotes,
+  exclusión de soft-deleted, logging mejorado.
 """
 
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Set
 from datetime import datetime
 import logging
 
@@ -20,6 +24,7 @@ from affinity_matrices import (
     get_functional_affinity,
     get_industry_transferability,
     are_adjacent_functions,
+    FUNCTIONAL_AFFINITY,
 )
 from trajectory_analyzer import (
     calculate_experience_level,
@@ -31,6 +36,9 @@ from trajectory_analyzer import (
 from query_parser import infer_seniority_from_title
 
 logger = logging.getLogger(__name__)
+
+# Batch size para procesamiento de candidatos
+CANDIDATE_BATCH_SIZE = 500
 
 # Pesos específicos para Job Matching (ajustados vs búsqueda libre)
 JOB_MATCH_WEIGHTS = {
@@ -49,6 +57,7 @@ JOB_MATCH_THRESHOLD = 60
 # Mapeo de seniority texto a índice
 SENIORITY_TO_INDEX = {
     "intern": 1, "entry": 1,
+    "trainee": 2,
     "junior": 3,
     "mid": 4,
     "senior": 6,
@@ -60,6 +69,9 @@ SENIORITY_TO_INDEX = {
     "c_level": 11,
     "ceo": 12,
 }
+
+# Lista ordenada de seniorities para cálculo de rangos
+SENIORITY_ORDER = ["intern", "entry", "trainee", "junior", "mid", "senior", "lead", "manager", "senior_manager", "director", "vp", "c_level", "ceo"]
 
 
 class JobMatchingService:
@@ -592,6 +604,111 @@ class JobMatchingService:
             "missing_skills": missing_skills,
         }
     
+    # ========== MÉTODOS DE PRE-FILTRADO ==========
+    
+    def _get_compatible_areas(self, job_area: str) -> Set[str]:
+        """
+        Obtiene áreas funcionales compatibles con la vacante.
+        Incluye el área exacta + áreas con afinidad >= 50 en la matriz.
+        """
+        compatible = {job_area.lower()} if job_area else set()
+        
+        if not job_area:
+            return compatible
+        
+        job_area_lower = job_area.lower()
+        
+        # Buscar áreas con afinidad >= 50 hacia el área de la vacante
+        for candidate_area, affinities in FUNCTIONAL_AFFINITY.items():
+            affinity_score = affinities.get(job_area_lower, 0)
+            if affinity_score >= 50:
+                compatible.add(candidate_area.lower())
+        
+        # Agregar también áreas adyacentes explícitas
+        adjacent_pairs = [
+            ("marketing", "sales"),
+            ("operations", "supply_chain"),
+            ("finance", "legal"),
+            ("human_resources", "talent_acquisition"),
+        ]
+        for pair in adjacent_pairs:
+            if job_area_lower in pair:
+                compatible.update(pair)
+        
+        # General Management siempre es compatible (multifuncional)
+        compatible.add("general_management")
+        
+        return compatible
+    
+    def _get_seniority_range(self, job_seniority: str, range_levels: int = 3) -> List[str]:
+        """
+        Obtiene rango de seniorities compatibles (±range_levels del seniority de la vacante).
+        """
+        if not job_seniority:
+            return list(SENIORITY_TO_INDEX.keys())
+        
+        job_seniority_lower = job_seniority.lower()
+        job_index = SENIORITY_TO_INDEX.get(job_seniority_lower, 7)
+        
+        compatible_seniorities = []
+        for seniority, index in SENIORITY_TO_INDEX.items():
+            if abs(index - job_index) <= range_levels:
+                compatible_seniorities.append(seniority)
+        
+        return list(set(compatible_seniorities))
+    
+    def _build_prefilter_query(self, job: dict) -> dict:
+        """
+        Construye query de MongoDB para pre-filtrar candidatos.
+        Excluye soft-deleted y filtra por área funcional y seniority compatibles.
+        """
+        # Base: excluir soft-deleted
+        query = {
+            "$or": [
+                {"is_deleted": False},
+                {"is_deleted": {"$exists": False}}
+            ]
+        }
+        
+        conditions = []
+        
+        # Filtro por área funcional
+        job_area = job.get("functional_area")
+        if job_area:
+            compatible_areas = self._get_compatible_areas(job_area)
+            if compatible_areas:
+                # Usar regex case-insensitive para mayor flexibilidad
+                area_conditions = [
+                    {"functional_area": {"$regex": f"^{area}$", "$options": "i"}}
+                    for area in compatible_areas
+                ]
+                # También incluir candidatos sin área (para no excluirlos silenciosamente)
+                area_conditions.append({"functional_area": {"$exists": False}})
+                area_conditions.append({"functional_area": None})
+                area_conditions.append({"functional_area": ""})
+                conditions.append({"$or": area_conditions})
+        
+        # Filtro por seniority
+        job_seniority = job.get("seniority")
+        if job_seniority:
+            compatible_seniorities = self._get_seniority_range(job_seniority, range_levels=3)
+            if compatible_seniorities:
+                seniority_conditions = [
+                    {"seniority": {"$regex": f"^{sen}$", "$options": "i"}}
+                    for sen in compatible_seniorities
+                ]
+                # También incluir candidatos sin seniority
+                seniority_conditions.append({"seniority": {"$exists": False}})
+                seniority_conditions.append({"seniority": None})
+                seniority_conditions.append({"seniority": ""})
+                conditions.append({"$or": seniority_conditions})
+        
+        # Combinar condiciones
+        if conditions:
+            query = {"$and": [query] + conditions}
+        
+        return query
+    
     # ========== MÉTODO PRINCIPAL DE MATCHING ==========
     
     async def match_candidates(
@@ -603,6 +720,12 @@ class JobMatchingService:
         """
         Ejecuta matching de todos los candidatos contra una vacante.
         
+        Implementa pre-filtrado en MongoDB para escalabilidad:
+        - Filtra por áreas funcionales compatibles
+        - Filtra por rango de seniority (±3 niveles)
+        - Excluye candidatos soft-deleted
+        - Procesa en lotes si hay más de 1000 candidatos
+        
         Args:
             job: Diccionario con datos de la vacante
             threshold: Score mínimo para incluir (default: JOB_MATCH_THRESHOLD)
@@ -613,26 +736,104 @@ class JobMatchingService:
         """
         effective_threshold = threshold if threshold is not None else JOB_MATCH_THRESHOLD
         
-        # 1. Obtener embedding de la vacante
+        # 1. Contar total de candidatos en BD (para logging)
+        total_in_db = await self.db.candidates.count_documents({
+            "$or": [
+                {"is_deleted": False},
+                {"is_deleted": {"$exists": False}}
+            ]
+        })
+        
+        # 2. Obtener embedding de la vacante
         job_embedding = job.get("embedding")
         if not job_embedding and self.embedding_service and self.embedding_service.enabled:
             job_embedding = await self.generate_job_embedding(job)
         
-        # 2. Obtener todos los candidatos
-        candidates = await self.db.candidates.find(
-            {},
-            {"_id": 0}
-        ).to_list(500)
+        # 3. Construir query de pre-filtro
+        prefilter_query = self._build_prefilter_query(job)
         
-        logger.info(f"Matching {len(candidates)} candidates against job '{job.get('title')}'")
+        # 4. Contar candidatos que pasan el pre-filtro
+        prefiltered_count = await self.db.candidates.count_documents(prefilter_query)
         
-        # 3. Calcular match para cada candidato
+        logger.info(
+            f"[JobMatching] Vacante: '{job.get('title')}' | "
+            f"Total en BD: {total_in_db} | "
+            f"Pre-filtrados: {prefiltered_count} | "
+            f"Área: {job.get('functional_area')} | "
+            f"Seniority: {job.get('seniority')}"
+        )
+        
+        # 5. Obtener candidatos pre-filtrados (en lotes si son muchos)
+        results = []
+        processed_count = 0
+        
+        if prefiltered_count <= CANDIDATE_BATCH_SIZE:
+            # Procesar todos de una vez
+            candidates = await self.db.candidates.find(
+                prefilter_query,
+                {"_id": 0}
+            ).to_list(None)
+            
+            processed_count = len(candidates)
+            results = self._process_candidates_batch(candidates, job, job_embedding, effective_threshold)
+        else:
+            # Procesar en lotes para no saturar memoria
+            cursor = self.db.candidates.find(prefilter_query, {"_id": 0})
+            batch = []
+            
+            async for candidate in cursor:
+                batch.append(candidate)
+                processed_count += 1
+                
+                if len(batch) >= CANDIDATE_BATCH_SIZE:
+                    batch_results = self._process_candidates_batch(batch, job, job_embedding, effective_threshold)
+                    results.extend(batch_results)
+                    batch = []
+                    logger.debug(f"[JobMatching] Procesado lote de {CANDIDATE_BATCH_SIZE}, total procesados: {processed_count}")
+            
+            # Procesar último lote
+            if batch:
+                batch_results = self._process_candidates_batch(batch, job, job_embedding, effective_threshold)
+                results.extend(batch_results)
+        
+        # 6. Ordenar por match_percentage
+        results.sort(key=lambda x: x["match_percentage"], reverse=True)
+        
+        above_threshold = len(results)
+        
+        logger.info(
+            f"[JobMatching] Completado: {processed_count} procesados | "
+            f"{above_threshold} sobre threshold ({effective_threshold}%) | "
+            f"Retornando top {min(limit, above_threshold)}"
+        )
+        
+        return {
+            "job_id": job.get("id"),
+            "job_title": job.get("title"),
+            "total_candidates": total_in_db,
+            "prefiltered_candidates": prefiltered_count,
+            "processed_candidates": processed_count,
+            "matched_candidates": above_threshold,
+            "threshold_used": effective_threshold,
+            "results": results[:limit]
+        }
+    
+    def _process_candidates_batch(
+        self,
+        candidates: List[dict],
+        job: dict,
+        job_embedding: Optional[List[float]],
+        threshold: int
+    ) -> List[Dict[str, Any]]:
+        """
+        Procesa un lote de candidatos y retorna los que superan el threshold.
+        """
         results = []
         
         for candidate in candidates:
             match_data = self._calculate_match(candidate, job, job_embedding)
             
-            if match_data["match_percentage"] >= effective_threshold:
+            if match_data["match_percentage"] >= threshold:
                 results.append({
                     "candidate_id": candidate.get("id"),
                     "candidate_name": candidate.get("full_name", ""),
@@ -649,19 +850,7 @@ class JobMatchingService:
                     "seniority": candidate.get("seniority"),
                 })
         
-        # 4. Ordenar por match_percentage
-        results.sort(key=lambda x: x["match_percentage"], reverse=True)
-        
-        logger.info(f"Found {len(results)} candidates above threshold {effective_threshold}")
-        
-        return {
-            "job_id": job.get("id"),
-            "job_title": job.get("title"),
-            "total_candidates": len(candidates),
-            "matched_candidates": len(results),
-            "threshold_used": effective_threshold,
-            "results": results[:limit]
-        }
+        return results
 
 
 # Factory function

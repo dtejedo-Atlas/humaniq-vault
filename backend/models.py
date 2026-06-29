@@ -616,6 +616,8 @@ class JobMatchResponse(BaseModel):
     job_id: str
     job_title: str
     total_candidates: int
+    prefiltered_candidates: Optional[int] = None
+    processed_candidates: Optional[int] = None
     matched_candidates: int
     threshold_used: int
     results: List[CandidateMatchResult]
