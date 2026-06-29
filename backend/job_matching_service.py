@@ -456,9 +456,16 @@ class JobMatchingService:
         candidate_embedding: Optional[List[float]], 
         job_embedding: Optional[List[float]]
     ) -> float:
-        """Calcula similitud semántica entre candidato y vacante"""
+        """
+        Calcula similitud semántica entre candidato y vacante.
+        
+        Retorna 70 (neutral) cuando falta algún embedding para no penalizar
+        injustamente al candidato. Los demás componentes también devuelven ~70
+        cuando falta data, manteniendo consistencia.
+        """
+        # Si falta algún embedding, devolver score neutral (no penalizar)
         if not candidate_embedding or not job_embedding:
-            return 0
+            return 70  # Neutral, igual que otros componentes cuando falta data
         
         try:
             from sklearn.metrics.pairwise import cosine_similarity
@@ -478,7 +485,7 @@ class JobMatchingService:
             
         except Exception as e:
             logger.error(f"Error calculating semantic similarity: {str(e)}")
-            return 0
+            return 70  # Neutral en caso de error, no penalizar
     
     # ========== DETECCIÓN DE RIESGOS ==========
     
@@ -615,6 +622,7 @@ class JobMatchingService:
         exp_score, exp_detail = self._calculate_experience_score(candidate, job)
         
         candidate_embedding = candidate.get("embedding")
+        has_embeddings = bool(candidate_embedding and job_embedding)
         semantic_score = self._calculate_semantic_score(candidate_embedding, job_embedding)
         
         trajectory_score = calculate_trajectory_score(candidate)
@@ -737,7 +745,7 @@ class JobMatchingService:
             "semantico": {
                 "score": round(semantic_score),
                 "weight": f"{JOB_MATCH_WEIGHTS['semantico']*100:.0f}%",
-                "detail": "Similitud de perfil" if semantic_score > 0 else "Sin embedding"
+                "detail": "Sin embedding (neutral)" if not has_embeddings else ("Similitud de perfil" if semantic_score >= 50 else "Baja similitud")
             },
             "trayectoria": {
                 "score": round(trajectory_score),
