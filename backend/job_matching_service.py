@@ -200,37 +200,209 @@ class JobMatchingService:
         
         return (score, detail)
     
+    # ========== SKILL MATCHING MEJORADO ==========
+    
+    # Diccionario de sinónimos/equivalencias para skills
+    SKILL_SYNONYMS = {
+        # Microsoft Office
+        "excel": ["microsoft excel", "ms excel", "excel avanzado", "advanced excel"],
+        "word": ["microsoft word", "ms word"],
+        "powerpoint": ["microsoft powerpoint", "ms powerpoint", "ppt"],
+        "office": ["microsoft office", "ms office", "paquetería office"],
+        
+        # Programación
+        "sql": ["structured query language", "mysql", "postgresql", "sql server", "t-sql", "pl/sql"],
+        "python": ["python3", "python 3", "python 2"],
+        "java": ["java se", "java ee", "java 8", "java 11", "java 17", "core java"],
+        "javascript": ["js", "ecmascript", "es6", "es2015"],
+        "typescript": ["ts"],
+        "c#": ["csharp", "c sharp", "dotnet", ".net"],
+        "c++": ["cpp", "cplusplus"],
+        "react": ["reactjs", "react.js", "react js"],
+        "angular": ["angularjs", "angular.js"],
+        "node": ["nodejs", "node.js", "node js"],
+        "vue": ["vuejs", "vue.js"],
+        
+        # ERP/Software empresarial
+        "sap": ["sap erp", "sap r/3", "sap s/4hana", "sap hana", "sap fi", "sap co", "sap mm"],
+        "oracle": ["oracle erp", "oracle db", "oracle database"],
+        "salesforce": ["sfdc", "salesforce crm"],
+        
+        # Análisis de datos
+        "power bi": ["powerbi", "power-bi", "microsoft power bi"],
+        "tableau": ["tableau desktop", "tableau server"],
+        "analytics": ["data analytics", "análisis de datos", "analítica", "analisis de datos"],
+        
+        # Gestión de proyectos
+        "project management": ["gestión de proyectos", "administración de proyectos", "pm", "gestion de proyectos"],
+        "pmp": ["project management professional"],
+        "scrum": ["scrum master", "metodología scrum", "metodologia scrum"],
+        "agile": ["metodología ágil", "metodologías ágiles", "metodologia agil", "agil"],
+        
+        # Finanzas
+        "fp&a": ["financial planning", "planeación financiera", "financial planning and analysis", "planeacion financiera"],
+        "contabilidad": ["accounting", "contaduría", "contaduria"],
+        "auditoría": ["audit", "auditing", "auditoria"],
+        "presupuestos": ["budgeting", "budget management", "budget"],
+        
+        # Liderazgo
+        "liderazgo": ["leadership", "team leadership", "líder", "lider"],
+        "gestión de equipos": ["team management", "people management", "gestion de equipos"],
+        "negociación": ["negotiation", "negociaciones", "negociacion"],
+        
+        # Inglés
+        "inglés": ["english", "inglés avanzado", "inglés fluido", "advanced english", "fluent english", "ingles"],
+        "inglés avanzado": ["advanced english", "c1 english", "c2 english", "ingles avanzado"],
+    }
+    
+    def _normalize_skill(self, skill: str) -> str:
+        """
+        Normaliza un skill para comparación.
+        - Minúsculas
+        - Sin acentos
+        - Sin espacios extra
+        """
+        import unicodedata
+        
+        # Minúsculas
+        normalized = skill.lower().strip()
+        
+        # Remover acentos
+        normalized = ''.join(
+            c for c in unicodedata.normalize('NFD', normalized)
+            if unicodedata.category(c) != 'Mn'
+        )
+        
+        # Normalizar espacios
+        normalized = ' '.join(normalized.split())
+        
+        return normalized
+    
+    def _skills_match(self, skill1: str, skill2: str) -> bool:
+        """
+        Compara dos skills usando:
+        1. Igualdad exacta de tokens normalizados
+        2. Coincidencia de palabra completa (word boundaries)
+        3. Sinónimos conocidos
+        
+        Evita falsos positivos como "java" matcheando "javascript".
+        """
+        import re
+        
+        norm1 = self._normalize_skill(skill1)
+        norm2 = self._normalize_skill(skill2)
+        
+        # 1. Igualdad exacta
+        if norm1 == norm2:
+            return True
+        
+        # 2. Verificar sinónimos
+        # Buscar si skill1 es sinónimo de skill2 o viceversa
+        for base_skill, synonyms in self.SKILL_SYNONYMS.items():
+            all_variants = [self._normalize_skill(base_skill)] + [self._normalize_skill(s) for s in synonyms]
+            if norm1 in all_variants and norm2 in all_variants:
+                return True
+        
+        # 3. Coincidencia de palabra completa (word boundary matching)
+        # Solo si una skill es parte de la otra como palabra completa, no substring
+        # Ej: "sql" matchea "sql server" pero NO "mysql" (diferente herramienta)
+        # Ej: "project management" matchea "project management professional"
+        
+        # Crear patrón con word boundaries
+        # Escapar caracteres especiales de regex
+        pattern1 = r'\b' + re.escape(norm1) + r'\b'
+        pattern2 = r'\b' + re.escape(norm2) + r'\b'
+        
+        # Verificar si skill1 es palabra completa dentro de skill2
+        if len(norm1) >= 3 and re.search(pattern1, norm2):
+            # Excepción: no matchear si son tecnologías relacionadas pero diferentes
+            # Lista de pares que NO deben matchear aunque uno contenga al otro
+            excluded_pairs = [
+                ("java", "javascript"),
+                ("c", "c++"),
+                ("c", "c#"),
+                ("c", "css"),
+                ("c", "csv"),
+                ("c", "comunicacion"),
+                ("r", "react"),
+                ("r", "ruby"),
+                ("go", "google"),
+                ("net", "network"),
+                ("bi", "business"),
+            ]
+            
+            for pair in excluded_pairs:
+                p1, p2 = self._normalize_skill(pair[0]), self._normalize_skill(pair[1])
+                if (norm1 == p1 and p1 in norm2 and norm2 != p1) or \
+                   (norm2 == p1 and p1 in norm1 and norm1 != p1):
+                    return False
+            
+            return True
+        
+        # Verificar si skill2 es palabra completa dentro de skill1
+        if len(norm2) >= 3 and re.search(pattern2, norm1):
+            # Mismas exclusiones
+            excluded_pairs = [
+                ("java", "javascript"),
+                ("c", "c++"),
+                ("c", "c#"),
+                ("c", "css"),
+                ("c", "csv"),
+                ("c", "comunicacion"),
+                ("r", "react"),
+                ("r", "ruby"),
+                ("go", "google"),
+                ("net", "network"),
+                ("bi", "business"),
+            ]
+            
+            for pair in excluded_pairs:
+                p1, p2 = self._normalize_skill(pair[0]), self._normalize_skill(pair[1])
+                if (norm1 == p2 and p2 in norm1) or (norm2 == p2 and p2 in norm2):
+                    if norm1 != norm2:
+                        return False
+            
+            return True
+        
+        return False
+    
     def _calculate_skills_score(self, candidate: dict, job: dict) -> Tuple[float, List[str], List[str]]:
         """
-        Calcula score de skills.
+        Calcula score de skills usando matching inteligente por tokens.
+        Evita falsos positivos (ej: "java" no matchea "javascript").
+        
         Retorna (score, matched_skills, missing_skills)
+        
+        Pesos: required_skills 70%, preferred_skills 30%
         """
-        required_skills = [s.lower() for s in job.get("required_skills", [])]
-        preferred_skills = [s.lower() for s in job.get("preferred_skills", [])]
-        candidate_skills = [s.lower() for s in candidate.get("skills", [])]
+        required_skills = job.get("required_skills", [])
+        preferred_skills = job.get("preferred_skills", [])
+        candidate_skills = candidate.get("skills", [])
         
         if not required_skills and not preferred_skills:
             return (80, [], [])  # Sin requisitos de skills
         
-        # Calcular matches
+        # Calcular matches para required skills
         matched_required = []
         missing_required = []
-        matched_preferred = []
         
-        for skill in required_skills:
+        for req_skill in required_skills:
             found = False
             for cand_skill in candidate_skills:
-                if skill in cand_skill or cand_skill in skill:
-                    matched_required.append(skill)
+                if self._skills_match(req_skill, cand_skill):
+                    matched_required.append(req_skill)
                     found = True
                     break
             if not found:
-                missing_required.append(skill)
+                missing_required.append(req_skill)
         
-        for skill in preferred_skills:
+        # Calcular matches para preferred skills
+        matched_preferred = []
+        
+        for pref_skill in preferred_skills:
             for cand_skill in candidate_skills:
-                if skill in cand_skill or cand_skill in skill:
-                    matched_preferred.append(skill)
+                if self._skills_match(pref_skill, cand_skill):
+                    matched_preferred.append(pref_skill)
                     break
         
         # Calcular score
