@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import asyncio
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import json
+import re
 from taxonomy import build_taxonomy_prompt_section, get_industry_by_key, get_functional_area_by_key
 
 ROOT_DIR = Path(__file__).parent
@@ -11,12 +12,151 @@ load_dotenv(ROOT_DIR / '.env')
 
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
 
+# Límite de caracteres para CVs (Claude Sonnet 4.5 soporta 200k tokens de contexto)
+CV_MAX_CHARS = 20000
+
+
+def smart_truncate_cv(text: str, max_chars: int = CV_MAX_CHARS) -> str:
+    """
+    Trunca inteligentemente un CV priorizando experiencia laboral y educación.
+    
+    Si el texto supera max_chars:
+    1. Mantiene secciones de experiencia laboral y educación
+    2. Recorta secciones de relleno (referencias, hobbies, cursos menores)
+    3. Solo como último recurso corta contenido importante
+    
+    Args:
+        text: Texto completo del CV
+        max_chars: Límite máximo de caracteres
+        
+    Returns:
+        Texto truncado inteligentemente
+    """
+    if len(text) <= max_chars:
+        return text
+    
+    # Patrones para identificar secciones (case-insensitive, español e inglés)
+    section_patterns = {
+        'priority_high': [
+            # Experiencia laboral - MÁXIMA PRIORIDAD
+            r'(?:experiencia\s*(?:laboral|profesional)|work\s*experience|professional\s*experience|employment\s*history|historial\s*laboral|trayectoria\s*profesional)',
+            # Educación - ALTA PRIORIDAD
+            r'(?:educación|education|formación\s*académica|academic\s*background|estudios)',
+            # Datos personales/contacto - ALTA PRIORIDAD (inicio del CV)
+            r'(?:datos\s*personales|personal\s*info|contact|contacto)',
+            # Resumen/Perfil - ALTA PRIORIDAD
+            r'(?:resumen|summary|perfil\s*profesional|professional\s*profile|objetivo|objective)',
+        ],
+        'priority_medium': [
+            # Skills/Competencias
+            r'(?:habilidades|skills|competencias|competencies|conocimientos|aptitudes)',
+            # Certificaciones
+            r'(?:certificaciones|certifications|licencias|licenses)',
+            # Idiomas
+            r'(?:idiomas|languages)',
+            # Logros
+            r'(?:logros|achievements|accomplishments)',
+        ],
+        'priority_low': [
+            # Cursos/Talleres
+            r'(?:cursos|courses|talleres|workshops|capacitación|training)',
+            # Referencias
+            r'(?:referencias|references)',
+            # Hobbies/Intereses
+            r'(?:hobbies|intereses|interests|actividades|activities)',
+            # Información adicional
+            r'(?:información\s*adicional|additional\s*info|otros|other)',
+            # Voluntariado
+            r'(?:voluntariado|volunteer|servicio\s*social)',
+        ]
+    }
+    
+    lines = text.split('\n')
+    sections = []
+    current_section = {'priority': 'high', 'lines': [], 'name': 'header'}
+    
+    # Clasificar líneas por sección
+    for line in lines:
+        line_lower = line.lower().strip()
+        
+        # Detectar inicio de nueva sección
+        section_found = False
+        for priority, patterns in section_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, line_lower):
+                    # Guardar sección anterior
+                    if current_section['lines']:
+                        sections.append(current_section)
+                    # Iniciar nueva sección
+                    current_section = {
+                        'priority': priority.replace('priority_', ''),
+                        'lines': [line],
+                        'name': line_lower[:50]
+                    }
+                    section_found = True
+                    break
+            if section_found:
+                break
+        
+        if not section_found:
+            current_section['lines'].append(line)
+    
+    # Agregar última sección
+    if current_section['lines']:
+        sections.append(current_section)
+    
+    # Si no se detectaron secciones, truncar simple
+    if len(sections) <= 1:
+        return text[:max_chars]
+    
+    # Reconstruir priorizando secciones importantes
+    result_lines = []
+    current_length = 0
+    
+    # Primero agregar secciones de alta prioridad
+    for section in sections:
+        if section['priority'] == 'high':
+            section_text = '\n'.join(section['lines'])
+            if current_length + len(section_text) <= max_chars:
+                result_lines.extend(section['lines'])
+                current_length += len(section_text) + 1
+    
+    # Luego secciones de prioridad media
+    for section in sections:
+        if section['priority'] == 'medium':
+            section_text = '\n'.join(section['lines'])
+            if current_length + len(section_text) <= max_chars:
+                result_lines.extend(section['lines'])
+                current_length += len(section_text) + 1
+    
+    # Finalmente secciones de baja prioridad si hay espacio
+    for section in sections:
+        if section['priority'] == 'low':
+            section_text = '\n'.join(section['lines'])
+            if current_length + len(section_text) <= max_chars:
+                result_lines.extend(section['lines'])
+                current_length += len(section_text) + 1
+    
+    # Si aún tenemos espacio y faltan líneas, agregar lo que se pueda
+    result_text = '\n'.join(result_lines)
+    
+    # Si el resultado está vacío o muy corto, hacer truncamiento simple
+    if len(result_text) < max_chars * 0.3:
+        return text[:max_chars]
+    
+    return result_text[:max_chars]
+
 class AtlasAIService:
     def __init__(self):
         self.api_key = EMERGENT_LLM_KEY
     
     async def parse_resume(self, resume_text: str) -> dict:
-        """Extract structured data from resume text"""
+        """Extract structured data from resume text using intelligent truncation"""
+        
+        # Aplicar truncamiento inteligente si el CV es muy largo
+        # Claude Sonnet 4.5 soporta 200k tokens, pero limitamos a 20k chars para eficiencia
+        processed_text = smart_truncate_cv(resume_text, CV_MAX_CHARS)
+        
         chat = LlmChat(
             api_key=self.api_key,
             session_id=f"parse-{id(resume_text)}",
@@ -56,7 +196,7 @@ Siempre responde en formato JSON válido con esta estructura:
             
 Responde SOLO con JSON válido, sin texto adicional:
             
-{resume_text[:8000]}
+{processed_text}
             """
         )
         
