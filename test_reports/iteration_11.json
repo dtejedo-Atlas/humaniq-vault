@@ -1,0 +1,37 @@
+{
+  "summary": "Frontend-only validation of DuplicatesPage.js after the N-candidate merge fix and orphan cleanup feature. Logged in as test_utf8@atlas.com via /login, navigated to /duplicates, and confirmed: (1) Page renders without crash, stats show '0 Grupos duplicados / 0 Registros afectados / 0 Por email / 10 Merges realizados' exactly matching the seeded backend state. (2) Empty state 'No hay duplicados detectados' is displayed in the Grupos de Duplicados card with the green check icon. (3) 'Actualizar' button triggers loadData() and stats remain consistent, no error toast. (4) 'Limpiar Huérfanos' button opens the orphan dialog, GET /api/duplicates/orphan-records returns 200 with total_orphans=5 (all categorized as 'Sin contacto'), individual orphan rows render with name/email/date and an unchecked Checkbox, 'Seleccionar todos' and 'Eliminar 0 Registros' (disabled while none selected) appear correctly. (5) Cerrar button closes the dialog. (6) No console errors and no API 4xx/5xx came from any /api/duplicates/* endpoint during the run. The only 403s observed (taxonomy/industries, taxonomy/functional-areas, taxonomy/lookup) are unrelated to the Duplicates feature and originate from another component on the layout.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/taxonomy/industries, /api/taxonomy/functional-areas, /api/taxonomy/lookup", "issue": "Returns 403 for the authenticated admin user on every page load (not specific to Duplicates page). Spams the console with errors. Either grant access to the admin role or guard the call in the component."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_11.json"
+  ],
+  "action_items": [
+    "(Optional) Fix /api/taxonomy/* 403 noise on every page – unrelated to Duplicates but pollutes console and may confuse future debugging.",
+    "(Optional) Add data-testid to 'Limpiar Huérfanos' and 'Actualizar' buttons for more robust E2E testing."
+  ],
+  "critical_code_review_comments": [
+    "DuplicatesPage.js is 679 lines – consider extracting the OrphanRecordsDialog and MergeDialog into their own components.",
+    "API_BASE fallback uses '||' to '' (line 36). If REACT_APP_BACKEND_URL is unset the component silently calls relative URLs – consider failing fast or removing the fallback per env-var guideline.",
+    "axios is used without an Authorization header in this file. It currently works because credentials are sent via cookies/global interceptor, but a missing global interceptor would break all calls silently."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (not tested this iteration)",
+    "frontend": "100% (5/5 scenarios passed)"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin) – confirmed working on /login at the public URL.",
+  "seed_data_creation": "None. Existing 5 orphan records (Test Upload Cv, Cv María José Coca Candia, Cv Juan Fernando Villaseñor, Test Cv, Desconocido) were observed but NOT deleted.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "The duplicates page currently has 0 active duplicate groups (all 4 Alex Shapiro candidates already merged in iteration 10). To test the N-candidate merge UI path, the next agent will need to seed >=3 candidates with the same email via POST /api/candidates and then revisit /duplicates – the 'Detalle del Grupo' card should then show the info banner 'Este grupo tiene N registros…' and the 'Fusionar N Candidatos' button. Backend tests already pass per test_duplicates_merge_multiple.py (13/14, 1 skipped).",
+  "rca of the issue": "N/A – no bug reproduced. The previously reported merge-N issue and the orphan-records UX are fully working from the frontend perspective."
+}

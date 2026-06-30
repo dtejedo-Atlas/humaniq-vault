@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import shutil
 
 from models import (
@@ -2285,6 +2285,73 @@ async def merge_candidates(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al fusionar: {str(e)}")
 
 
+class MergeMultipleRequest(PydanticBaseModel):
+    primary_candidate_id: str  # El que se va a mantener
+    secondary_candidate_ids: List[str]  # Los que se van a fusionar
+    merge_experience: bool = True
+    merge_education: bool = True
+    merge_skills: bool = True
+    merge_notes: bool = True
+    keep_all_cvs: bool = True
+    use_secondary_contact: bool = False
+
+
+@api_router.post("/candidates/merge-multiple")
+async def merge_multiple_candidates(
+    request: MergeMultipleRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Merge multiple candidate records into a single primary.
+    Supports groups of 3+ duplicates in a single operation.
+    """
+    # Verificar permisos
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.RECRUITER]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sin permiso para fusionar candidatos")
+    
+    # Validación
+    if not request.secondary_candidate_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe especificar al menos un candidato secundario")
+    
+    if request.primary_candidate_id in request.secondary_candidate_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El candidato principal no puede estar en la lista de secundarios")
+    
+    try:
+        merge_options = {
+            "merge_experience": request.merge_experience,
+            "merge_education": request.merge_education,
+            "merge_skills": request.merge_skills,
+            "merge_notes": request.merge_notes,
+            "keep_all_cvs": request.keep_all_cvs,
+            "use_secondary_contact": request.use_secondary_contact
+        }
+        
+        result = await candidate_merger.merge_multiple_candidates(
+            primary_id=request.primary_candidate_id,
+            secondary_ids=request.secondary_candidate_ids,
+            merge_options=merge_options,
+            merged_by=current_user.id
+        )
+        
+        logger.info(f"Multiple candidates merged: {request.secondary_candidate_ids} -> {request.primary_candidate_id} by {current_user.email}")
+        
+        return {
+            "success": True,
+            "message": f"{result['total_merged']} candidatos fusionados exitosamente",
+            "primary_candidate_id": request.primary_candidate_id,
+            "secondary_candidate_ids": request.secondary_candidate_ids,
+            "total_merged": result["total_merged"],
+            "changes": result.get("changes", []),
+            "audit_ids": result.get("audit_ids", []),
+            "merged_by": current_user.name
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error merging multiple candidates: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al fusionar: {str(e)}")
+
+
 @api_router.get("/duplicates/review")
 async def get_all_duplicates_for_review(
     current_user: User = Depends(get_current_user)
@@ -2347,6 +2414,154 @@ async def get_duplicate_stats(
         }
     except Exception as e:
         logger.error(f"Error getting duplicate stats: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/duplicates/orphan-records")
+async def get_orphan_records(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Identify orphan/incomplete records from failed uploads.
+    Orphan criteria:
+    - No email AND no full_name (or generic name like "Candidato - filename.pdf")
+    - No resume_files or empty resume_files
+    - Created more than 1 hour ago (to avoid catching in-progress uploads)
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo admins pueden ver registros huérfanos")
+    
+    try:
+        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        
+        # Find candidates that appear to be incomplete/orphan
+        orphan_query = {
+            "is_deleted": {"$ne": True},
+            "created_at": {"$lt": one_hour_ago},
+            "$or": [
+                # No email AND (no name OR generic name)
+                {
+                    "email": {"$in": [None, ""]},
+                    "$or": [
+                        {"full_name": {"$in": [None, ""]}},
+                        {"full_name": {"$regex": "^Candidato - ", "$options": "i"}}
+                    ]
+                },
+                # No resume files
+                {
+                    "resume_files": {"$in": [None, []]}
+                },
+                # Very incomplete: no title, no company, no skills
+                {
+                    "current_title": {"$in": [None, ""]},
+                    "current_company": {"$in": [None, ""]},
+                    "skills": {"$in": [None, []]},
+                    "previous_companies": {"$in": [None, []]}
+                }
+            ]
+        }
+        
+        orphans = await db.candidates.find(
+            orphan_query,
+            {"_id": 0, "id": 1, "full_name": 1, "email": 1, "current_title": 1, 
+             "created_at": 1, "source": 1, "resume_files": 1, "skills": 1}
+        ).sort("created_at", -1).limit(100).to_list(100)
+        
+        # Categorize orphans
+        categorized = {
+            "no_contact_info": [],
+            "no_resume": [],
+            "incomplete_profile": [],
+            "generic_name": []
+        }
+        
+        for o in orphans:
+            has_email = bool(o.get("email"))
+            has_resume = bool(o.get("resume_files"))
+            has_skills = bool(o.get("skills"))
+            is_generic_name = o.get("full_name", "").startswith("Candidato - ")
+            
+            if is_generic_name:
+                categorized["generic_name"].append(o)
+            elif not has_email:
+                categorized["no_contact_info"].append(o)
+            elif not has_resume:
+                categorized["no_resume"].append(o)
+            elif not has_skills:
+                categorized["incomplete_profile"].append(o)
+        
+        return {
+            "total_orphans": len(orphans),
+            "categorized": categorized,
+            "by_category": {
+                "no_contact_info": len(categorized["no_contact_info"]),
+                "no_resume": len(categorized["no_resume"]),
+                "incomplete_profile": len(categorized["incomplete_profile"]),
+                "generic_name": len(categorized["generic_name"])
+            },
+            "orphans": orphans
+        }
+    except Exception as e:
+        logger.error(f"Error getting orphan records: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/duplicates/cleanup-orphans")
+async def cleanup_orphan_records(
+    candidate_ids: List[str],
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Soft delete orphan/incomplete records.
+    Only admins can perform this action.
+    """
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo admins pueden eliminar registros huérfanos")
+    
+    if not candidate_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe especificar IDs de candidatos")
+    
+    try:
+        deleted_count = 0
+        errors = []
+        
+        for cid in candidate_ids:
+            try:
+                result = await db.candidates.update_one(
+                    {"id": cid, "is_deleted": {"$ne": True}},
+                    {"$set": {
+                        "is_deleted": True,
+                        "deleted_at": datetime.now(timezone.utc).isoformat(),
+                        "deletion_type": "orphan_cleanup",
+                        "deleted_by": current_user.id
+                    }}
+                )
+                if result.modified_count > 0:
+                    deleted_count += 1
+            except Exception as e:
+                errors.append({"id": cid, "error": str(e)})
+        
+        # Create audit log
+        await db.cleanup_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "action": "orphan_cleanup",
+            "candidate_ids": candidate_ids,
+            "deleted_count": deleted_count,
+            "errors": errors,
+            "performed_by": current_user.id,
+            "performed_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        logger.info(f"Orphan cleanup: {deleted_count} records deleted by {current_user.email}")
+        
+        return {
+            "success": True,
+            "message": f"{deleted_count} registros eliminados",
+            "deleted_count": deleted_count,
+            "errors": errors if errors else None
+        }
+    except Exception as e:
+        logger.error(f"Error cleaning up orphans: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

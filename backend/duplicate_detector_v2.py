@@ -509,6 +509,69 @@ class CandidateMerger:
             "changes": merge_log,
             "audit_id": audit_record['id']
         }
+    
+    async def merge_multiple_candidates(
+        self, 
+        primary_id: str, 
+        secondary_ids: List[str], 
+        merge_options: Dict,
+        merged_by: str
+    ) -> Dict:
+        """
+        Merge multiple candidate records into one primary.
+        
+        Args:
+            primary_id: ID of the candidate to keep as primary
+            secondary_ids: List of IDs of candidates to merge into primary
+            merge_options: Dict specifying what to merge
+            merged_by: User ID performing the merge
+        
+        Returns:
+            Dict with merge result and audit info
+        
+        Raises:
+            ValueError: If no secondary candidates provided or primary doesn't exist
+        """
+        if not secondary_ids:
+            raise ValueError("No secondary candidates provided")
+        
+        # Verify primary exists first
+        primary = await self.db.candidates.find_one({"id": primary_id, "is_deleted": {"$ne": True}})
+        if not primary:
+            raise ValueError(f"Primary candidate {primary_id} not found or is deleted")
+        
+        all_merge_logs = []
+        all_audit_ids = []
+        successful_merges = 0
+        
+        # Merge each secondary into primary sequentially
+        for secondary_id in secondary_ids:
+            if secondary_id == primary_id:
+                continue  # Skip if somehow primary is in the list
+            
+            try:
+                result = await self.merge_candidates(
+                    primary_id=primary_id,
+                    secondary_id=secondary_id,
+                    merge_options=merge_options,
+                    merged_by=merged_by
+                )
+                all_merge_logs.extend(result.get("changes", []))
+                all_audit_ids.append(result.get("audit_id"))
+                successful_merges += 1
+            except Exception as e:
+                logger.error(f"Error merging {secondary_id} into {primary_id}: {str(e)}")
+                all_merge_logs.append(f"Error fusionando {secondary_id}: {str(e)}")
+        
+        return {
+            "success": successful_merges > 0,
+            "primary_id": primary_id,
+            "secondary_ids": secondary_ids,
+            "total_merged": successful_merges,
+            "total_attempted": len(secondary_ids),
+            "changes": all_merge_logs,
+            "audit_ids": all_audit_ids
+        }
 
 
 # Initialize detector (will be done in server.py)
