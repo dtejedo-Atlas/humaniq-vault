@@ -21,6 +21,7 @@ import AdminPage from './pages/AdminPage';
 import ValidationPage from './pages/ValidationPage';
 import UsersPage from './pages/UsersPage';
 import DuplicatesPage from './pages/DuplicatesPage';
+import ClassificationReviewPage from './pages/ClassificationReviewPage';
 
 // Configure axios defaults
 axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
@@ -114,6 +115,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <SearchPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/review"
+        element={
+          <ProtectedRoute>
+            <ClassificationReviewPage />
           </ProtectedRoute>
         }
       />

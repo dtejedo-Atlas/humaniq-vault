@@ -23,11 +23,16 @@ import {
   ClipboardCheck,
   PlusCircle,
   FolderPlus,
-  GitMerge
+  GitMerge,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { foldersAPI } from '../api';
+import axios from 'axios';
+
+const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
 
 // Mapeo de iconos
 const ICON_MAP = {
@@ -73,10 +78,12 @@ const Sidebar = () => {
   const [verticalsExpanded, setVerticalsExpanded] = useState(true);
   const [processExpanded, setProcessExpanded] = useState(true);
   const [customExpanded, setCustomExpanded] = useState(true);
+  const [pendingClassificationsCount, setPendingClassificationsCount] = useState(0);
 
   // Cargar folders
   useEffect(() => {
     loadFolders();
+    loadPendingClassificationsCount();
   }, []);
 
   const loadFolders = async () => {
@@ -90,11 +97,21 @@ const Sidebar = () => {
     }
   };
 
+  const loadPendingClassificationsCount = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/atlas/classifications/pending/count`);
+      setPendingClassificationsCount(response.data.count || 0);
+    } catch (error) {
+      // Silently fail - not critical
+    }
+  };
+
   const mainNavItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/candidates', icon: Users, label: 'Candidatos' },
     { path: '/upload', icon: Upload, label: 'Subir CVs' },
     { path: '/search', icon: Search, label: 'Búsqueda' },
+    { path: '/review', icon: AlertCircle, label: 'Por Revisar', badge: pendingClassificationsCount },
   ];
 
   const bottomNavItems = [
@@ -126,7 +143,7 @@ const Sidebar = () => {
           to={item.path}
           data-testid={`nav-${item.label.toLowerCase().replace(' ', '-')}`}
           className={`
-            flex items-center gap-3 px-3 py-2 rounded-sm transition-all text-sm
+            flex items-center justify-between px-3 py-2 rounded-sm transition-all text-sm
             ${
               active
                 ? 'bg-cyan-500/20 text-cyan-400 font-medium'
@@ -134,8 +151,15 @@ const Sidebar = () => {
             }
           `}
         >
-          <Icon className="w-4 h-4" strokeWidth={1.5} />
-          <span>{item.label}</span>
+          <div className="flex items-center gap-3">
+            <Icon className="w-4 h-4" strokeWidth={1.5} />
+            <span>{item.label}</span>
+          </div>
+          {item.badge > 0 && (
+            <Badge className="bg-amber-500 text-white text-xs px-1.5 py-0 min-w-[20px] h-5 flex items-center justify-center">
+              {item.badge > 99 ? '99+' : item.badge}
+            </Badge>
+          )}
         </Link>
       </li>
     );

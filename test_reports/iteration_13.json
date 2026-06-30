@@ -1,0 +1,71 @@
+{
+  "summary": "Tested Classification Review (Bandeja Por Revisar) feature end-to-end. Backend APIs all PASS (11/11 pytest). Sidebar badge renders correctly with count from API. However the /review page CRASHES on render due to a bug in TaxonomyContext: ClassificationReviewPage destructures `seniorityLevels` from useTaxonomy() but the context never exposes it (undefined), so `seniorityLevels.find(...)` throws 'Cannot read properties of undefined (reading find)'. The entire feature is unusable in the UI until this is fixed. Also confirmed the user-reported expectation gap: candidates with ai_classification=null (6 in DB, including all 'sin functional_area' cases) do NOT appear in the pending list because the backend pipeline filters them out (conf_score defaults to 1 via $ifNull when ai_classification is null).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/atlas/classifications/pending",
+        "issue": "Candidates with ai_classification=null (6 in DB, including the ones without functional_area: 'Test Cv', 'Cv Juan Fernando Villaseñor', 'Cv María José Coca Candia', 'Samantha Vargas Escalante', 'Test Upload Cv', 'José Muñoz García') are EXCLUDED from the pending list. Pipeline uses {$ifNull:['$ai_classification.confidence_score',1]} which returns 1 when the parent is null, failing the <0.75 filter. User explicitly expects these 'sin clasificar' candidates to appear in the Bandeja Por Revisar. Recommended fix: add an $or branch to also match docs where ai_classification is null/missing, or branch the pipeline (e.g. add a flag is_unclassified)."
+      },
+      {
+        "endpoint": "Naming",
+        "issue": "Review request stated endpoints are at /api/classifications/pending but actual path is /api/atlas/classifications/pending (extra /atlas/ segment). Frontend uses the correct one, but the documentation/handoff in the request was misleading."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ClassificationReviewPage",
+        "issue": "P0 CRASH: page throws 'TypeError: Cannot read properties of undefined (reading find)' at getSeniorityLabel. Root cause: line 46 destructures `seniorityLevels` from useTaxonomy(), but TaxonomyContext (src/contexts/TaxonomyContext.js) does NOT include `seniorityLevels` in its provider value (only industries, functionalAreas, lookup, ...). Result: seniorityLevels is undefined, then line 194 calls .find on undefined. The full /review page is unusable - cannot view list, approve, or correct candidates from the UI. Fix options: (a) add seniorityLevels to TaxonomyContext (load from /api/atlas/taxonomy/seniority or similar) and expose it, or (b) make ClassificationReviewPage tolerant: `const level = (seniorityLevels || []).find(...)` and provide local fallback labels.",
+        "selector": "[data-testid='nav-por-revisar'] -> /review route -> getSeniorityLabel",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "ClassificationReviewPage",
+        "issue": "Missing the data-testid attributes promised in the review request: 'review-page-container', 'pending-candidates-list', 'approve-button', 'correction-form'. Existing testids are review-candidate-{id}, approve-{id}, correct-{id}. Either update the page to add the promised testids, or update the handoff doc.",
+        "selector": "ClassificationReviewPage root container",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Por Revisar navigation",
+        "issue": "Navigating to /review (or clicking the sidebar link with badge 1) immediately renders the 'Uncaught runtime errors' overlay. Approve, Correct, Bulk-approve, and Correction Dialog flows could not be exercised through the UI because of the crash. They were validated end-to-end at the API level via pytest (11/11 PASS).",
+        "affected_selectors": ["[data-testid^='review-candidate-']", "[data-testid^='approve-']", "[data-testid^='correct-']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_classifications_review.py",
+    "/app/test_reports/pytest/pytest_classifications_review.xml"
+  ],
+  "action_items": [
+    "[P0] Fix ClassificationReviewPage crash: add `seniorityLevels` to TaxonomyContext (provide a list of {key, label} objects, e.g. junior/mid/senior/lead/manager/director/vp/cxo) and expose it in the context value, OR guard the call in ClassificationReviewPage with (seniorityLevels||[]).find(...). Same guard recommended for industries.find / functionalAreas.find at lines 184/189.",
+    "[P1] Update GET /api/atlas/classifications/pending and /count to also include candidates whose ai_classification is null/missing - the user explicitly wants 'sin clasificar' candidates (6 currently in DB) to surface in the Bandeja Por Revisar. Suggested $match: { $or: [ {ai_classification: null}, {ai_classification: {$exists: false}}, { conf_score: {$lt: 0.75}, is_approved: false } ] }.",
+    "[P1] Re-test the UI flows (cards rendering, checkbox selection, bulk-approve button, correction dialog open + select changes + save) after the P0 fix lands.",
+    "[LOW] Add the data-testids referenced in the handoff (review-page-container, pending-candidates-list, approve-button, correction-form) for cleaner E2E selectors.",
+    "[LOW] Note: the route is /review (not /classifications/review as stated in the review request); update docs."
+  ],
+  "critical_code_review_comments": [
+    "ClassificationReviewPage.js: Three label helpers (industries.find / functionalAreas.find / seniorityLevels.find) call .find without guarding the array, so any missing context value triggers a full page crash. Guard with `(arr||[]).find(...)`.",
+    "TaxonomyContext.js exposes industries/functionalAreas but consumers (ClassificationReviewPage) expect a third 'seniorityLevels' that was never implemented. Either provide it or remove the consumer.",
+    "Backend pending pipeline silently drops null ai_classification via $ifNull defaulting to 1 - the business rule 'sin clasificación => needs review' is not implemented. Add explicit branch.",
+    "POST /api/atlas/classifications/bulk-approve overwrites candidate.functional_area, industry, seniority and tags from ai_classification (server.py 2066-2071) - correct behavior but lose existing tags rather than merging. Consider merging tags arrays instead of overwriting.",
+    "API_BASE fallback `process.env.REACT_APP_BACKEND_URL || ''` in ClassificationReviewPage.js line 43 silently degrades to relative URLs - same comment as iteration_12, please fail fast."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_classifications_review.py (new pytest file - 11 tests, all PASS)"
+  ],
+  "success_rate": {
+    "backend": "100% (11/11 pytest tests pass; functional gap on null ai_classification is a business-rule issue, not an API failure)",
+    "frontend": "20% - sidebar nav + badge work; /review page itself crashes; correction dialog and bulk-approve UI flows not testable"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin) - confirmed working at POST /api/auth/login. NOTE: /app/memory/test_credentials.md does NOT exist - please create it.",
+  "seed_data_creation": "None. Two existing pending candidates were mutated by tests (one approved, one corrected to industry=technology / functional_area=it_technology) - the pending count dropped from 3 to 1 in MongoDB. If subsequent UI tests need pending candidates, re-seed or pick from DB.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/test_classifications_review.py is the regression suite for this feature. The frontend /review route crashes due to seniorityLevels=undefined - main agent must fix TaxonomyContext or ClassificationReviewPage before any UI test can succeed. Candidates in DB without ai_classification (look for 'Test Cv', 'Cv Juan Fernando Villaseñor', etc.) still won't show in pending until the backend filter is broadened. Pending count via API is currently 1 (was 3 before this run - 2 were mutated by the pytest suite).",
+  "rca of the issue": "P0 CRASH RCA: ClassificationReviewPage.js:46 destructures three taxonomy arrays from useTaxonomy(): `const { industries, functionalAreas, seniorityLevels } = useTaxonomy();`. TaxonomyContext.js (lines 72-82) only exposes {industries, functionalAreas, lookup, loading, getIndustryName, getFunctionalAreaName, getIndustryOptions, getFunctionalAreaOptions, refetch}. There is NO seniorityLevels in the provider value. Therefore seniorityLevels === undefined. Line 194 then does `seniorityLevels.find(l => l.key === key)` which throws TypeError: Cannot read properties of undefined (reading 'find'). React renders the error overlay and unmounts the entire route. Reproduce: login as test_utf8@atlas.com -> click 'Por Revisar' in sidebar (or visit /review). Mitigation A (minimal): replace `seniorityLevels.find(...)` with `(seniorityLevels||[]).find(...)` and same for industries/functionalAreas. Mitigation B (proper): add seniorityLevels to TaxonomyContext, ideally loaded from a backend taxonomy endpoint, with shape [{key:'junior', name_es:'Junior'},...]. Mitigation C: hardcode a SENIORITY_OPTIONS const at the top of ClassificationReviewPage (since seniorities are a fixed enum)."
+}

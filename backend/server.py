@@ -1920,6 +1920,237 @@ async def approve_atlas_classification(
     return {"message": "Clasificación de Atlas aprobada y aplicada"}
 
 
+# ============= CLASSIFICATION REVIEW ENDPOINTS =============
+
+@api_router.get("/atlas/classifications/pending")
+async def get_pending_classifications(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get candidates with low-confidence classifications pending review.
+    Criteria: confidence_score < 0.75 AND approved_by_recruiter = false/missing
+    """
+    skip = (page - 1) * limit
+    
+    # Build aggregation pipeline for better subdocument handling
+    pipeline = [
+        {"$match": {"is_deleted": {"$ne": True}}},
+        {"$match": {"ai_classification": {"$exists": True}}},
+        {"$addFields": {
+            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 1]},
+            "is_approved": {"$ifNull": ["$ai_classification.approved_by_recruiter", False]}
+        }},
+        {"$match": {
+            "conf_score": {"$lt": 0.75},
+            "is_approved": False
+        }},
+        {"$sort": {"conf_score": 1}},
+        {"$facet": {
+            "data": [{"$skip": skip}, {"$limit": limit}],
+            "total": [{"$count": "count"}]
+        }}
+    ]
+    
+    result = await db.candidates.aggregate(pipeline).to_list(1)
+    
+    if not result:
+        return {"candidates": [], "total": 0, "page": page, "limit": limit, "pages": 0}
+    
+    facet_result = result[0]
+    candidates_data = facet_result.get("data", [])
+    total_data = facet_result.get("total", [])
+    total = total_data[0]["count"] if total_data else 0
+    
+    # Format response
+    results = []
+    for c in candidates_data:
+        ai_class = c.get("ai_classification", {})
+        results.append({
+            "id": c.get("id"),
+            "full_name": c.get("full_name"),
+            "current_title": c.get("current_title"),
+            "current_company": c.get("current_company"),
+            "current_classification": {
+                "industry": c.get("industry"),
+                "functional_area": c.get("functional_area"),
+                "seniority": c.get("seniority"),
+                "tags": c.get("tags", [])
+            },
+            "proposed_classification": {
+                "industry": ai_class.get("industry"),
+                "functional_area": ai_class.get("functional_area"),
+                "seniority": ai_class.get("seniority"),
+                "suggested_tags": ai_class.get("suggested_tags", [])
+            },
+            "confidence_score": ai_class.get("confidence_score", 0),
+            "classified_at": ai_class.get("classified_at"),
+            "created_at": c.get("created_at")
+        })
+    
+    return {
+        "candidates": results,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": (total + limit - 1) // limit if total > 0 else 0
+    }
+
+
+@api_router.get("/atlas/classifications/pending/count")
+async def get_pending_classifications_count(
+    current_user: User = Depends(get_current_user)
+):
+    """Get count of candidates pending classification review (for badge)"""
+    # Use aggregation for consistent results
+    pipeline = [
+        {"$match": {"is_deleted": {"$ne": True}}},
+        {"$match": {"ai_classification": {"$exists": True}}},
+        {"$addFields": {
+            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 1]},
+            "is_approved": {"$ifNull": ["$ai_classification.approved_by_recruiter", False]}
+        }},
+        {"$match": {
+            "conf_score": {"$lt": 0.75},
+            "is_approved": False
+        }},
+        {"$count": "count"}
+    ]
+    
+    result = await db.candidates.aggregate(pipeline).to_list(1)
+    count = result[0]["count"] if result else 0
+    
+    return {"count": count}
+
+
+class BulkApproveRequest(PydanticBaseModel):
+    candidate_ids: List[str]
+
+
+@api_router.post("/atlas/classifications/bulk-approve")
+async def bulk_approve_classifications(
+    request: BulkApproveRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Approve multiple classifications at once"""
+    if not request.candidate_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe especificar al menos un candidato"
+        )
+    
+    approved_count = 0
+    errors = []
+    
+    for candidate_id in request.candidate_ids:
+        try:
+            candidate_doc = await db.candidates.find_one(
+                {"id": candidate_id, "is_deleted": {"$ne": True}},
+                {"_id": 0, "ai_classification": 1}
+            )
+            
+            if not candidate_doc:
+                errors.append({"id": candidate_id, "error": "No encontrado"})
+                continue
+            
+            ai_class = candidate_doc.get("ai_classification")
+            if not ai_class:
+                errors.append({"id": candidate_id, "error": "Sin clasificación AI"})
+                continue
+            
+            # Apply classification to candidate
+            await db.candidates.update_one(
+                {"id": candidate_id},
+                {
+                    "$set": {
+                        "industry": ai_class.get("industry"),
+                        "functional_area": ai_class.get("functional_area"),
+                        "seniority": ai_class.get("seniority"),
+                        "tags": ai_class.get("suggested_tags", []),
+                        "ai_classification.approved_by_recruiter": True,
+                        "ai_classification.approved_at": datetime.now(timezone.utc).isoformat(),
+                        "ai_classification.approved_by": current_user.id,
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }
+                }
+            )
+            approved_count += 1
+            
+        except Exception as e:
+            errors.append({"id": candidate_id, "error": str(e)})
+    
+    logger.info(f"Bulk approval: {approved_count} classifications approved by {current_user.email}")
+    
+    return {
+        "success": True,
+        "approved_count": approved_count,
+        "total_requested": len(request.candidate_ids),
+        "errors": errors if errors else None
+    }
+
+
+class CorrectClassificationRequest(PydanticBaseModel):
+    industry: Optional[str] = None
+    functional_area: Optional[str] = None
+    seniority: Optional[str] = None
+
+
+@api_router.post("/atlas/classifications/correct/{candidate_id}")
+async def correct_classification(
+    candidate_id: str,
+    corrections: CorrectClassificationRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Correct and approve a classification with user-provided values"""
+    candidate_doc = await db.candidates.find_one(
+        {"id": candidate_id, "is_deleted": {"$ne": True}},
+        {"_id": 0, "ai_classification": 1}
+    )
+    
+    if not candidate_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Candidato no encontrado"
+        )
+    
+    ai_class = candidate_doc.get("ai_classification", {})
+    
+    # Build update with corrections (use correction if provided, else AI value)
+    update_data = {
+        "industry": corrections.industry if corrections.industry else ai_class.get("industry"),
+        "functional_area": corrections.functional_area if corrections.functional_area else ai_class.get("functional_area"),
+        "seniority": corrections.seniority if corrections.seniority else ai_class.get("seniority"),
+        "ai_classification.approved_by_recruiter": True,
+        "ai_classification.approved_at": datetime.now(timezone.utc).isoformat(),
+        "ai_classification.approved_by": current_user.id,
+        "ai_classification.was_corrected": True,
+        "ai_classification.corrections": {
+            "industry": corrections.industry,
+            "functional_area": corrections.functional_area,
+            "seniority": corrections.seniority
+        },
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.candidates.update_one(
+        {"id": candidate_id},
+        {"$set": update_data}
+    )
+    
+    logger.info(f"Classification corrected for {candidate_id} by {current_user.email}")
+    
+    return {
+        "success": True,
+        "message": "Clasificación corregida y aprobada",
+        "applied_classification": {
+            "industry": update_data["industry"],
+            "functional_area": update_data["functional_area"],
+            "seniority": update_data["seniority"]
+        }
+    }
+
+
 # ============= DASHBOARD & ANALYTICS ROUTES =============
 
 @api_router.get("/dashboard/stats")
