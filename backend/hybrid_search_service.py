@@ -1,6 +1,6 @@
 """
-Hybrid Search Service v2.1 - Scoring Multi-dimensional
-=======================================================
+Hybrid Search Service v2.2 - Scoring Multi-dimensional con Pesos Dinámicos
+===========================================================================
 
 Sistema de búsqueda híbrida con scoring explicable basado en:
 - Área funcional principal (40%)
@@ -10,6 +10,11 @@ Sistema de búsqueda híbrida con scoring explicable basado en:
 - Trayectoria profesional (5%)
 - Keywords textuales (5%)
 - Estabilidad laboral (2%)
+
+NUEVO en v2.2:
+- Redistribución dinámica de pesos cuando la query no tiene todas las dimensiones.
+- Si busco solo "Java", keywords y semántico dominan el scoring.
+- Permite skills cortos válidos: "Go", "R", "C#", "AI", "ML", etc.
 """
 
 from typing import List, Dict, Optional, Any, Tuple
@@ -48,13 +53,124 @@ from trajectory_analyzer import (
 
 logger = logging.getLogger(__name__)
 
+# Lista blanca de skills cortos válidos (2 caracteres o menos)
+# Estos no serán filtrados por longitud mínima
+SHORT_SKILLS_WHITELIST = {
+    # Lenguajes de programación
+    "go", "r", "c", "c#", "c++", "f#", "vb", "js", "ts", "ui", "ux",
+    # Tecnologías y frameworks
+    "ai", "ml", "dl", "bi", "qa", "db", "vm", "ci", "cd", "it", "pm",
+    # Certificaciones y estándares
+    "pmp", "mba", "cpa", "cfa", "ifrs", "sap", "erp", "crm", "aws", "gcp",
+    # Áreas
+    "hr", "rh", "pr", "ad", "si", "ti",
+}
+
 
 class HybridSearchService:
-    """Servicio de búsqueda híbrida con scoring v2.1"""
+    """Servicio de búsqueda híbrida con scoring v2.2 - Pesos dinámicos"""
     
     def __init__(self, db, embedding_service):
         self.db = db
         self.embedding_service = embedding_service
+    
+    # ========== REDISTRIBUCIÓN DINÁMICA DE PESOS ==========
+    
+    def _calculate_dynamic_weights(self, query_parsed: dict, has_embedding: bool) -> Dict[str, float]:
+        """
+        Calcula pesos dinámicos basados en las dimensiones presentes en la query.
+        
+        Si la query solo tiene keywords (sin área, seniority, industria), redistribuye
+        los pesos para que keywords y semántico dominen el scoring.
+        
+        Args:
+            query_parsed: Query parseada con area_funcional, seniority_index, industria, keywords
+            has_embedding: Si hay embedding disponible para búsqueda semántica
+        
+        Returns:
+            Dict con pesos normalizados que suman 1.0
+        """
+        # Detectar qué dimensiones están presentes en la query
+        has_area = bool(query_parsed.get("area_funcional"))
+        has_seniority = query_parsed.get("seniority_index") is not None
+        has_industry = bool(query_parsed.get("industria"))
+        has_keywords = bool(query_parsed.get("keywords"))
+        
+        # Pesos base de SEARCH_WEIGHTS
+        base_weights = {
+            "funcional": 0.40,
+            "seniority": 0.20,
+            "industria": 0.15,
+            "semantico": 0.13,
+            "keywords": 0.05,
+            "trayectoria": 0.05,
+            "estabilidad": 0.02,
+        }
+        
+        # Si todas las dimensiones principales están presentes, usar pesos estándar
+        if has_area and has_seniority and has_industry:
+            logger.debug("Query completa - usando pesos estándar")
+            return base_weights
+        
+        # Calcular peso a redistribuir (de dimensiones ausentes)
+        weight_to_redistribute = 0.0
+        active_dimensions = []
+        
+        if not has_area:
+            weight_to_redistribute += base_weights["funcional"]
+            base_weights["funcional"] = 0.0
+        else:
+            active_dimensions.append("funcional")
+        
+        if not has_seniority:
+            weight_to_redistribute += base_weights["seniority"]
+            base_weights["seniority"] = 0.0
+        else:
+            active_dimensions.append("seniority")
+        
+        if not has_industry:
+            weight_to_redistribute += base_weights["industria"]
+            base_weights["industria"] = 0.0
+        else:
+            active_dimensions.append("industria")
+        
+        # Si no hay nada que redistribuir, retornar pesos originales
+        if weight_to_redistribute == 0:
+            return base_weights
+        
+        # Redistribuir hacia keywords y semántico priorizando keywords
+        # Si hay keywords, darles mayor parte del peso redistribuido
+        # Si hay embedding, darle parte también al semántico
+        
+        if has_keywords and has_embedding:
+            # Redistribuir: 60% a keywords, 30% a semántico, 10% a trayectoria
+            base_weights["keywords"] += weight_to_redistribute * 0.60
+            base_weights["semantico"] += weight_to_redistribute * 0.30
+            base_weights["trayectoria"] += weight_to_redistribute * 0.10
+        elif has_keywords and not has_embedding:
+            # Sin embedding: 80% a keywords, 20% a trayectoria
+            base_weights["keywords"] += weight_to_redistribute * 0.80
+            base_weights["trayectoria"] += weight_to_redistribute * 0.20
+        elif has_embedding and not has_keywords:
+            # Sin keywords: 70% a semántico, 30% a trayectoria
+            base_weights["semantico"] += weight_to_redistribute * 0.70
+            base_weights["trayectoria"] += weight_to_redistribute * 0.30
+        else:
+            # Ni keywords ni embedding: redistribuir a trayectoria y estabilidad
+            base_weights["trayectoria"] += weight_to_redistribute * 0.70
+            base_weights["estabilidad"] += weight_to_redistribute * 0.30
+        
+        # Normalizar para asegurar que sumen 1.0
+        total = sum(base_weights.values())
+        if total > 0:
+            base_weights = {k: v / total for k, v in base_weights.items()}
+        
+        logger.info(f"Pesos dinámicos: área={has_area}, seniority={has_seniority}, "
+                   f"industria={has_industry}, keywords={has_keywords} → "
+                   f"keywords={base_weights['keywords']:.2f}, "
+                   f"semantico={base_weights['semantico']:.2f}")
+        
+        return base_weights
     
     # ========== CONSTRUCCIÓN DE QUERY MONGODB ==========
     
@@ -239,6 +355,8 @@ class HybridSearchService:
         """
         Calcula score de keywords (0-100).
         Retorna (score, keyword_in_title).
+        
+        v2.2: Acepta skills cortos válidos (Go, R, C#, AI, ML, etc.)
         """
         keywords = query_parsed.get("keywords", [])
         raw_query = query_parsed.get("raw_query", "").lower()
@@ -255,25 +373,34 @@ class HybridSearchService:
         # Contar matches
         matches = 0
         title_match = False
+        valid_keywords_count = 0
         
         for keyword in keywords:
-            if len(keyword) < 3:
+            keyword_lower = keyword.lower()
+            
+            # Filtrar keywords cortos EXCEPTO los de la whitelist
+            if len(keyword) < 2:
+                continue
+            if len(keyword) == 2 and keyword_lower not in SHORT_SKILLS_WHITELIST:
                 continue
             
+            valid_keywords_count += 1
+            
             # Título tiene peso triple
-            if keyword in current_title:
+            if keyword_lower in current_title:
                 matches += 3
                 title_match = True
-            # Otros campos peso 1
-            if keyword in current_company:
-                matches += 1
-            if keyword in ai_summary:
-                matches += 1
-            if keyword in skills:
+            # Skills peso doble (importante para búsquedas de skill)
+            if keyword_lower in skills:
                 matches += 2
+            # Otros campos peso 1
+            if keyword_lower in current_company:
+                matches += 1
+            if keyword_lower in ai_summary:
+                matches += 1
         
         # Calcular score basado en proporción
-        max_possible = len(keywords) * 7  # 3+1+1+2 por keyword
+        max_possible = valid_keywords_count * 7  # 3+2+1+1 por keyword
         if max_possible == 0:
             return (0, False)
         
@@ -425,14 +552,26 @@ class HybridSearchService:
         self,
         candidate: dict,
         query_parsed: dict,
-        query_embedding: Optional[List[float]]
+        query_embedding: Optional[List[float]],
+        dynamic_weights: Optional[Dict[str, float]] = None
     ) -> dict:
         """
         Calcula el score final multi-dimensional para un candidato.
         
+        v2.2: Ahora acepta pesos dinámicos para redistribución.
+        
+        Args:
+            candidate: Diccionario del candidato
+            query_parsed: Query parseada
+            query_embedding: Embedding de la query (opcional)
+            dynamic_weights: Pesos dinámicos calculados (opcional, usa WEIGHTS si None)
+        
         Returns:
             Dict con match_score y match_breakdown detallado
         """
+        # Usar pesos dinámicos si se proporcionan, si no usar los estándar
+        weights = dynamic_weights if dynamic_weights else WEIGHTS
+        
         # 1. Calcular cada componente
         func_score, exp_level = self._calculate_functional_score(candidate, query_parsed)
         seniority_score, seniority_distance = self._calculate_seniority_score(candidate, query_parsed)
@@ -457,15 +596,15 @@ class HybridSearchService:
             "stability_warning": stability_warning,
         }
         
-        # 3. Calcular score ponderado
+        # 3. Calcular score ponderado con pesos dinámicos
         weighted_score = (
-            func_score * WEIGHTS["funcional"] +
-            seniority_score * WEIGHTS["seniority"] +
-            industry_score * WEIGHTS["industria"] +
-            semantic_score * WEIGHTS["semantico"] +
-            keyword_score * WEIGHTS["keywords"] +
-            trajectory_score * WEIGHTS["trayectoria"] +
-            stability_score * WEIGHTS["estabilidad"]
+            func_score * weights.get("funcional", 0) +
+            seniority_score * weights.get("seniority", 0) +
+            industry_score * weights.get("industria", 0) +
+            semantic_score * weights.get("semantico", 0) +
+            keyword_score * weights.get("keywords", 0) +
+            trajectory_score * weights.get("trayectoria", 0) +
+            stability_score * weights.get("estabilidad", 0)
         )
         
         # 4. Calcular boosts y penalties
@@ -497,6 +636,7 @@ class HybridSearchService:
             "penalties": penalties,
             "penalty_reasons": penalty_reasons,
             "weighted_base": round(weighted_score),
+            "weights_used": {k: round(v, 3) for k, v in weights.items()},  # v2.2: Mostrar pesos usados
         }
         
         return {
@@ -515,7 +655,7 @@ class HybridSearchService:
         min_score: int = None
     ) -> List[dict]:
         """
-        Búsqueda híbrida con scoring v2.1.
+        Búsqueda híbrida con scoring v2.2 y pesos dinámicos.
         
         Args:
             query: Texto de búsqueda
@@ -554,17 +694,23 @@ class HybridSearchService:
         query_parsed = parse_query(query)
         logger.info(f"Query parsed: area={query_parsed.get('area_funcional')}, "
                    f"seniority={query_parsed.get('seniority_index')}, "
-                   f"industria={query_parsed.get('industria')}")
+                   f"industria={query_parsed.get('industria')}, "
+                   f"keywords={query_parsed.get('keywords')}")
         
         # C) OBTENER EMBEDDING SI CORRESPONDE
         query_embedding = None
+        has_embedding = False
         if use_semantic and self.embedding_service and self.embedding_service.enabled:
             try:
                 query_embedding = await self.embedding_service.generate_embedding(query)
+                has_embedding = query_embedding is not None
             except Exception as e:
                 logger.error(f"Error getting query embedding: {str(e)}")
         
-        # D) OBTENER CANDIDATOS BASE
+        # D) CALCULAR PESOS DINÁMICOS (v2.2)
+        dynamic_weights = self._calculate_dynamic_weights(query_parsed, has_embedding)
+        
+        # E) OBTENER CANDIDATOS BASE
         # Primero buscar con filtros, luego sin filtros si hay pocos resultados
         candidates = await self._get_all_candidates(filters, 200)
         
@@ -579,14 +725,15 @@ class HybridSearchService:
         
         logger.info(f"Total candidates to score: {len(candidates)}")
         
-        # E) CALCULAR SCORE PARA CADA CANDIDATO
+        # F) CALCULAR SCORE PARA CADA CANDIDATO (con pesos dinámicos)
         scored_results = []
         
         for candidate in candidates:
             score_data = self._calculate_final_score(
                 candidate, 
                 query_parsed, 
-                query_embedding
+                query_embedding,
+                dynamic_weights  # v2.2: Pasar pesos dinámicos
             )
             
             # Aplicar threshold
@@ -596,7 +743,7 @@ class HybridSearchService:
                 candidate_result['match_breakdown'] = score_data['match_breakdown']
                 scored_results.append(candidate_result)
         
-        # F) ORDENAR Y LIMITAR
+        # G) ORDENAR Y LIMITAR
         scored_results.sort(key=lambda x: x['match_score'], reverse=True)
         
         logger.info(f"Results after threshold ({effective_min_score}): {len(scored_results)}")

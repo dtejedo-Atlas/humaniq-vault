@@ -1,0 +1,51 @@
+{
+  "summary": "Backend-only validation of v2.2 dynamic-weights redistribution in hybrid_search_service.py. Created /app/backend/tests/test_dynamic_weights.py (16 tests). 15/16 PASS confirming: (a) pure skill queries (liderazgo/Java/Python/SAP) redistribute weights so funcional=0 and keywords~=0.65, (b) area-only queries (finanzas/reclutamiento) yield keywords~=0.33, (c) full queries (CFO fintech senior / gerente ventas automotriz) keep base weights (func=0.40, sen=0.20, ind=0.15, kw=0.05), (d) all scenarios normalize to sum=1.0, (e) the _calculate_keyword_score whitelist correctly admits 'bi' when injected manually and rejects non-whitelisted 2-char tokens, (f) API endpoint GET /api/candidates?search=... returns 200 for Java, Python, SAP, BI, finanzas and full queries. Backend logs confirm dynamic weight output exactly matches the problem statement (keywords=0.65 / keywords=0.33). 1 test FAILED revealing a defect that breaks requirement #5 (short skills BI/ML/AI accepted).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/candidates?search=BI (and ML, AI, Go, R, C#)",
+        "issue": "Short-skill whitelist in hybrid_search_service.py is unreachable code. query_parser.extract_keywords() filters with `len(w) >= 3` (line 229 of /app/backend/query_parser.py), so 2-char tokens ('bi','ml','ai','go','r') and tokens with special chars ('c#','c++','f#') are stripped BEFORE reaching _calculate_keyword_score's SHORT_SKILLS_WHITELIST. Verified via backend logs: search=BI -> 'Query parsed: ... keywords=[]' and 'Pesos dinámicos: ... keywords=False -> keywords=0.05'. This violates feature requirement #5: 'Skills cortos como BI, ML, AI deben ser aceptados en la búsqueda (no filtrados por longitud mínima)'.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/candidates (response_model)",
+        "issue": "Response is typed as List[Candidate] in server.py:244, so match_score / match_breakdown computed by the search service are stripped before being sent to the client. Frontend cannot show ranking score nor allow QA to verify ordering. Consider widening the response model or returning Dict for the search branch."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dynamic_weights.py",
+    "/app/test_reports/pytest/pytest_dynamic_weights.xml"
+  ],
+  "action_items": [
+    "Fix query_parser.extract_keywords() to also retain tokens that belong to SHORT_SKILLS_WHITELIST (or lower length threshold conditionally). Suggested change: `keywords = [w for w in words if w not in STOPWORDS and (len(w) >= 3 or w in SHORT_SKILLS_WHITELIST)]` – ideally import the whitelist from hybrid_search_service or move it to a shared module.",
+    "Also adjust the tokenizer regex `\\b[a-záéíóúñü]+\\b` so it preserves '#', '+' characters or add a parallel rule, otherwise C#, C++, F# will still be lost.",
+    "Optional: expose match_score in the /api/candidates search response so QA and UI can verify ranking ordering."
+  ],
+  "critical_code_review_comments": [
+    "Dead code: SHORT_SKILLS_WHITELIST in hybrid_search_service.py has no effect for 2-char/special-char entries because extract_keywords pre-filters them. The list should live in query_parser.py and be applied there.",
+    "_calculate_dynamic_weights branch when has_area only and has_keywords=False but has_embedding=True: weight_to_redistribute (0.35) routes 100% to keywords/semántico via the `has_keywords and has_embedding` branch only if keywords present – otherwise semántico path is used. Coverage looks complete but consider unit-testing the no-keywords/no-embedding branch (currently only logged).",
+    "server.py:244 `response_model=List[Candidate]` strips augmented fields (match_score, match_breakdown) coming from hybrid_search_service.search() – impacts observability and the user-visible ranking story."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dynamic_weights.py (new)",
+    "/app/test_reports/pytest/pytest_dynamic_weights.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "94% (15/16 tests passed)",
+    "frontend": "N/A (not requested)"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin)",
+  "seed_data_creation": "None. Tests use existing candidates and direct unit calls.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/test_dynamic_weights.py -v`. After the main agent updates query_parser.extract_keywords to honor the short-skills whitelist, the test `test_parse_query_extracts_short_whitelist_skills` must pass, and a search for `BI` should log `keywords=['bi']` and `Pesos dinámicos: ... keywords=True -> keywords=0.65`. The embedding service is intentionally returning 401 (per problem statement) so semántico contribution to scoring will be 0; this does not invalidate the weight-redistribution tests because we only assert weight distribution, not absolute candidate scores. The /api/candidates response_model hides match_score from the JSON payload, so ordering-by-relevance can only be verified through backend logs or a temporary change to the endpoint to return match_score.",
+  "rca of the issue": "Bug RCA: requirement #5 (accept short skills) is implemented only partially. Reproduction: 1) login, 2) GET /api/candidates?search=BI, 3) inspect backend log -> Query parsed: keywords=[]; Pesos dinámicos: keywords=False -> keywords=0.05. Root cause: hybrid_search_service.py defines SHORT_SKILLS_WHITELIST and consults it inside _calculate_keyword_score, but query_parser.extract_keywords already removed sub-3-char tokens (line 229: `len(w) >= 3`) before they ever reach the scoring function. Mitigation: move/import SHORT_SKILLS_WHITELIST into query_parser and change the filter to `(len(w) >= 3 or w in SHORT_SKILLS_WHITELIST)`. Also enhance the tokenizer regex to keep '#', '+'."
+}
