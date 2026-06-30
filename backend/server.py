@@ -44,10 +44,18 @@ from cv_version_service import CVVersionService
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+# MongoDB connection - Supports both local (MONGO_URL) and Atlas (ATLAS_URI)
+# Priority: ATLAS_URI > MONGO_URL (allows seamless migration)
+mongo_url = os.environ.get('ATLAS_URI') or os.environ.get('MONGO_URL')
+if not mongo_url:
+    raise ValueError("Database connection not configured. Set ATLAS_URI or MONGO_URL environment variable.")
+
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Log which database is being used (without exposing credentials)
+db_type = "MongoDB Atlas" if "mongodb+srv" in mongo_url else "Local MongoDB"
+logging.info(f"Connected to {db_type} - Database: {os.environ['DB_NAME']}")
 
 # Initialize services
 duplicate_detector = DuplicateDetector(db)
