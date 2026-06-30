@@ -555,3 +555,54 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - `TEST_RECRUITER_PASSWORD` (default: `Humaniq123`)
 - **Item 2 (is vs ==):** Revisado - no se encontraron instancias de `is` con literales que necesiten cambio. Los `== True` existentes son necesarios para distinguir `True` de `None`.
 - **Tests:** 135 passed, 7 failed (fallos preexistentes por datos desactualizados), 1 skipped
+
+
+### Feature: Bandeja de Clasificaciones Por Revisar (30-Jun-2026)
+- **Objetivo:** Permitir a reclutadores revisar y aprobar/corregir clasificaciones de IA con baja confianza o candidatos sin clasificar.
+- **Backend implementado:**
+  1. **GET /api/atlas/classifications/pending** - Lista candidatos pendientes de revisión:
+     - Incluye candidatos con `ai_classification.confidence_score < 0.75`
+     - Incluye candidatos con `ai_classification = null` (sin clasificar)
+     - Ordenados por confidence_score ascendente (más baja primero)
+     - Paginación con skip/limit
+  2. **GET /api/atlas/classifications/pending/count** - Contador para badge en sidebar
+  3. **POST /api/atlas/classifications/bulk-approve** - Aprobación masiva:
+     - Maneja candidatos CON clasificación (aplica valores AI)
+     - Maneja candidatos SIN clasificación (crea registro manual)
+  4. **POST /api/atlas/classifications/correct/{id}** - Corrección manual:
+     - Acepta `industry`, `functional_area`, `seniority`
+     - Reconstruye `ai_classification` completo (evita dot-notation en null)
+     - Marca `was_corrected: true`
+  5. **POST /api/atlas/approve-classification/{id}** - Aprobación individual:
+     - Actualizado para manejar `ai_classification = null`
+- **Frontend implementado:**
+  1. **ClassificationReviewPage.js** - Nueva página:
+     - Stats: pendientes, umbral 75%, seleccionados
+     - Lista de candidatos con checkbox para selección múltiple
+     - Botones "Aprobar" y "Corregir" por candidato
+     - Diálogo de corrección con dropdowns de taxonomía
+     - Botón bulk "Aprobar N seleccionados"
+  2. **TaxonomyContext.js** - Actualizado:
+     - Añadido `seniorityLevels` cargado desde `/api/taxonomy/seniority-levels`
+     - Nuevos helpers: `getSeniorityName()`, `getSeniorityOptions()`
+  3. **Sidebar.js** - Badge con count de pendientes
+  4. **App.js** - Ruta `/review` → `ClassificationReviewPage`
+- **Bugs corregidos:**
+  1. P0 Frontend crash: `seniorityLevels.find()` causaba TypeError porque el contexto no lo exponía
+  2. P1 Backend exclusión: Pipeline usaba `$ifNull` con default=1, excluyendo candidatos sin clasificar
+  3. P0 Approve crash: Endpoint rechazaba candidatos sin `ai_classification`
+  4. P0 Correct crash: Dot-notation en MongoDB fallaba cuando `ai_classification = null`
+- **Tests:** Backend 11/11 pytest pass, Frontend funcional con dropdowns vacíos (issue menor de timing)
+- **Candidatos sin functional_area:** Los 6 candidatos reportados ahora aparecen en la bandeja con 0% confianza
+
+---
+
+## Tareas Congeladas (por instrucción del usuario - 30-Jun-2026)
+Las siguientes tareas están **PAUSADAS** hasta nueva instrucción:
+- Code Quality Items 3-9 (React hooks, localStorage, massive components, etc.)
+- Panel "Mis Candidatos" 
+- Activity Feed
+- Alertas por diferencias en CVs
+- Refactorización de `server.py` (>4800 líneas)
+- Publicación Externa de Vacantes
+- Tracking de Origen de Candidatos

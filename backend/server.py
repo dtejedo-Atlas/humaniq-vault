@@ -1885,8 +1885,13 @@ async def approve_atlas_classification(
     candidate_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Approve Atlas classification and apply to candidate"""
-    candidate_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    """Approve Atlas classification and apply to candidate.
+    For unclassified candidates (ai_classification=null), creates a manual approval record.
+    """
+    candidate_doc = await db.candidates.find_one(
+        {"id": candidate_id}, 
+        {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1}
+    )
     
     if not candidate_doc:
         raise HTTPException(
@@ -1894,30 +1899,40 @@ async def approve_atlas_classification(
             detail="Candidato no encontrado"
         )
     
-    if not candidate_doc.get('ai_classification'):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No hay clasificación de Atlas disponible"
-        )
+    now = datetime.now(timezone.utc).isoformat()
+    ai_class = candidate_doc.get('ai_classification') or {}
     
-    ai_class = candidate_doc['ai_classification']
+    if ai_class:
+        # Has AI classification - apply it
+        update_data = {
+            "industry": ai_class.get('industry') or candidate_doc.get('industry'),
+            "functional_area": ai_class.get('functional_area') or candidate_doc.get('functional_area'),
+            "seniority": ai_class.get('seniority') or candidate_doc.get('seniority'),
+            "tags": ai_class.get('suggested_tags') or candidate_doc.get('tags', []),
+            "ai_classification.approved_by_recruiter": True,
+            "ai_classification.approved_at": now,
+            "ai_classification.approved_by": current_user.id,
+            "updated_at": now
+        }
+    else:
+        # No AI classification - create manual approval record
+        update_data = {
+            "ai_classification": {
+                "approved_by_recruiter": True,
+                "approved_at": now,
+                "approved_by": current_user.id,
+                "source": "manual_approval",
+                "confidence_score": 1.0
+            },
+            "updated_at": now
+        }
     
-    # Apply classification
     await db.candidates.update_one(
         {"id": candidate_id},
-        {
-            "$set": {
-                "industry": ai_class.get('industry'),
-                "functional_area": ai_class.get('functional_area'),
-                "seniority": ai_class.get('seniority'),
-                "tags": ai_class.get('suggested_tags', []),
-                "ai_classification.approved_by_recruiter": True,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-        }
+        {"$set": update_data}
     )
     
-    return {"message": "Clasificación de Atlas aprobada y aplicada"}
+    return {"message": "Clasificación aprobada"}
 
 
 # ============= CLASSIFICATION REVIEW ENDPOINTS =============
@@ -2053,7 +2068,9 @@ async def bulk_approve_classifications(
     request: BulkApproveRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Approve multiple classifications at once"""
+    """Approve multiple classifications at once. 
+    For unclassified candidates (ai_classification=null), marks as manually approved without changing fields.
+    """
     if not request.candidate_ids:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -2062,38 +2079,50 @@ async def bulk_approve_classifications(
     
     approved_count = 0
     errors = []
+    now = datetime.now(timezone.utc).isoformat()
     
     for candidate_id in request.candidate_ids:
         try:
             candidate_doc = await db.candidates.find_one(
                 {"id": candidate_id, "is_deleted": {"$ne": True}},
-                {"_id": 0, "ai_classification": 1}
+                {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1}
             )
             
             if not candidate_doc:
                 errors.append({"id": candidate_id, "error": "No encontrado"})
                 continue
             
-            ai_class = candidate_doc.get("ai_classification")
-            if not ai_class:
-                errors.append({"id": candidate_id, "error": "Sin clasificación AI"})
-                continue
+            ai_class = candidate_doc.get("ai_classification") or {}
             
-            # Apply classification to candidate
+            # Handle both classified and unclassified candidates
+            if ai_class:
+                # Has AI classification - apply it
+                update_data = {
+                    "industry": ai_class.get("industry") or candidate_doc.get("industry"),
+                    "functional_area": ai_class.get("functional_area") or candidate_doc.get("functional_area"),
+                    "seniority": ai_class.get("seniority") or candidate_doc.get("seniority"),
+                    "tags": ai_class.get("suggested_tags") or candidate_doc.get("tags", []),
+                    "ai_classification.approved_by_recruiter": True,
+                    "ai_classification.approved_at": now,
+                    "ai_classification.approved_by": current_user.id,
+                    "updated_at": now
+                }
+            else:
+                # No AI classification - create minimal approval record
+                update_data = {
+                    "ai_classification": {
+                        "approved_by_recruiter": True,
+                        "approved_at": now,
+                        "approved_by": current_user.id,
+                        "source": "manual_approval",
+                        "confidence_score": 1.0  # Manual = full confidence
+                    },
+                    "updated_at": now
+                }
+            
             await db.candidates.update_one(
                 {"id": candidate_id},
-                {
-                    "$set": {
-                        "industry": ai_class.get("industry"),
-                        "functional_area": ai_class.get("functional_area"),
-                        "seniority": ai_class.get("seniority"),
-                        "tags": ai_class.get("suggested_tags", []),
-                        "ai_classification.approved_by_recruiter": True,
-                        "ai_classification.approved_at": datetime.now(timezone.utc).isoformat(),
-                        "ai_classification.approved_by": current_user.id,
-                        "updated_at": datetime.now(timezone.utc).isoformat()
-                    }
-                }
+                {"$set": update_data}
             )
             approved_count += 1
             
@@ -2122,10 +2151,12 @@ async def correct_classification(
     corrections: CorrectClassificationRequest,
     current_user: User = Depends(get_current_user)
 ):
-    """Correct and approve a classification with user-provided values"""
+    """Correct and approve a classification with user-provided values.
+    Works for both classified and unclassified candidates.
+    """
     candidate_doc = await db.candidates.find_one(
         {"id": candidate_id, "is_deleted": {"$ne": True}},
-        {"_id": 0, "ai_classification": 1}
+        {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1}
     )
     
     if not candidate_doc:
@@ -2134,28 +2165,45 @@ async def correct_classification(
             detail="Candidato no encontrado"
         )
     
-    ai_class = candidate_doc.get("ai_classification", {})
+    # Handle both null and existing ai_classification
+    ai_class = candidate_doc.get("ai_classification") or {}
+    now = datetime.now(timezone.utc).isoformat()
     
-    # Build update with corrections (use correction if provided, else AI value)
-    update_data = {
-        "industry": corrections.industry if corrections.industry else ai_class.get("industry"),
-        "functional_area": corrections.functional_area if corrections.functional_area else ai_class.get("functional_area"),
-        "seniority": corrections.seniority if corrections.seniority else ai_class.get("seniority"),
-        "ai_classification.approved_by_recruiter": True,
-        "ai_classification.approved_at": datetime.now(timezone.utc).isoformat(),
-        "ai_classification.approved_by": current_user.id,
-        "ai_classification.was_corrected": True,
-        "ai_classification.corrections": {
+    # Determine final values (correction > AI suggestion > existing value)
+    final_industry = corrections.industry or ai_class.get("industry") or candidate_doc.get("industry")
+    final_area = corrections.functional_area or ai_class.get("functional_area") or candidate_doc.get("functional_area")
+    final_seniority = corrections.seniority or ai_class.get("seniority") or candidate_doc.get("seniority")
+    
+    # Build the complete ai_classification object (avoids dot-notation on null)
+    new_ai_classification = {
+        "industry": final_industry,
+        "functional_area": final_area,
+        "seniority": final_seniority,
+        "suggested_tags": ai_class.get("suggested_tags", []),
+        "confidence_score": ai_class.get("confidence_score", 1.0),  # Manual correction = full confidence
+        "approved_by_recruiter": True,
+        "approved_at": now,
+        "approved_by": current_user.id,
+        "was_corrected": True,
+        "corrections": {
             "industry": corrections.industry,
             "functional_area": corrections.functional_area,
             "seniority": corrections.seniority
         },
-        "updated_at": datetime.now(timezone.utc).isoformat()
+        "classified_at": ai_class.get("classified_at", now),
+        "source": ai_class.get("source", "manual_correction")
     }
     
+    # Update candidate with complete object replacement (no dot-notation issues)
     await db.candidates.update_one(
         {"id": candidate_id},
-        {"$set": update_data}
+        {"$set": {
+            "industry": final_industry,
+            "functional_area": final_area,
+            "seniority": final_seniority,
+            "ai_classification": new_ai_classification,
+            "updated_at": now
+        }}
     )
     
     logger.info(f"Classification corrected for {candidate_id} by {current_user.email}")
@@ -2164,9 +2212,9 @@ async def correct_classification(
         "success": True,
         "message": "Clasificación corregida y aprobada",
         "applied_classification": {
-            "industry": update_data["industry"],
-            "functional_area": update_data["functional_area"],
-            "seniority": update_data["seniority"]
+            "industry": final_industry,
+            "functional_area": final_area,
+            "seniority": final_seniority
         }
     }
 
