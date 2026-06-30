@@ -206,9 +206,9 @@ const CVVersionHistory = ({ candidateId, candidateName, onVersionUpdated }) => {
 
   if (loading) {
     return (
-      <Card>
+      <Card className="border-2 border-cyan-200 shadow-md">
         <CardContent className="py-4 flex items-center justify-center">
-          <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+          <Loader2 className="w-5 h-5 animate-spin text-cyan-600" />
         </CardContent>
       </Card>
     );
@@ -216,133 +216,165 @@ const CVVersionHistory = ({ candidateId, candidateName, onVersionUpdated }) => {
 
   return (
     <>
-      <Card>
-        <CardHeader className="py-3 px-4 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+      <Card className="border-2 border-cyan-200 shadow-md overflow-hidden">
+        <CardHeader 
+          className="py-4 px-4 cursor-pointer bg-gradient-to-r from-cyan-600 to-blue-600 text-white" 
+          onClick={() => setExpanded(!expanded)}
+        >
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <History className="w-4 h-4 text-slate-500" />
-              <CardTitle className="text-sm font-medium">
-                Historial de CVs ({versions.length} versión{versions.length !== 1 ? 'es' : ''})
-              </CardTitle>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <History className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold text-white">
+                  Historial de CVs
+                </CardTitle>
+                <p className="text-cyan-100 text-sm">
+                  {versions.length} versión{versions.length !== 1 ? 'es' : ''} guardada{versions.length !== 1 ? 's' : ''}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
+                className="bg-white/20 hover:bg-white/30 text-white border-0"
                 onClick={(e) => {
                   e.stopPropagation();
                   setUploadDialogOpen(true);
                 }}
               >
-                <Upload className="w-3.5 h-3.5 mr-1" />
+                <Upload className="w-4 h-4 mr-1" />
                 Nueva versión
               </Button>
               {expanded ? (
-                <ChevronUp className="w-4 h-4 text-slate-400" />
+                <ChevronUp className="w-5 h-5 text-white/80" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
+                <ChevronDown className="w-5 h-5 text-white/80" />
               )}
             </div>
           </div>
         </CardHeader>
 
         {expanded && (
-          <CardContent className="pt-0 pb-4">
-            {versions.length > 1 && (
-              <div className="flex items-center justify-between mb-3 pb-3 border-b">
-                <span className="text-xs text-slate-500">
-                  {selectedVersions.length === 2 
-                    ? `Comparando v${selectedVersions[0]} con v${selectedVersions[1]}`
-                    : 'Selecciona 2 versiones para comparar'}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={selectedVersions.length !== 2 || comparing}
-                  onClick={handleCompare}
-                >
-                  {comparing ? (
-                    <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-                  ) : (
-                    <GitCompare className="w-3.5 h-3.5 mr-1" />
-                  )}
-                  Comparar
-                </Button>
+          <CardContent className="pt-4 pb-4 bg-white">
+            {versions.length === 0 ? (
+              <div className="text-center py-6 text-slate-500">
+                <FileText className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                <p className="text-sm">No hay versiones de CV registradas</p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Sube un CV para crear la primera versión
+                </p>
               </div>
-            )}
-
-            <div className="space-y-2">
-              {versions.map((version) => (
-                <div
-                  key={version.id}
-                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-                    version.is_current 
-                      ? 'bg-cyan-50 border-cyan-200' 
-                      : selectedVersions.includes(version.version)
-                        ? 'bg-slate-100 border-slate-300'
-                        : 'bg-white border-slate-200 hover:bg-slate-50'
-                  }`}
-                  onClick={() => versions.length > 1 && toggleVersionSelection(version.version)}
-                >
-                  <div className="flex items-center gap-3">
-                    {versions.length > 1 && (
-                      <input
-                        type="checkbox"
-                        checked={selectedVersions.includes(version.version)}
-                        onChange={() => toggleVersionSelection(version.version)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="rounded border-slate-300"
-                      />
-                    )}
-                    <FileText className="w-5 h-5 text-slate-400" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-slate-900">
-                          v{version.version}: {version.file_name}
-                        </span>
-                        {version.is_current && (
-                          <Badge className="bg-cyan-600 text-white text-xs">Actual</Badge>
-                        )}
-                        {getSourceBadge(version.upload_source)}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {formatDate(version.uploaded_at)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          {version.uploaded_by_name || 'Sistema'}
-                        </span>
-                        {version.file_size && (
-                          <span>{formatFileSize(version.file_size)}</span>
-                        )}
-                        {version.has_snapshot && (
-                          <Badge variant="outline" className="text-xs py-0">
-                            Con snapshot
-                          </Badge>
-                        )}
-                      </div>
-                      {version.notes && (
-                        <p className="text-xs text-slate-500 mt-1 italic">
-                          {version.notes}
-                        </p>
+            ) : (
+              <>
+                {versions.length > 1 && (
+                  <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+                    <span className="text-xs text-slate-500">
+                      {selectedVersions.length === 2 
+                        ? `Comparando v${selectedVersions[0]} con v${selectedVersions[1]}`
+                        : 'Selecciona 2 versiones para comparar'}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={selectedVersions.length !== 2 || comparing}
+                      onClick={handleCompare}
+                    >
+                      {comparing ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                      ) : (
+                        <GitCompare className="w-3.5 h-3.5 mr-1" />
                       )}
-                    </div>
+                      Comparar
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDownload(version);
-                    }}
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
+                )}
+
+                <div className="space-y-3">
+                  {versions.map((version) => (
+                    <div
+                      key={version.id}
+                      data-testid={`cv-version-${version.version}`}
+                      className={`p-4 rounded-lg border-2 transition-all ${
+                        version.is_current 
+                          ? 'bg-cyan-50 border-cyan-300 shadow-sm' 
+                          : selectedVersions.includes(version.version)
+                            ? 'bg-slate-100 border-slate-400'
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                      }`}
+                      onClick={() => versions.length > 1 && toggleVersionSelection(version.version)}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {versions.length > 1 && (
+                            <input
+                              type="checkbox"
+                              checked={selectedVersions.includes(version.version)}
+                              onChange={() => toggleVersionSelection(version.version)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded border-slate-300 mt-1"
+                            />
+                          )}
+                          <div className={`p-2 rounded-lg ${version.is_current ? 'bg-cyan-100' : 'bg-slate-100'}`}>
+                            <FileText className={`w-5 h-5 ${version.is_current ? 'text-cyan-600' : 'text-slate-500'}`} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-slate-900">
+                                Versión {version.version}
+                              </span>
+                              {version.is_current && (
+                                <Badge className="bg-cyan-600 text-white text-xs">
+                                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                                  Actual
+                                </Badge>
+                              )}
+                              {getSourceBadge(version.upload_source)}
+                            </div>
+                            <p className="text-sm text-slate-600 truncate mt-1">
+                              {version.file_name}
+                            </p>
+                            <div className="flex items-center gap-4 text-xs text-slate-500 mt-2">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3.5 h-3.5" />
+                                {formatDate(version.uploaded_at || version.created_at)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <User className="w-3.5 h-3.5" />
+                                {version.uploaded_by_name || 'Sistema'}
+                              </span>
+                              {version.file_size && (
+                                <span>{formatFileSize(version.file_size)}</span>
+                              )}
+                            </div>
+                            {version.notes && (
+                              <p className="text-xs text-slate-500 mt-2 italic bg-slate-50 p-2 rounded">
+                                &ldquo;{version.notes}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="bg-cyan-600 hover:bg-cyan-700 text-white shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownload(version);
+                          }}
+                          data-testid={`download-cv-v${version.version}`}
+                        >
+                          <Download className="w-4 h-4 mr-1" />
+                          Descargar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
           </CardContent>
         )}
       </Card>

@@ -818,12 +818,14 @@ const CandidateDetailPage = () => {
 
           {/* Right Column - Side Info */}
           <div className="space-y-6">
-            {/* CV Version History */}
-            <CVVersionHistory 
-              candidateId={candidate.id} 
-              candidateName={candidate.full_name}
-              onVersionUpdated={() => loadCandidate()}
-            />
+            {/* CV Version History - Destacado */}
+            <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-1">
+              <CVVersionHistory 
+                candidateId={candidate.id} 
+                candidateName={candidate.full_name}
+                onVersionUpdated={() => fetchCandidate()}
+              />
+            </div>
 
             {/* Metadata */}
             <Card>
@@ -1046,7 +1048,7 @@ const CandidateDetailPage = () => {
                         por {change.changed_by_name} • {formatDateTime(change.changed_at)}
                       </p>
                       {change.notes && (
-                        <p className="text-xs text-slate-600 mt-1 italic">"{change.notes}"</p>
+                        <p className="text-xs text-slate-600 mt-1 italic">&ldquo;{change.notes}&rdquo;</p>
                       )}
                     </div>
                   </div>

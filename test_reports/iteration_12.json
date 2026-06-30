@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only validation of the enhanced CVVersionHistory component on CandidateDetailPage. Logged in as test_utf8@atlas.com, opened candidate Alex Shapiro (7405dadf-4d61-451b-8b95-9db8a0e7b08e). Verified: (1) Component renders inside the requested cyan/blue gradient wrapper in the right sidebar with the colored header (linear-gradient cyan-600 -> blue-600, white text). (2) Title 'Historial de CVs' + version counter '0 versiónes guardadas' are visible without expanding. (3) 'Nueva versión' button is visible, clickable, and opens the upload dialog ('Subir Nueva Versión de CV'); Cancelar closes it. (4) Clicking the header expands the card and shows the empty state 'No hay versiones de CV registradas / Sube un CV para crear la primera versión' with the FileText icon (matches code at lines 262-269). (5) No CV versions currently exist for this candidate, so the per-version card (number, filename, date via uploaded_at||created_at, Descargar button with data-testid='download-cv-v<n>') could NOT be exercised end-to-end on real data. Static code review of the version card (lines 296-374) confirms: version number rendered as 'Versión {version.version}', date uses `version.uploaded_at || version.created_at` via formatDate, Descargar button is a solid cyan-600 Button with Download icon and data-testid, and handleDownload uses responseType:'blob' with the correct endpoint /api/candidates/{id}/cv-versions/{version}/download and forces a download with version.file_name.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/taxonomy/industries|functional-areas|lookup", "issue": "Still returning 403 for the authenticated admin – same pre-existing console noise reported in iteration_11. Unrelated to CVVersionHistory but visible while loading the candidate detail page."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CVVersionHistory", "issue": "Spanish pluralization typo in the version counter: renders '0 versiónes guardadas' / '2 versiónes guardadas' instead of the correct '0 versiones guardadas'. The accent on the 'ó' must be dropped in the plural form ('versión' -> 'versiones'). Fix in CVVersionHistory.js line 234: replace `versión{versions.length !== 1 ? 'es' : ''}` with `versi${versions.length !== 1 ? 'ones' : 'ón'}` (or a similar guard).", "selector": "p.text-cyan-100 inside the gradient header", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_12.json"
+  ],
+  "action_items": [
+    "Fix Spanish pluralization in CVVersionHistory.js line 234 ('versiónes' -> 'versiones').",
+    "(Carried over) Resolve /api/taxonomy/* 403 spam on candidate pages – not introduced by this change but pollutes the console.",
+    "Optional retest with a real CV version: POST a PDF/DOCX via the 'Nueva versión' dialog so the per-version card, the date (uploaded_at), and the Descargar button can be validated end-to-end."
+  ],
+  "critical_code_review_comments": [
+    "Date fallback `version.uploaded_at || version.created_at` (line 342) is correct and matches the requirement.",
+    "Download button has data-testid='download-cv-v{version}' and uses stopPropagation – good for E2E testability and avoids triggering version selection.",
+    "API_BASE fallback `process.env.REACT_APP_BACKEND_URL || ''` (line 34) silently degrades to relative URLs if env var is missing – consider failing fast per env-var guideline.",
+    "CVVersionHistory.js is ~540 lines and mixes list, upload dialog, and compare dialog – consider splitting the Compare dialog into its own component if it grows further."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only run)",
+    "frontend": "100% on the items that could be verified (UI structure, expand/collapse, empty state, Nueva versión dialog). Download flow not exercisable due to absence of CV versions."
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin) – confirmed working via /login.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Candidate Alex Shapiro (7405dadf-4d61-451b-8b95-9db8a0e7b08e) still has 0 CV versions. To validate the per-version row, the date and the Descargar button, upload a PDF/DOCX via the 'Nueva versión' dialog or POST /api/candidates/{id}/update-cv – then re-expand the card and the per-version <div data-testid='cv-version-1'> should appear with the cyan 'Descargar' button (data-testid='download-cv-v1').",
+  "rca of the issue": "Pluralization bug RCA: `versión{versions.length !== 1 ? 'es' : ''}` concatenates 'es' onto the accented 'versión', producing the malformed 'versiónes'. In Spanish, the orthographic accent moves/drops when the word becomes paroxytone in the plural ('versión' -> 'versiones'). Suggested fix: ternary at the whole-word level, e.g. `${versions.length === 1 ? 'versión' : 'versiones'}`."
+}
