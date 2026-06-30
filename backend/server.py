@@ -1548,25 +1548,41 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.progress = 50
     job.current_stage = "creating_candidate"
     
-    # 4. Crear candidato
+    # 4. Crear candidato (con validación defensiva)
     candidate_id = str(uuid.uuid4())
     
     try:
+        # Limpiar y validar previous_companies
+        cleaned_companies = clean_previous_companies(parsed_data.get('previous_companies', []))
+        previous_companies_objs = []
+        for pc in cleaned_companies:
+            try:
+                previous_companies_objs.append(PreviousCompany(**pc))
+            except Exception as pc_err:
+                logger.warning(f"[Batch] Saltando previous_company inválida: {pc_err}")
+        
+        # Validar years_experience de forma segura
+        years_exp = safe_int(parsed_data.get('years_experience'))
+        
+        # Validar skills y languages como listas
+        skills = safe_list(parsed_data.get('skills'))
+        languages = safe_list(parsed_data.get('languages'))
+        
         candidate = Candidate(
             id=candidate_id,
-            full_name=parsed_data.get('full_name', f"Candidato - {file_name}"),
-            email=parsed_data.get('email'),
-            phone=parsed_data.get('phone'),
-            city=parsed_data.get('city'),
-            state=parsed_data.get('state'),
-            country=parsed_data.get('country', 'México'),
-            linkedin_url=parsed_data.get('linkedin_url'),
-            current_company=parsed_data.get('current_company'),
-            current_title=parsed_data.get('current_title'),
-            years_experience=parsed_data.get('years_experience'),
-            skills=parsed_data.get('skills', []),
-            languages=parsed_data.get('languages', []),
-            previous_companies=[PreviousCompany(**pc) for pc in parsed_data.get('previous_companies', []) if isinstance(pc, dict)],
+            full_name=safe_string(parsed_data.get('full_name'), f"Candidato - {file_name}"),
+            email=safe_string(parsed_data.get('email')),
+            phone=safe_string(parsed_data.get('phone')),
+            city=safe_string(parsed_data.get('city')),
+            state=safe_string(parsed_data.get('state')),
+            country=safe_string(parsed_data.get('country'), 'México'),
+            linkedin_url=safe_string(parsed_data.get('linkedin_url')),
+            current_company=safe_string(parsed_data.get('current_company')),
+            current_title=safe_string(parsed_data.get('current_title')),
+            years_experience=years_exp,
+            skills=skills,
+            languages=languages,
+            previous_companies=previous_companies_objs,
             source="CV Upload (Batch)",
             created_by=user_id
         )

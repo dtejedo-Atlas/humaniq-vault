@@ -473,6 +473,21 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - `SPECIAL_CHAR_SKILLS` para tokens como "C#", "C++", "F#", ".NET"
   - `extract_keywords()` acepta tokens de 2+ chars si están en la whitelist
 
+### Fix: CVs Multi-Columna y Validación Resiliente de Upload (30-Jun-2026)
+- **Problema:** CVs con diseño de dos columnas (Canva, plantillas) fallaban con "Error procesando CV". Error real: `'Candidate' object has no attribute 'education'`.
+- **Solución implementada:**
+  1. **Extracción Multi-Columna** (`document_parser.py` v2.1):
+     - Nuevo método `_detect_columns()` detecta layout multi-columna basado en coordenadas x
+     - Nuevo método `_extract_text_multi_column()` extrae texto respetando columnas
+     - CVs de Canva ahora se extraen en orden lógico (columna izquierda → columna derecha)
+  2. **Validación Resiliente** (`server.py`):
+     - Nuevas funciones helper: `safe_int()`, `safe_string()`, `safe_list()`, `clean_previous_companies()`
+     - `years_experience` como "10 años" o "5+" se convierte a int correctamente
+     - `previous_companies` con campos faltantes o alternativos se limpia sin fallar
+     - Aplicado tanto al endpoint sync (`upload-resume`) como al path batch (`process_cv_job`)
+  3. **Removida referencia a `candidate.education`** que no existe en el modelo
+- **Tests:** 20/20 passed (`/app/backend/tests/test_cv_upload_resilience.py`)
+
 ## Arquitectura de Búsqueda (Definitiva)
 
 | Ubicación | Endpoint | Motor | Comportamiento |
