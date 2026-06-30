@@ -231,7 +231,7 @@ const CVVersionHistory = ({ candidateId, candidateName, onVersionUpdated }) => {
                   Historial de CVs
                 </CardTitle>
                 <p className="text-cyan-100 text-sm">
-                  {versions.length} versión{versions.length !== 1 ? 'es' : ''} guardada{versions.length !== 1 ? 's' : ''}
+                  {versions.length} {versions.length === 1 ? 'versión guardada' : 'versiones guardadas'}
                 </p>
               </div>
             </div>

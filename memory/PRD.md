@@ -517,3 +517,21 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - **Resultado:** Los 4 candidatos "Alex Shapiro" fueron fusionados exitosamente en uno solo
 - **Tests:** 13/14 passed (`/app/backend/tests/test_duplicates_merge_multiple.py`)
 
+### Mejora: CVVersionHistory más visible (30-Jun-2026)
+- **Objetivo:** Mejorar visibilidad del historial de CVs en el perfil del candidato.
+- **Cambios implementados:**
+  1. **Diseño destacado** (`CVVersionHistory.js`):
+     - Header con gradiente cyan-600 → blue-600 y texto blanco
+     - Wrapper con fondo degradado cyan-50 → blue-50 en CandidateDetailPage
+     - Ícono de historial en recuadro semitransparente
+     - Contador de versiones visible sin expandir
+  2. **Versiones individuales mejoradas:**
+     - Card con borde cyan para versión actual, badge "Actual" destacado
+     - Fecha usa `uploaded_at || created_at` correctamente
+     - Botón "Descargar" cyan sólido (en lugar de ghost)
+     - data-testid para cada versión y botón descarga
+  3. **UX mejorada:**
+     - Estado vacío claro con ícono e instrucciones
+     - Notas de versión con fondo destacado
+- **Fix:** Corregida pluralización española ("versiónes" → "versiones")
+- **Tests:** Frontend 100% validated (UI structure, expand/collapse, empty state, upload dialog)
