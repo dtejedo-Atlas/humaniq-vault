@@ -452,6 +452,27 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - `server.py` tiene ~4200 líneas. Planificar división en routers modulares
 - PUT `/api/candidates/{id}` no valida permisos de asignación (UI sí lo hace)
 
+## Correcciones Recientes (30-Jun-2026)
+
+### Fix: Redistribución Dinámica de Pesos en Búsqueda Híbrida
+- **Problema:** Al buscar un skill puro (ej: "Java", "SAP", "BI"), el sistema ignoraba el keyword porque pesaba solo 5%, mientras que área funcional (40%), seniority (20%) e industria (15%) devolvían scores neutrales para todos los candidatos. Resultado: rankings irrelevantes.
+- **Solución implementada:**
+  - `hybrid_search_service.py` v2.2: Nuevo método `_calculate_dynamic_weights()` redistribuye pesos según dimensiones presentes en la query.
+  - Si query tiene solo keywords → keywords=65%, semántico=13%, trayectoria=10%
+  - Si query tiene área + keywords → keywords=33% (redistribución parcial)
+  - Si query es completa (área+seniority+industria) → pesos estándar sin cambios
+- **Archivos modificados:**
+  - `/app/backend/hybrid_search_service.py` - v2.2 con pesos dinámicos
+  - `/app/backend/query_parser.py` - v2.1 con whitelist de skills cortos
+- **Tests:** 16/16 passed (`/app/backend/tests/test_dynamic_weights.py`)
+
+### Fix: Soporte para Skills Cortos (BI, AI, ML, Go, R, C#)
+- **Problema:** `extract_keywords()` filtraba palabras < 3 caracteres, descartando skills válidos como "BI", "AI", "ML", "Go", "R".
+- **Solución:**
+  - `query_parser.py` ahora tiene `SHORT_SKILLS_WHITELIST` con 30+ skills cortos válidos
+  - `SPECIAL_CHAR_SKILLS` para tokens como "C#", "C++", "F#", ".NET"
+  - `extract_keywords()` acepta tokens de 2+ chars si están en la whitelist
+
 ## Arquitectura de Búsqueda (Definitiva)
 
 | Ubicación | Endpoint | Motor | Comportamiento |

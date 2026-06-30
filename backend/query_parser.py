@@ -1,11 +1,33 @@
 """
-Query Parser
-============
+Query Parser v2.1
+=================
 Parsea queries de búsqueda para extraer área funcional, industria, seniority y keywords.
+
+NUEVO en v2.1:
+- Whitelist de skills cortos válidos (Go, R, C#, AI, ML, BI, etc.)
+- Soporte para tokens con caracteres especiales (C#, C++, F#)
 """
 
 import re
 from typing import Optional, Dict, List, Any
+
+# ============= WHITELIST DE SKILLS CORTOS =============
+# Skills de 2 caracteres o menos que son válidos y no deben filtrarse
+# También incluye skills con caracteres especiales
+
+SHORT_SKILLS_WHITELIST = {
+    # Lenguajes de programación (2 chars o con caracteres especiales)
+    "go", "r", "c", "c#", "c++", "f#", "vb", "js", "ts", "ui", "ux",
+    # Tecnologías y frameworks
+    "ai", "ml", "dl", "bi", "qa", "db", "vm", "ci", "cd", "it", "pm",
+    # Certificaciones y estándares cortos
+    "pmp", "mba", "cpa", "cfa", "ifrs", "sap", "erp", "crm", "aws", "gcp",
+    # Áreas
+    "hr", "rh", "pr", "ad", "si", "ti",
+}
+
+# Skills con caracteres especiales - necesitan manejo especial en tokenización
+SPECIAL_CHAR_SKILLS = {"c#", "c++", "f#", ".net"}
 
 # ============= KEYWORDS POR ÁREA FUNCIONAL =============
 
@@ -214,7 +236,9 @@ def detect_seniority(query: str) -> Optional[int]:
 def extract_keywords(query: str) -> List[str]:
     """
     Extrae palabras clave significativas de la query.
-    Elimina stopwords y palabras muy cortas.
+    Elimina stopwords y palabras muy cortas (excepto skills válidos de la whitelist).
+    
+    v2.1: Soporta skills cortos (Go, R, AI, ML, BI) y con caracteres especiales (C#, C++).
     """
     STOPWORDS = {
         "de", "en", "con", "para", "por", "del", "la", "el", "los", "las",
@@ -222,11 +246,25 @@ def extract_keywords(query: str) -> List[str]:
         "the", "in", "with", "for", "of", "and", "or", "to", "is", "at"
     }
     
-    # Tokenizar
-    words = re.findall(r'\b[a-záéíóúñü]+\b', query.lower())
+    query_lower = query.lower()
+    keywords = []
     
-    # Filtrar stopwords y palabras cortas
-    keywords = [w for w in words if w not in STOPWORDS and len(w) >= 3]
+    # Primero, buscar skills con caracteres especiales directamente en la query
+    for special_skill in SPECIAL_CHAR_SKILLS:
+        if special_skill in query_lower:
+            keywords.append(special_skill)
+    
+    # Tokenizar palabras normales (letras incluyendo acentos)
+    words = re.findall(r'\b[a-záéíóúñü]+\b', query_lower)
+    
+    # Filtrar stopwords y palabras cortas (excepto las de la whitelist)
+    for w in words:
+        if w in STOPWORDS:
+            continue
+        # Aceptar si tiene 3+ caracteres O está en la whitelist
+        if len(w) >= 3 or w in SHORT_SKILLS_WHITELIST:
+            if w not in keywords:  # Evitar duplicados
+                keywords.append(w)
     
     return keywords
 
