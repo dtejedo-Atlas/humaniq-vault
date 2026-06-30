@@ -535,3 +535,23 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
      - Notas de versión con fondo destacado
 - **Fix:** Corregida pluralización española ("versiónes" → "versiones")
 - **Tests:** Frontend 100% validated (UI structure, expand/collapse, empty state, upload dialog)
+
+### Code Quality: Hardcoded Secrets Removed (30-Jun-2026)
+- **Item 1 completado:** Credenciales de tests movidas a `os.getenv()` con defaults
+- **Archivos actualizados:**
+  - `tests/test_cv_upload_resilience.py`
+  - `tests/test_duplicates_merge_multiple.py`
+  - `tests/test_dynamic_weights.py`
+  - `tests/test_operational_fixes.py`
+  - `tests/test_scoring_v21.py`
+  - `tests/test_search_unification.py`
+  - `tests/test_status_pipeline.py`
+  - `tests/test_taxonomy_and_search.py`
+  - `tests/test_users_assignments.py`
+- **Variables de entorno añadidas:**
+  - `TEST_ADMIN_EMAIL` (default: `test_utf8@atlas.com`)
+  - `TEST_ADMIN_PASSWORD` (default: `Humaniq123`)
+  - `TEST_RECRUITER_EMAIL` (default: `recruiter_test@atlas.com`)
+  - `TEST_RECRUITER_PASSWORD` (default: `Humaniq123`)
+- **Item 2 (is vs ==):** Revisado - no se encontraron instancias de `is` con literales que necesiten cambio. Los `== True` existentes son necesarios para distinguir `True` de `None`.
+- **Tests:** 135 passed, 7 failed (fallos preexistentes por datos desactualizados), 1 skipped

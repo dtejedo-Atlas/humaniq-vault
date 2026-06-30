@@ -19,8 +19,10 @@ from hybrid_search_service import HybridSearchService, SHORT_SKILLS_WHITELIST
 from query_parser import parse_query
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://atlas-recruiting-ai.preview.emergentagent.com").rstrip("/")
-LOGIN_EMAIL = "test_utf8@atlas.com"
-LOGIN_PASSWORD = "Humaniq123"
+
+# Test credentials from environment with defaults for local testing
+LOGIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+LOGIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "Humaniq123")
 
 
 # ---------- Fixtures ----------

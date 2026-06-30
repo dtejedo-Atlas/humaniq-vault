@@ -7,11 +7,11 @@ import requests
 import os
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://atlas-recruiting-ai.preview.emergentagent.com').rstrip('/')
 
-# Test credentials
-TEST_ADMIN_EMAIL = "test_utf8@atlas.com"
-TEST_ADMIN_PASSWORD = "test123456"
+# Test credentials from environment with defaults for local testing
+TEST_ADMIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+TEST_ADMIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "Humaniq123")
 TEST_CANDIDATE_ID = "5a242806-04ec-467c-bae2-1b99d0943e61"
 
 

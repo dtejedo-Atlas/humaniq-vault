@@ -13,11 +13,11 @@ import os
 
 BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://atlas-recruiting-ai.preview.emergentagent.com').rstrip('/')
 
-# Test credentials
-ADMIN_EMAIL = "test_utf8@atlas.com"
-ADMIN_PASSWORD = "test123456"
-RECRUITER_EMAIL = "recruiter_test@atlas.com"
-RECRUITER_PASSWORD = "test123456"
+# Test credentials from environment with defaults for local testing
+ADMIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+ADMIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "Humaniq123")
+RECRUITER_EMAIL = os.getenv("TEST_RECRUITER_EMAIL", "recruiter_test@atlas.com")
+RECRUITER_PASSWORD = os.getenv("TEST_RECRUITER_PASSWORD", "Humaniq123")
 TEST_CANDIDATE_ID = "e75df560-272d-44ba-b902-e859a0638a7b"
 
 

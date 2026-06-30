@@ -25,8 +25,9 @@ BASE_URL = os.environ.get(
     "https://atlas-recruiting-ai.preview.emergentagent.com",
 ).rstrip("/")
 
-ADMIN_EMAIL = "test_utf8@atlas.com"
-ADMIN_PASSWORD = "Humaniq123"
+# Test credentials from environment with defaults for local testing
+ADMIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+ADMIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "Humaniq123")
 
 
 # ============= FIXTURES =============

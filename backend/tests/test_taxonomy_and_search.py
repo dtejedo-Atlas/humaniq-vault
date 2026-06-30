@@ -13,11 +13,11 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://atlas-recruiting-ai.preview.emergentagent.com').rstrip('/')
 
-# Test credentials
-TEST_EMAIL = "test_utf8@atlas.com"
-TEST_PASSWORD = "test123456"
+# Test credentials from environment with defaults for local testing
+TEST_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+TEST_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "Humaniq123")
 TEST_USER_NAME = "Test UTF8 User"
 
 

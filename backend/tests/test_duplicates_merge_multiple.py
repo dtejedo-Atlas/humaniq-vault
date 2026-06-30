@@ -12,8 +12,10 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://atlas-recruiting-ai.preview.emergentagent.com").rstrip("/")
-ADMIN_EMAIL = "test_utf8@atlas.com"
-ADMIN_PASSWORD = "Humaniq123"
+
+# Test credentials from environment with defaults for local testing
+ADMIN_EMAIL = os.getenv("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+ADMIN_PASSWORD = os.getenv("TEST_ADMIN_PASSWORD", "Humaniq123")
 
 ALEX_GROUP_IDS = [
     "7405dadf-4d61-451b-8b95-9db8a0e7b08e",  # oldest -> should become primary
