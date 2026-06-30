@@ -11,8 +11,8 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://atlas-recruiting-ai.preview.emergentagent.com").rstrip("/")
-EMAIL = "test_utf8@atlas.com"
-PASSWORD = "Humaniq123"
+EMAIL = os.environ.get("TEST_ADMIN_EMAIL", "test_utf8@atlas.com")
+PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "Humaniq123")
 
 
 @pytest.fixture(scope="session")
