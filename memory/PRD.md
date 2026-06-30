@@ -497,3 +497,23 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 | Header global | Redirige a /search?q= | N/A | Acceso rápido desde cualquier página |
 | `/upload` | N/A | N/A | Solo carga de CVs |
 | `/dashboard` | N/A | N/A | Solo estadísticas |
+
+### Fix: Fusión de N Duplicados y Limpieza de Huérfanos (30-Jun-2026)
+- **Problema:** El flujo de merge solo soportaba 2 candidatos. Con grupos de 3+ duplicados, el botón "Fusionar candidato" no funcionaba.
+- **Solución implementada:**
+  1. **Backend - Endpoint merge-multiple** (`server.py`):
+     - Nuevo endpoint `POST /api/candidates/merge-multiple` que acepta `primary_candidate_id` y lista de `secondary_candidate_ids`
+     - Fusiona secuencialmente todos los secundarios en el principal
+     - Validación: verifica que el primary exista antes de proceder
+  2. **Backend - Limpieza de huérfanos** (`server.py`):
+     - `GET /api/duplicates/orphan-records`: Identifica registros incompletos (sin email, sin CV, nombre genérico)
+     - `POST /api/duplicates/cleanup-orphans`: Soft delete de registros seleccionados
+     - Solo admins pueden ejecutar limpieza
+  3. **Frontend - DuplicatesPage.js** completamente reescrito:
+     - Soporta selección de candidato principal entre N opciones
+     - Muestra badge visual "Principal" vs "Se fusionará" para cada candidato
+     - Diálogo de huérfanos con categorización y selección múltiple
+     - Feedback de errores con toast descriptivo
+- **Resultado:** Los 4 candidatos "Alex Shapiro" fueron fusionados exitosamente en uno solo
+- **Tests:** 13/14 passed (`/app/backend/tests/test_duplicates_merge_multiple.py`)
+
