@@ -184,8 +184,8 @@ SYSTEM_FOLDERS = [
     },
     {
         "id": "sys_recently_added",
-        "name": "Recién Ingresados",
-        "description": "CVs nuevos sin revisar",
+        "name": "Nuevos por Revisar",
+        "description": "Candidatos con estatus 'Nuevo' que aún no han sido revisados",
         "icon": "plus-circle",
         "color": "teal",
         "folder_category": "process",
