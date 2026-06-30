@@ -1929,24 +1929,36 @@ async def get_pending_classifications(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Get candidates with low-confidence classifications pending review.
-    Criteria: confidence_score < 0.75 AND approved_by_recruiter = false/missing
+    Get candidates with low-confidence classifications OR no classification at all.
+    Criteria: 
+      - ai_classification is null/missing (unclassified), OR
+      - confidence_score < 0.75 AND approved_by_recruiter = false
     """
     skip = (page - 1) * limit
     
-    # Build aggregation pipeline for better subdocument handling
+    # Build aggregation pipeline to include both unclassified and low-confidence candidates
     pipeline = [
         {"$match": {"is_deleted": {"$ne": True}}},
-        {"$match": {"ai_classification": {"$exists": True}}},
+        # Add computed fields for filtering
         {"$addFields": {
-            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 1]},
+            "has_classification": {"$ifNull": ["$ai_classification", None]},
+            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 0]},
             "is_approved": {"$ifNull": ["$ai_classification.approved_by_recruiter", False]}
         }},
+        # Match: no classification OR (low confidence AND not approved)
         {"$match": {
-            "conf_score": {"$lt": 0.75},
-            "is_approved": False
+            "$or": [
+                {"has_classification": None},
+                {
+                    "$and": [
+                        {"conf_score": {"$lt": 0.75}},
+                        {"is_approved": False}
+                    ]
+                }
+            ]
         }},
-        {"$sort": {"conf_score": 1}},
+        # Sort: unclassified first (conf_score=0), then by confidence ascending
+        {"$sort": {"conf_score": 1, "created_at": -1}},
         {"$facet": {
             "data": [{"$skip": skip}, {"$limit": limit}],
             "total": [{"$count": "count"}]
@@ -1966,7 +1978,7 @@ async def get_pending_classifications(
     # Format response
     results = []
     for c in candidates_data:
-        ai_class = c.get("ai_classification", {})
+        ai_class = c.get("ai_classification") or {}
         results.append({
             "id": c.get("id"),
             "full_name": c.get("full_name"),
@@ -2002,18 +2014,26 @@ async def get_pending_classifications(
 async def get_pending_classifications_count(
     current_user: User = Depends(get_current_user)
 ):
-    """Get count of candidates pending classification review (for badge)"""
-    # Use aggregation for consistent results
+    """Get count of candidates pending classification review (for badge)
+    Includes: unclassified candidates AND low-confidence classifications not yet approved
+    """
     pipeline = [
         {"$match": {"is_deleted": {"$ne": True}}},
-        {"$match": {"ai_classification": {"$exists": True}}},
         {"$addFields": {
-            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 1]},
+            "has_classification": {"$ifNull": ["$ai_classification", None]},
+            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 0]},
             "is_approved": {"$ifNull": ["$ai_classification.approved_by_recruiter", False]}
         }},
         {"$match": {
-            "conf_score": {"$lt": 0.75},
-            "is_approved": False
+            "$or": [
+                {"has_classification": None},
+                {
+                    "$and": [
+                        {"conf_score": {"$lt": 0.75}},
+                        {"is_approved": False}
+                    ]
+                }
+            ]
         }},
         {"$count": "count"}
     ]

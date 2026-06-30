@@ -181,17 +181,17 @@ const ClassificationReviewPage = () => {
   };
 
   const getIndustryLabel = (key) => {
-    const industry = industries.find(i => i.key === key);
+    const industry = (industries || []).find(i => i.key === key);
     return industry?.label || key || 'Sin industria';
   };
 
   const getFunctionalAreaLabel = (key) => {
-    const area = functionalAreas.find(a => a.key === key);
+    const area = (functionalAreas || []).find(a => a.key === key);
     return area?.label || key || 'Sin área';
   };
 
   const getSeniorityLabel = (key) => {
-    const level = seniorityLevels.find(l => l.key === key);
+    const level = (seniorityLevels || []).find(l => l.key === key);
     return level?.label || key || 'Sin nivel';
   };
 
@@ -513,7 +513,7 @@ const ClassificationReviewPage = () => {
                         <SelectValue placeholder="Selecciona nivel" />
                       </SelectTrigger>
                       <SelectContent>
-                        {seniorityLevels.map(level => (
+                        {(seniorityLevels || []).map(level => (
                           <SelectItem key={level.key} value={level.key}>
                             {level.label}
                           </SelectItem>

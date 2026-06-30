@@ -6,20 +6,31 @@ const TaxonomyContext = createContext(null);
 export const TaxonomyProvider = ({ children }) => {
   const [industries, setIndustries] = useState([]);
   const [functionalAreas, setFunctionalAreas] = useState([]);
+  const [seniorityLevels, setSeniorityLevels] = useState([]);
   const [lookup, setLookup] = useState({ industries: {}, functional_areas: {} });
   const [loading, setLoading] = useState(true);
 
   const fetchTaxonomy = useCallback(async () => {
     try {
-      const [industriesRes, areasRes, lookupRes] = await Promise.all([
+      const [industriesRes, areasRes, lookupRes, seniorityRes] = await Promise.all([
         taxonomyAPI.getIndustries(),
         taxonomyAPI.getFunctionalAreas(),
-        taxonomyAPI.getLookup()
+        taxonomyAPI.getLookup(),
+        taxonomyAPI.getSeniorityLevels()
       ]);
       
       setIndustries(industriesRes.data);
       setFunctionalAreas(areasRes.data);
       setLookup(lookupRes.data);
+      
+      // Transform seniority levels from {key: {level, label}} to [{key, label}]
+      const seniorityData = seniorityRes.data?.levels || {};
+      const seniorityArray = Object.entries(seniorityData).map(([key, config]) => ({
+        key,
+        label: config.label,
+        level: config.level
+      })).sort((a, b) => a.level - b.level);
+      setSeniorityLevels(seniorityArray);
     } catch (error) {
       console.error('Error fetching taxonomy:', error);
     } finally {
@@ -52,6 +63,13 @@ export const TaxonomyProvider = ({ children }) => {
     return key;
   }, [lookup]);
 
+  // Obtener nombre de seniority a partir de key
+  const getSeniorityName = useCallback((key) => {
+    if (!key) return '';
+    const level = seniorityLevels.find(s => s.key === key);
+    return level?.label || key;
+  }, [seniorityLevels]);
+
   // Obtener opciones formateadas para dropdowns (value=key, label=name_es)
   const getIndustryOptions = useCallback(() => {
     return industries.map(ind => ({
@@ -69,15 +87,25 @@ export const TaxonomyProvider = ({ children }) => {
     }));
   }, [functionalAreas]);
 
+  const getSeniorityOptions = useCallback(() => {
+    return seniorityLevels.map(level => ({
+      value: level.key,
+      label: level.label
+    }));
+  }, [seniorityLevels]);
+
   const value = {
     industries,
     functionalAreas,
+    seniorityLevels,
     lookup,
     loading,
     getIndustryName,
     getFunctionalAreaName,
+    getSeniorityName,
     getIndustryOptions,
     getFunctionalAreaOptions,
+    getSeniorityOptions,
     refetch: fetchTaxonomy
   };
 

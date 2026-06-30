@@ -92,6 +92,7 @@ export const statusAPI = {
 export const taxonomyAPI = {
   getIndustries: () => axios.get(`${API_BASE}/taxonomy/industries`),
   getFunctionalAreas: () => axios.get(`${API_BASE}/taxonomy/functional-areas`),
+  getSeniorityLevels: () => axios.get(`${API_BASE}/taxonomy/seniority-levels`),
   getLookup: () => axios.get(`${API_BASE}/taxonomy/lookup`),
   createIndustry: (data) => axios.post(`${API_BASE}/admin/industries`, data),
   updateIndustry: (id, data) => axios.put(`${API_BASE}/admin/industries/${id}`, data),

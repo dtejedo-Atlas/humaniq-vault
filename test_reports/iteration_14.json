@@ -1,0 +1,69 @@
+{
+  "summary": "Iteration 13 fixes verified: (a) ClassificationReviewPage no longer crashes - seniorityLevels was added to TaxonomyContext with proper transform; (b) Pending list now includes the 6 unclassified candidates (0% confidence) plus 1 low-confidence => 7 total, matching the badge. UI renders cards, opens 'Corregir' dialog with 3 populated dropdowns. HOWEVER two NEW critical bugs were introduced by the P1 change: Approve and Correct endpoints BOTH FAIL for the unclassified candidates that the pipeline now surfaces. Backend test suite: 9/11 PASS (previously 11/11). UI 'Aprobar' button shows toast 'No hay clasificación de Atlas disponible'. Backend POST /correct returns HTTP 500 (MongoDB WriteError: Cannot create field 'approved_at' in element {ai_classification: null}). The end-to-end user flow ('approve unclassified candidate') therefore remains broken.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/atlas/classifications/bulk-approve",
+        "issue": "Returns approved_count=0 with error 'Sin clasificación AI' for every candidate whose ai_classification is null. Code (server.py lines 2077-2080) explicitly rejects null. Since the pending list now SURFACES these candidates, the UI 'Aprobar' button is unusable for 6 of 7 listed candidates (toast: 'No hay clasificación de Atlas disponible'). Fix: when ai_class is null, still allow approval by initializing an empty ai_classification object with approved_by_recruiter=true (or treat as a no-op classification approval); do not skip.",
+        "priority": "CRITICAL"
+      },
+      {
+        "endpoint": "POST /api/atlas/classifications/correct/{candidate_id}",
+        "issue": "Returns HTTP 500 for candidates with ai_classification=null. Root cause: $set with dot-notation 'ai_classification.approved_at' fails when parent is null. MongoDB error: 'Cannot create field approved_at in element {ai_classification: null}'. Also at line 2137 candidate_doc.get('ai_classification', {}) returns None (not {}) when the field exists with value None. Fix: detect null ai_classification first and rebuild it as a fresh dict in the $set, e.g. set 'ai_classification' to {industry, functional_area, seniority, approved_by_recruiter:true, approved_at, approved_by, was_corrected:true, corrections}; OR run two updates: first $set ai_classification={} if null, then dot-notation update.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/api/taxonomy/* (during pre-login bootstrap)",
+        "issue": "TaxonomyProvider fetches industries/functional-areas/lookup/seniority-levels before user authenticates -> four 403s in console on every page load. Cosmetic but noisy and shows console errors. Consider deferring fetchTaxonomy until after auth or making these endpoints public."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ClassificationReviewPage / Aprobar button",
+        "issue": "Click on Aprobar for unclassified candidate triggers 'Error al aprobar - No hay clasificación de Atlas disponible' toast and the candidate stays in the list. Frontend behaves correctly given backend response but UX is broken end-to-end.",
+        "selector": "[data-testid^='approve-']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Approve / Correct unclassified candidate",
+        "issue": "UI surfaces 7 candidates (6 unclassified + 1 low-conf) but cannot approve/correct any of the 6 unclassified ones due to backend errors. The whole point of the P1 fix is defeated.",
+        "affected_selectors": ["[data-testid^='approve-']", "[data-testid^='correct-']", "button:has-text('Guardar y Aprobar')"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_classifications_review.py",
+    "/app/test_reports/pytest/iteration_14.xml"
+  ],
+  "action_items": [
+    "[P0 CRITICAL] server.py bulk_approve_classifications (line ~2077): handle ai_class is None - create a minimal ai_classification skeleton and proceed, OR return 200 with approved_count++ and don't update industry/functional_area/seniority/tags (leave as null) and only set ai_classification.approved_by_recruiter=true / approved_at / approved_by. Same logic should apply per-candidate inside the loop.",
+    "[P0 CRITICAL] server.py correct_classification (line ~2137-2158): when ai_class is None, first overwrite ai_classification with a full object (industry, functional_area, seniority, approved_by_recruiter, approved_at, approved_by, was_corrected, corrections) instead of using dot-notation set. Otherwise MongoDB rejects field creation under null.",
+    "[P1] Re-run /app/backend/tests/test_classifications_review.py - 2 currently failing tests (test_bulk_approve_real_candidate_persists, test_correct_real_candidate_persists) will start passing once null ai_classification is handled.",
+    "[LOW] Defer TaxonomyProvider fetch until after login (or make endpoints public) to clean up four 403s on login page."
+  ],
+  "critical_code_review_comments": [
+    "server.py:2077 - bulk_approve treats 'ai_classification missing' as an error, but the pending pipeline now intentionally returns those exact docs. The two pieces of code disagree on the contract.",
+    "server.py:2137 - candidate_doc.get('ai_classification', {}) returns None (not {}) when the field is explicitly null in the DB. Use `ai_class = candidate_doc.get('ai_classification') or {}` instead.",
+    "server.py:2156 - $set with dot-notation on a null parent field is a known MongoDB pitfall; whenever the field can be null, do a positional rewrite of the whole subdocument.",
+    "TaxonomyContext.js: getSeniorityName / getIndustryName / getFunctionalAreaName silently fall back to returning the raw key when lookup misses. The reviewer UI shows 'Sin nivel' for null but raw enum keys (e.g. 'mid') if the lookup is empty during early render. Consider adding a loading-aware label helper.",
+    "ClassificationReviewPage.js still uses `process.env.REACT_APP_BACKEND_URL || ''` fallback - same observation as iterations 12 & 13; this silently degrades to relative URLs in production."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "82% (9/11 pytest pass; the 2 failing tests reflect real CRITICAL bugs introduced by the P1 fix, not test issues)",
+    "frontend": "70% - page renders, candidates list, dialog opens, dropdowns populated; but Approve/Correct flow broken for the 6 unclassified candidates due to backend errors"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 - working. /app/memory/test_credentials.md still does NOT exist.",
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "P0 crash from iteration_13 IS FIXED (TaxonomyContext now exposes seniorityLevels). P1 inclusion of unclassified candidates IS PARTIALLY FIXED - they appear in the list but the Aprobar/Corregir endpoints crash on them. After main agent fixes bulk_approve_classifications and correct_classification to handle ai_classification=null, re-run /app/backend/tests/test_classifications_review.py (expect 11/11) and re-test UI flow: click Aprobar -> badge should drop from 7 to 6; click Corregir on another unclassified candidate, choose industry/area/seniority, click 'Guardar y Aprobar' -> should succeed and badge drops to 5.",
+  "rca of the issue": "Both new failures share the same root cause: the P1 fix broadened the pending query to include candidates with ai_classification:null, but the write-side handlers (bulk-approve, correct) were not updated to handle a null ai_classification. For bulk-approve, server.py:2077-2080 short-circuits with an error message. For correct, server.py:2156 attempts $set with dot-notation paths like 'ai_classification.approved_at' which MongoDB rejects when the parent field is literally null (it can create nested fields under missing keys but not under null). Reproduction: login as test_utf8@atlas.com -> /review -> click Aprobar on 'José Muñoz García' -> toast 'No hay clasificación de Atlas disponible'. Or POST /api/atlas/classifications/correct/{unclassified_id} -> HTTP 500 in backend logs ('Cannot create field approved_at in element {ai_classification: null}'). Fix shape: in BOTH endpoints, if ai_class is None (or missing), build/overwrite ai_classification as a full dict in $set instead of using dotted paths. For bulk-approve, do NOT short-circuit; instead set ai_classification = {approved_by_recruiter:true, approved_at, approved_by, source:'manual'} (and leave industry/functional_area/seniority untouched since none was proposed)."
+}
