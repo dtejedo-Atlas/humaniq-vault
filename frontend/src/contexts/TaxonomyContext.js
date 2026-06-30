@@ -1,16 +1,24 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { taxonomyAPI } from '../api';
+import { useAuth } from './AuthContext';
 
 const TaxonomyContext = createContext(null);
 
 export const TaxonomyProvider = ({ children }) => {
+  const { token } = useAuth();
   const [industries, setIndustries] = useState([]);
   const [functionalAreas, setFunctionalAreas] = useState([]);
   const [seniorityLevels, setSeniorityLevels] = useState([]);
   const [lookup, setLookup] = useState({ industries: {}, functional_areas: {} });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const lastTokenRef = useRef(null);
 
   const fetchTaxonomy = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    
+    setLoading(true);
     try {
       const [industriesRes, areasRes, lookupRes, seniorityRes] = await Promise.all([
         taxonomyAPI.getIndustries(),
@@ -19,9 +27,9 @@ export const TaxonomyProvider = ({ children }) => {
         taxonomyAPI.getSeniorityLevels()
       ]);
       
-      setIndustries(industriesRes.data);
-      setFunctionalAreas(areasRes.data);
-      setLookup(lookupRes.data);
+      setIndustries(industriesRes.data || []);
+      setFunctionalAreas(areasRes.data || []);
+      setLookup(lookupRes.data || { industries: {}, functional_areas: {} });
       
       // Transform seniority levels from {key: {level, label}} to [{key, label}]
       const seniorityData = seniorityRes.data?.levels || {};
@@ -31,16 +39,33 @@ export const TaxonomyProvider = ({ children }) => {
         level: config.level
       })).sort((a, b) => a.level - b.level);
       setSeniorityLevels(seniorityArray);
+      
+      console.log('Taxonomy loaded:', {
+        industries: industriesRes.data?.length,
+        functionalAreas: areasRes.data?.length,
+        seniorityLevels: seniorityArray.length
+      });
     } catch (error) {
       console.error('Error fetching taxonomy:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
+  // Fetch taxonomy when token changes (user logs in or token refreshes)
   useEffect(() => {
-    fetchTaxonomy();
-  }, [fetchTaxonomy]);
+    if (token && token !== lastTokenRef.current) {
+      lastTokenRef.current = token;
+      fetchTaxonomy();
+    } else if (!token && lastTokenRef.current) {
+      // User logged out - reset state
+      lastTokenRef.current = null;
+      setIndustries([]);
+      setFunctionalAreas([]);
+      setSeniorityLevels([]);
+      setLookup({ industries: {}, functional_areas: {} });
+    }
+  }, [token, fetchTaxonomy]);
 
   // Obtener nombre de industria a partir de key (retorna español por defecto)
   const getIndustryName = useCallback((key, lang = 'es') => {

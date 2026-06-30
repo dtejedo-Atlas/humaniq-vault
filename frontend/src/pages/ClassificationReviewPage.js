@@ -182,12 +182,12 @@ const ClassificationReviewPage = () => {
 
   const getIndustryLabel = (key) => {
     const industry = (industries || []).find(i => i.key === key);
-    return industry?.label || key || 'Sin industria';
+    return industry?.name_es || industry?.label || key || 'Sin industria';
   };
 
   const getFunctionalAreaLabel = (key) => {
     const area = (functionalAreas || []).find(a => a.key === key);
-    return area?.label || key || 'Sin área';
+    return area?.name_es || area?.label || key || 'Sin área';
   };
 
   const getSeniorityLabel = (key) => {
@@ -475,9 +475,9 @@ const ClassificationReviewPage = () => {
                         <SelectValue placeholder="Selecciona industria" />
                       </SelectTrigger>
                       <SelectContent>
-                        {industries.map(ind => (
+                        {(industries || []).map(ind => (
                           <SelectItem key={ind.key} value={ind.key}>
-                            {ind.label}
+                            {ind.name_es || ind.label || ind.key}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -494,9 +494,9 @@ const ClassificationReviewPage = () => {
                         <SelectValue placeholder="Selecciona área funcional" />
                       </SelectTrigger>
                       <SelectContent>
-                        {functionalAreas.map(area => (
+                        {(functionalAreas || []).map(area => (
                           <SelectItem key={area.key} value={area.key}>
-                            {area.label}
+                            {area.name_es || area.label || area.key}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -515,7 +515,7 @@ const ClassificationReviewPage = () => {
                       <SelectContent>
                         {(seniorityLevels || []).map(level => (
                           <SelectItem key={level.key} value={level.key}>
-                            {level.label}
+                            {level.label || level.key}
                           </SelectItem>
                         ))}
                       </SelectContent>

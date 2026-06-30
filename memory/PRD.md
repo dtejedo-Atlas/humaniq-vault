@@ -595,6 +595,26 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
 - **Tests:** Backend 11/11 pytest pass, Frontend funcional con dropdowns vacíos (issue menor de timing)
 - **Candidatos sin functional_area:** Los 6 candidatos reportados ahora aparecen en la bandeja con 0% confianza
 
+### Fix: Dropdowns vacíos en diálogo de corrección (30-Jun-2026)
+- **Problema:** Los dropdowns de Industria, Área Funcional y Seniority aparecían vacíos en el diálogo de corrección porque:
+  1. TaxonomyContext cargaba antes del login (causando 403s)
+  2. ClassificationReviewPage usaba `.label` pero los datos de industrias/áreas usan `.name_es`
+- **Solución implementada:**
+  1. **TaxonomyContext.js** - Diferido la carga hasta después del login:
+     - Usa `useAuth()` para acceder al token
+     - Solo ejecuta `fetchTaxonomy()` cuando hay un token válido
+     - Usa `useRef` para trackear el token anterior y evitar re-fetches innecesarios
+     - Reset del estado cuando el usuario cierra sesión
+  2. **ClassificationReviewPage.js** - Corregidos los campos de datos:
+     - Industrias y Áreas usan `name_es` (no `label`)
+     - Seniority usa `label` (correcto)
+     - Añadidos fallbacks: `ind.name_es || ind.label || ind.key`
+- **Resultado:** Los 3 dropdowns ahora cargan correctamente:
+  - Industria: 23 opciones
+  - Área Funcional: 24 opciones
+  - Seniority: 10 niveles
+- **Tests:** Flujo completo verificado - seleccionar valores y guardar funciona correctamente
+
 ---
 
 ## Tareas Congeladas (por instrucción del usuario - 30-Jun-2026)
