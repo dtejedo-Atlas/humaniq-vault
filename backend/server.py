@@ -82,6 +82,108 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# ============= HELPER FUNCTIONS FOR RESILIENT DATA VALIDATION =============
+
+def safe_int(value, default=None) -> Optional[int]:
+    """
+    Convierte un valor a entero de forma segura.
+    Si falla, retorna el default en vez de lanzar excepción.
+    """
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        # Intentar extraer número de strings como "10 años" o "10+"
+        try:
+            # Limpiar string
+            cleaned = value.strip().replace('+', '').split()[0]
+            return int(float(cleaned))
+        except (ValueError, IndexError):
+            return default
+    return default
+
+
+def safe_string(value, default=None) -> Optional[str]:
+    """
+    Convierte un valor a string de forma segura.
+    Si es None o tipo incorrecto, retorna el default.
+    """
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip() if value.strip() else default
+    try:
+        return str(value)
+    except Exception:
+        return default
+
+
+def safe_list(value, default=None) -> list:
+    """
+    Asegura que el valor sea una lista.
+    Si es None o tipo incorrecto, retorna lista vacía o default.
+    """
+    if default is None:
+        default = []
+    if value is None:
+        return default
+    if isinstance(value, list):
+        return value
+    if isinstance(value, (tuple, set)):
+        return list(value)
+    return default
+
+
+def clean_previous_company(pc_data: dict) -> Optional[dict]:
+    """
+    Limpia y valida una entrada de previous_companies.
+    Retorna None si los datos son irrecuperables.
+    """
+    if not isinstance(pc_data, dict):
+        return None
+    
+    # Campos mínimos requeridos
+    company_name = safe_string(pc_data.get('company_name') or pc_data.get('company'))
+    title = safe_string(pc_data.get('title') or pc_data.get('position'))
+    
+    # Si no hay ni empresa ni título, es irrecuperable
+    if not company_name and not title:
+        return None
+    
+    return {
+        'company_name': company_name or 'Empresa no especificada',
+        'title': title or 'Puesto no especificado',
+        'start_date': safe_string(pc_data.get('start_date')),
+        'end_date': safe_string(pc_data.get('end_date')),
+        'duration': safe_string(pc_data.get('duration')),
+        'description': safe_string(pc_data.get('description')),
+        'industry': safe_string(pc_data.get('industry')),
+        'location': safe_string(pc_data.get('location')),
+    }
+
+
+def clean_previous_companies(companies_data: list) -> list:
+    """
+    Limpia y valida la lista de previous_companies.
+    Retorna lista de diccionarios válidos, saltando los inválidos.
+    """
+    if not companies_data:
+        return []
+    if not isinstance(companies_data, list):
+        return []
+    
+    cleaned = []
+    for pc in companies_data:
+        clean_pc = clean_previous_company(pc)
+        if clean_pc:
+            cleaned.append(clean_pc)
+    
+    return cleaned
+
+
 # ============= STARTUP/SHUTDOWN EVENTS =============
 
 @app.on_event("startup")
@@ -960,23 +1062,39 @@ async def upload_resume(
         result.candidate_id = candidate_id
         result.stage_reached = ProcessingStage.AI_CLASSIFICATION
         
-        # Crear objeto candidato con datos parseados
+        # Crear objeto candidato con datos parseados (con validación defensiva)
         try:
+            # Limpiar y validar previous_companies
+            cleaned_companies = clean_previous_companies(parsed_data.get('previous_companies', []))
+            previous_companies_objs = []
+            for pc in cleaned_companies:
+                try:
+                    previous_companies_objs.append(PreviousCompany(**pc))
+                except Exception as pc_err:
+                    logger.warning(f"Saltando previous_company inválida: {pc_err}")
+            
+            # Validar years_experience de forma segura
+            years_exp = safe_int(parsed_data.get('years_experience'))
+            
+            # Validar skills y languages como listas
+            skills = safe_list(parsed_data.get('skills'))
+            languages = safe_list(parsed_data.get('languages'))
+            
             candidate = Candidate(
                 id=candidate_id,
-                full_name=parsed_data.get('full_name', f"Candidato - {file.filename}"),
-                email=parsed_data.get('email'),
-                phone=parsed_data.get('phone'),
-                city=parsed_data.get('city'),
-                state=parsed_data.get('state'),
-                country=parsed_data.get('country', 'México'),
-                linkedin_url=parsed_data.get('linkedin_url'),
-                current_company=parsed_data.get('current_company'),
-                current_title=parsed_data.get('current_title'),
-                years_experience=parsed_data.get('years_experience'),
-                skills=parsed_data.get('skills', []),
-                languages=parsed_data.get('languages', []),
-                previous_companies=[PreviousCompany(**pc) for pc in parsed_data.get('previous_companies', []) if isinstance(pc, dict)],
+                full_name=safe_string(parsed_data.get('full_name'), f"Candidato - {file.filename}"),
+                email=safe_string(parsed_data.get('email')),
+                phone=safe_string(parsed_data.get('phone')),
+                city=safe_string(parsed_data.get('city')),
+                state=safe_string(parsed_data.get('state')),
+                country=safe_string(parsed_data.get('country'), 'México'),
+                linkedin_url=safe_string(parsed_data.get('linkedin_url')),
+                current_company=safe_string(parsed_data.get('current_company')),
+                current_title=safe_string(parsed_data.get('current_title')),
+                years_experience=years_exp,
+                skills=skills,
+                languages=languages,
+                previous_companies=previous_companies_objs,
                 source="CV Upload",
                 created_by=current_user.id
             )
@@ -991,9 +1109,9 @@ async def upload_resume(
             # Construir location desde city/state si no viene
             if not candidate.city and not candidate.state:
                 if parsed_data.get('city'):
-                    candidate.city = parsed_data.get('city')
+                    candidate.city = safe_string(parsed_data.get('city'))
                 if parsed_data.get('state'):
-                    candidate.state = parsed_data.get('state')
+                    candidate.state = safe_string(parsed_data.get('state'))
         except Exception as e:
             result.status = "failed"
             result.add_error(
@@ -1149,7 +1267,6 @@ async def upload_resume(
                     "seniority": candidate.seniority,
                     "skills": candidate.skills,
                     "previous_companies": [c.model_dump() if hasattr(c, 'model_dump') else c for c in (candidate.previous_companies or [])],
-                    "education": [e.model_dump() if hasattr(e, 'model_dump') else e for e in (candidate.education or [])],
                     "languages": candidate.languages,
                     "email": candidate.email,
                     "phone": candidate.phone,

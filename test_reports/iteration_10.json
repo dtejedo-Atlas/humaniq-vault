@@ -1,0 +1,50 @@
+{
+  "summary": "Backend-only validation of the 'Candidate has no attribute education' fix and defensive validation helpers (safe_int/safe_string/safe_list/clean_previous_companies) in /app/backend/server.py. Created /app/backend/tests/test_cv_upload_resilience.py with 20 tests covering: (1) unit tests for all 5 helper functions including edge cases (None, empty, alt keys, garbage types, 'X anos' strings, +suffix), (2) introspection of Candidate Pydantic model verifying 'education' is NOT in model_fields and not a hasattr on instances, (3) end-to-end simulation of the upload flow's defensive Candidate construction with messy parsed_data (None email, '10 anos' years_experience, non-list languages, previous_companies with alt keys / empty dicts / non-dicts) confirming NO exception is raised, (4) DocumentParser.extract_text_from_bytes round-trip on an in-memory reportlab-generated PDF, and (5) integration tests against the public URL: POST /api/candidates/upload-resume with a real PDF (200, status in {success, partial_success, duplicate_*}, no 'education' in body) and with an unsupported .txt (200 + status=failed, no AttributeError). Backend logs confirm 4 upload-resume calls returned 200 OK with no AttributeError traces. 20/20 tests PASSED.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/candidates/upload-resume",
+        "issue": "Embedding generation logs continuous 401 from the embedding API (expected per problem statement). Result is still 200 with status='partial_success' and warning 'Búsqueda semántica no disponible para este candidato'. Not blocking but should be tracked when the API key is restored."
+      },
+      {
+        "endpoint": "process_cv_job (batch path)",
+        "issue": "The batch processor in server.py around line 1555 still constructs Candidate WITHOUT the defensive helpers (raw parsed_data.get(...) values are passed for years_experience, skills, languages, and PreviousCompany(**pc) is built without clean_previous_company). The synchronous upload-resume path was hardened but the BATCH path can still raise the same class of errors for the same malformed CV. Recommend reusing safe_int/safe_string/safe_list/clean_previous_companies in process_cv_job."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cv_upload_resilience.py",
+    "/app/test_reports/pytest/pytest_cv_upload_resilience.xml"
+  ],
+  "action_items": [
+    "Apply the same defensive validation (safe_int, safe_string, safe_list, clean_previous_companies) inside process_cv_job() in server.py (~line 1555) so batch uploads inherit the same resilience as the single-file endpoint.",
+    "Optional: add an integration test using a real two-column Canva-style PDF to exercise _detect_columns / _extract_text_multi_column in document_parser.py (current PDF was single-column due to reportlab limitation).",
+    "Optional: surface a clearer warning when years_experience is unparseable (currently silently becomes None)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 4300+ lines - should be split into routers (candidates, jobs, auth, search, smart_folders, exports). File-size guideline (<700) is far exceeded.",
+    "Defensive helpers (safe_int/safe_string/safe_list/clean_previous_companies) are duplicated logic that lives in server.py; recommend moving them to a shared module (e.g. data_validators.py) so they can be reused by process_cv_job and future ingestion paths.",
+    "process_cv_job() still does `PreviousCompany(**pc) for pc in parsed_data.get('previous_companies', []) if isinstance(pc, dict)` which will raise on missing required fields - same root cause as the original 'education' regression class.",
+    "create_version receives parsed_snapshot built from candidate.* attrs (line 1260-1274). Now that 'education' was removed, double-check there are no other model_dump consumers (cv_version_service, export_service, embedding_service) that still expect education in the snapshot."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cv_upload_resilience.py (new)",
+    "/app/test_reports/pytest/pytest_cv_upload_resilience.xml (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 tests passed)",
+    "frontend": "N/A (not requested)"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin) - confirmed working against https://atlas-recruiting-ai.preview.emergentagent.com",
+  "seed_data_creation": "Created 1-2 TEST_ candidates during integration upload tests (TEST_resilience_cv.pdf). Soft duplicate suggestion may have been generated on re-runs. Cleanup not performed - main agent may want to soft-delete those if they appear in QA dashboards.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `pytest /app/backend/tests/test_cv_upload_resilience.py -v`. Tests need `reportlab` (already installed) to generate the in-memory PDF. The integration test logs in /var/log/supervisor/backend.*.log show '200 OK' for upload-resume and zero 'education' AttributeError traces. The embedding service still returns 401 which produces a 'partial_success' status - this is expected and the test allows it. If the main agent extends the defensive helpers to process_cv_job, add an analogous batch test posting to /api/candidates/upload-batch (if exposed).",
+  "rca of the issue": "Original RCA confirmed: removing `candidate.education` reference at server.py line 1269 (parsed_snapshot dict) eliminated the AttributeError. The Candidate Pydantic model in /app/backend/models.py never declared an `education` field, so any attribute access on it raised AttributeError. Fix verified by (a) model_fields introspection, (b) hasattr check, (c) end-to-end POST returning 200 with status='success'/'partial_success' and no 'education' substring in the response body. Defensive helpers prevent a related class of failure when AI parser returns 'years_experience: \"10 anos\"' or previous_companies with alternate keys ('company'/'position' vs 'company_name'/'title'); confirmed all helpers behave correctly for None, empty strings, garbage types, lists with mixed/invalid entries, etc."
+}
