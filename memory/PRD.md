@@ -626,3 +626,50 @@ Las siguientes tareas están **PAUSADAS** hasta nueva instrucción:
 - Refactorización de `server.py` (>4800 líneas)
 - Publicación Externa de Vacantes
 - Tracking de Origen de Candidatos
+
+
+### Migración a MongoDB Atlas y Backups Automáticos (01-Jul-2026)
+
+**Objetivo:** Blindar los datos antes del deploy con datos reales.
+
+**Cambios implementados:**
+
+1. **Conexión a MongoDB Atlas:**
+   - Backend modificado para soportar `ATLAS_URI` (prioridad) o `MONGO_URL` (fallback)
+   - Variable de entorno `ATLAS_URI` configurada en `backend/.env`
+   - Archivos `.env` protegidos por `.gitignore` (nunca llegan a GitHub)
+
+2. **Migración de datos:**
+   - 444 documentos migrados exitosamente de MongoDB local a Atlas
+   - Incluye: 149 candidatos, 13 usuarios, 5 vacantes, 115 versiones de CV, taxonomías, etc.
+   - Datos legacy con seniority inválido corregidos (`analyst` → `mid`, `senior_manager` → `manager`)
+
+3. **Sistema de Backups Automáticos:**
+   - **Script:** `/app/backend/scripts/backup_mongodb.py`
+   - **Scheduler:** `/app/backend/scripts/backup_scheduler.py` (supervisor-managed, 24/7)
+   - **Horario:** 3:00 AM UTC diariamente
+   - **Retención:** Últimos 7 días
+   - **Ubicación:** `/app/backups/`
+
+4. **Monitoreo de Backups:**
+   - **Endpoint:** `GET /api/admin/backup-status` (solo admins)
+   - **Log:** `/var/log/mongodb_backup.log`
+   - **Status JSON:** `/app/backups/last_backup_status.json`
+
+5. **Seguridad:**
+   - Network Access en Atlas: `0.0.0.0/0` (Emergent usa IPs dinámicas)
+   - Compensado con: credenciales fuertes, permisos limitados, connection string en env vars
+   - Triple replicación automática en Atlas (3 copias de datos)
+
+**Archivos creados/modificados:**
+- `/app/backend/server.py` - Soporte ATLAS_URI, endpoint backup-status
+- `/app/backend/scripts/backup_mongodb.py` - Script de backup manual/restauración
+- `/app/backend/scripts/backup_scheduler.py` - Scheduler automático
+- `/app/backend/scripts/daily_backup.sh` - Wrapper bash
+- `/etc/supervisor/conf.d/services.conf` - Config supervisor para scheduler
+- `/app/.gitignore` - Añadido `backups/`
+
+**Backlog (para cuando sea oficial):**
+- Notificaciones por email cuando un backup falle
+
+---
