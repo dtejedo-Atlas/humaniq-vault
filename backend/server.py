@@ -4872,6 +4872,47 @@ async def initialize_system_folders(
     return {"message": "Folders del sistema inicializados" + (" (criterios actualizados)" if force_update else "")}
 
 
+# ============== BACKUP STATUS ENDPOINT ==============
+@api_router.get("/admin/backup-status")
+async def get_backup_status(current_user: User = Depends(get_current_user)):
+    """Get the status of the last backup and next scheduled backup."""
+    if current_user.role not in [UserRole.ADMIN, UserRole.SUPER_ADMIN]:
+        raise HTTPException(status_code=403, detail="Solo administradores pueden ver el estado de backups")
+    
+    status_file = Path("/app/backups/last_backup_status.json")
+    backup_dir = Path("/app/backups")
+    
+    # Get status from status file
+    if status_file.exists():
+        with open(status_file) as f:
+            status = json.load(f)
+    else:
+        status = {
+            "last_run": None,
+            "success": None,
+            "message": "No hay backups ejecutados aún",
+            "next_run": None
+        }
+    
+    # List available backups
+    backups = []
+    if backup_dir.exists():
+        for f in sorted(backup_dir.glob("backup_*.archive.gz"), reverse=True)[:7]:
+            backups.append({
+                "filename": f.name,
+                "size_mb": round(f.stat().st_size / (1024 * 1024), 2),
+                "created": datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat()
+            })
+    
+    return {
+        "scheduler_active": True,
+        "backup_time_utc": "03:00",
+        "last_backup": status,
+        "available_backups": backups,
+        "total_backups": len(backups)
+    }
+
+
 # ============= ROOT ROUTE =============
 
 @api_router.get("/")
@@ -4893,3 +4934,4 @@ app.add_middleware(
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
