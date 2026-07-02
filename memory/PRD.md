@@ -806,3 +806,9 @@ HMS = round(100 * K * core * HEC^0.15)
 3. **Fix pre-filtro** `_build_prefilter_query` en `job_matching_service.py`: usa `{"is_deleted": {"$ne": True}}`
 4. **Verificación endpoint v2** `POST /jobs/{id}/match` (Director Comercial): Omar (95%), David (93%), Ignacio (93%) — 19 matches totales ✅
 5. **Pendiente decisión usuario**: importar los 9 candidatos únicos de Prod a Atlas
+
+### Auditoría Edith + Lista de únicos (03-Jun-2026)
+- 9 únicos en Prod local: 8 son datos de prueba (test/example.com), solo Alex Shapiro parece real
+- Edith: 0 documentos en TODAS las DBs locales (atlas_recruit, atlas_talent_vault) y Atlas (ambas DBs), incluyendo audit logs. Reporte previo de "4 registros" era de un fork anterior, no reproducible
+- DB local "Prod" contiene datos de test → probablemente es copia preview, no producción real
+- Importación BLOQUEADA esperando autorización del usuario
