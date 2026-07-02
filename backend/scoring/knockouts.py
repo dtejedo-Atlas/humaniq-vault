@@ -411,10 +411,6 @@ def evaluate_knockouts(
     for result in results:
         K *= result["value"]
     
-    # Si K es 0, significa que hay un knockout fatal
-    # Identificar cuál es
-    fatal_knockouts = [r for r in results if r["value"] == 0.0]
-    
     return (K, results)
 
 

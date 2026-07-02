@@ -673,3 +673,110 @@ Las siguientes tareas están **PAUSADAS** hasta nueva instrucción:
 - Notificaciones por email cuando un backup falle
 
 ---
+
+## Scoring Engine v3 - Motor de Matching Aislado (02-Jul-2026)
+
+### Objetivo
+Crear un motor de scoring completamente nuevo en paralelo, sin tocar el código existente de `job_matching_service.py` ni `hybrid_search_service.py`.
+
+### Arquitectura
+```
+/app/backend/scoring/
+├── __init__.py
+├── config_v3.py          # Pesos y constantes
+├── components.py         # 10 componentes de scoring
+├── knockouts.py          # Evaluadores de knockout
+├── confidence.py         # Cálculo de HEC (6 señales)
+├── engine_v3.py          # Motor principal score_v3()
+├── dry_run_v3.py         # Script de prueba con datos reales
+└── tests/
+    ├── __init__.py
+    └── test_scoring_v3.py  # 55 tests
+```
+
+### Fórmulas Implementadas
+
+**Componentes (10):**
+- SK: Skills Coverage (w=0.16)
+- ER: Experience Relevance (w=0.15)
+- FA: Functional Affinity (w=0.13)
+- SA: Seniority Alignment (w=0.12)
+- IA: Industry Affinity (w=0.11)
+- ED: Executive Depth (w=0.10)
+- TR: Trajectory Score (w=0.08)
+- LO: Location Fit (w=0.06)
+- SM: Semantic Similarity (w=0.05)
+- CQ: CV Quality (w=0.04)
+
+**Shrinkage (por componente):**
+```
+xi* = ci * xi + (1 - ci) * 0.52
+```
+
+**Agregación:**
+```
+A = Σ wi·xi*  (media aritmética ponderada)
+G = exp(Σ wi·ln(xi* + 0.01))  (media geométrica ponderada)
+core = clamp(0.55*A + 0.45*G + B - P, 0.0, 1.0)
+```
+
+**HEC (Hierarchical Evidence Confidence):**
+```
+HEC = 0.25*EC + 0.20*PC + 0.20*HV + 0.15*DC + 0.10*CV + 0.10*RC
+```
+Donde:
+- EC = proporción de componentes con ci > 0.5
+- PC = ai_classification.confidence_score (default 0.5)
+- HV = 1.0 si approved_by_recruiter o was_corrected, else 0.5
+- DC = promedio de 4 checks (email, dates, skills, functional_area)
+- CV = xi del componente CQ
+- RC = recencia del resume_file.upload_date (<180d=1.0, <365d=0.8, <730d=0.6, else=0.4)
+
+**Boosts (cap 0.08):**
+- Match exacto industria+función+seniority: +0.03
+- approved_by_recruiter: +0.02
+
+**Penalties (cap 0.15):**
+- Estabilidad laboral (job hopper): max 0.04
+- Subcalificación >=2 niveles: 0.04
+- Sobrecalificación >=2 niveles: 0.03
+
+**HMS Final:**
+```
+HMS = round(100 * K * core * HEC^0.15)
+```
+
+**Recommended Actions:**
+- K==0 → "do_not_advance_knockout"
+- HMS>=85 y HEC>=0.75 → "advance_to_screening"
+- HMS>=75 y HEC<0.75 → "review_manually"
+- 65<=HMS<75 → "possible_backup"
+- HMS<65 y CQ.xi>=0.8 y FA.xi<0.4 → "save_for_other_role"
+- else → "low_priority"
+
+### Tests Validados (55/55 passed)
+- Shrinkage con ci=0 → adjusted = 0.52
+- Media geométrica colapsa más que aritmética con xi=0
+- Boosts no exceden cap 0.08
+- Penalties no bajan core < 0.0
+- Knockout fatal → HMS = 0
+- HEC siempre en [0, 1]
+- HMS siempre en [0, 100]
+- 6 señales de HEC presentes
+- Estructura de output completa
+
+### Dry Run con Datos Reales (02-Jul-2026)
+```bash
+cd /app/backend && python scoring/dry_run_v3.py
+```
+Resultado:
+- Vacante: "Gerente de Operaciones" (manufacturing)
+- Candidato 1: Maria Elena Garcia Lopez → HMS 60, low_priority
+- Candidato 2: Bernardo Baader → HMS 41, save_for_other_role
+- Candidato 3: Rafael Bader → HMS 32, save_for_other_role
+
+### Próximas Fases (Congeladas)
+- **Fase 3:** Conectar endpoint `/api/scoring/v3/evaluate`
+- **Fase 4:** Scorecard UI en frontend
+
+---
