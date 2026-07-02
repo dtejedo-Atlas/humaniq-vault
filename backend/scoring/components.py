@@ -154,6 +154,161 @@ def _is_executive_title(title: str) -> bool:
 # COMPONENTES (10 funciones)
 # =============================================================================
 
+# =============================================================================
+# SK: SKILLS COVERAGE
+# =============================================================================
+
+# Stopwords para ignorar en matching de skills
+SKILL_STOPWORDS = {
+    'de', 'del', 'la', 'las', 'el', 'los', 'en', 'y', 'a', 'al', 'con', 'para',
+    'por', 'un', 'una', 'unos', 'unas', 'que', 'se', 'su', 'sus',
+    'alto', 'alta', 'altos', 'altas', 'nivel', 'niveles',
+    'the', 'of', 'and', 'to', 'in', 'for', 'on', 'with', 'at', 'by',
+    'high', 'level', 'senior', 'junior', 'advanced', 'basic',
+}
+
+# Sinónimos de skills para matching flexible
+SKILL_SYNONYMS = {
+    # Ventas
+    'ventas': {'sales', 'comercial', 'venta'},
+    'sales': {'ventas', 'comercial', 'venta'},
+    'comercial': {'ventas', 'sales', 'venta'},
+    'b2b': {'business to business', 'corporativo', 'empresarial'},
+    'b2c': {'business to consumer', 'consumidor', 'retail'},
+    
+    # Gestión
+    'gestión': {'management', 'administración', 'manejo'},
+    'management': {'gestión', 'administración', 'manejo'},
+    'liderazgo': {'leadership', 'dirección'},
+    'leadership': {'liderazgo', 'dirección'},
+    
+    # Negociación
+    'negociación': {'negotiation', 'negociar'},
+    'negotiation': {'negociación', 'negociar'},
+    
+    # Desarrollo de negocio
+    'desarrollo': {'development', 'crecimiento'},
+    'development': {'desarrollo', 'crecimiento'},
+    'negocio': {'business', 'negocios'},
+    'business': {'negocio', 'negocios'},
+    
+    # Cuentas
+    'cuentas': {'accounts', 'clientes'},
+    'accounts': {'cuentas', 'clientes'},
+    'clave': {'key', 'estratégicas', 'importantes'},
+    'key': {'clave', 'estratégicas'},
+    
+    # Equipos
+    'equipos': {'teams', 'equipo', 'personal'},
+    'teams': {'equipos', 'equipo', 'personal'},
+    
+    # Forecast/Pronóstico
+    'forecast': {'pronóstico', 'proyección', 'forecasting'},
+    'pronóstico': {'forecast', 'proyección', 'forecasting'},
+    
+    # Estrategia
+    'estrategia': {'strategy', 'estratégico', 'estratégica'},
+    'strategy': {'estrategia', 'estratégico', 'estratégica'},
+    
+    # Tech
+    'crm': {'salesforce', 'hubspot', 'customer relationship'},
+    'erp': {'sap', 'oracle', 'enterprise resource'},
+    'sap': {'erp'},
+    
+    # Operaciones
+    'operaciones': {'operations', 'operativo'},
+    'operations': {'operaciones', 'operativo'},
+    'supply chain': {'cadena de suministro', 'logística'},
+    'cadena de suministro': {'supply chain', 'logística'},
+    
+    # Finanzas
+    'finanzas': {'finance', 'financiero'},
+    'finance': {'finanzas', 'financiero'},
+    
+    # RRHH
+    'recursos humanos': {'human resources', 'rrhh', 'hr', 'talento'},
+    'human resources': {'recursos humanos', 'rrhh', 'hr', 'talento'},
+    'rrhh': {'recursos humanos', 'human resources', 'hr'},
+    'hr': {'recursos humanos', 'human resources', 'rrhh'},
+}
+
+
+def _normalize_skill(skill: str) -> str:
+    """Normaliza un skill a lowercase sin caracteres especiales."""
+    if not skill:
+        return ""
+    return re.sub(r'[^\w\s]', '', skill.lower().strip())
+
+
+def _tokenize_skill(skill: str) -> set:
+    """
+    Tokeniza un skill en palabras significativas (sin stopwords).
+    """
+    normalized = _normalize_skill(skill)
+    tokens = set(normalized.split())
+    # Remover stopwords
+    tokens = tokens - SKILL_STOPWORDS
+    return tokens
+
+
+def _get_synonyms(token: str) -> set:
+    """Obtiene sinónimos de un token."""
+    synonyms = {token}
+    if token in SKILL_SYNONYMS:
+        synonyms.update(SKILL_SYNONYMS[token])
+    return synonyms
+
+
+def _tokens_overlap(tokens1: set, tokens2: set) -> bool:
+    """
+    Verifica si hay overlap significativo entre dos conjuntos de tokens.
+    Considera sinónimos.
+    """
+    if not tokens1 or not tokens2:
+        return False
+    
+    # Expandir tokens1 con sinónimos
+    expanded1 = set()
+    for t in tokens1:
+        expanded1.update(_get_synonyms(t))
+    
+    # Expandir tokens2 con sinónimos
+    expanded2 = set()
+    for t in tokens2:
+        expanded2.update(_get_synonyms(t))
+    
+    # Verificar intersección
+    return bool(expanded1 & expanded2)
+
+
+def _skills_match_v3(cand_skill: str, job_skill: str) -> bool:
+    """
+    Verifica si un skill del candidato matchea con uno de la vacante.
+    Usa matching por tokens con overlap parcial y sinónimos.
+    
+    Ejemplos:
+    - "Ventas B2B" matchea "ventas corporativas B2B" (comparte "ventas", "b2b")
+    - "gestión de ventas" matchea "Ventas B2B" (comparte "ventas")
+    - "CRM" matchea "CRM Salesforce" (comparte "crm")
+    """
+    # Primero intentar match exacto normalizado
+    norm_cand = _normalize_skill(cand_skill)
+    norm_job = _normalize_skill(job_skill)
+    
+    if norm_cand == norm_job:
+        return True
+    
+    # Match por substring
+    if norm_cand in norm_job or norm_job in norm_cand:
+        return True
+    
+    # Match por tokens con overlap
+    cand_tokens = _tokenize_skill(cand_skill)
+    job_tokens = _tokenize_skill(job_skill)
+    
+    return _tokens_overlap(cand_tokens, job_tokens)
+
+
 def calculate_sk(
     candidate_skills: List[str],
     job_skills: List[str],
@@ -162,7 +317,16 @@ def calculate_sk(
     """
     SK: Skills Coverage
     Cobertura de skills de la vacante vs candidate.skills.
-    Reutiliza _normalize_skill, _skills_match y SKILL_SYNONYMS de job_matching_service.
+    
+    Matching por tokens con overlap parcial:
+    - Normaliza y matchea por tokens significativos
+    - Ignora stopwords
+    - Usa sinónimos
+    
+    Reglas de confianza:
+    - match > 0 → ci=1.0
+    - match = 0 Y candidato tiene >=3 skills → xi=0.0, ci=0.4 (léxico falla)
+    - candidato sin skills parseados → xi=0.5, ci=0.0
     
     Args:
         candidate_skills: Lista de skills del candidato
@@ -176,31 +340,57 @@ def calculate_sk(
     if not job_has_skills or not job_skills:
         return (0.5, 0.0, {"note": "Vacante sin skills definidos"})
     
+    # Si el candidato no tiene skills parseados
     if not candidate_skills:
-        return (0.0, 1.0, {"matched": [], "missing": job_skills, "coverage": 0.0})
+        return (0.5, 0.0, {
+            "note": "Candidato sin skills parseados",
+            "matched": [],
+            "missing": job_skills,
+            "coverage": 0.0
+        })
     
-    # Obtener utilidades del job_matching_service
-    jms = _get_job_matching_service_utils()
-    
+    # Matching por tokens
     matched = []
+    matched_pairs = []  # Para evidencia detallada
+    
     for job_skill in job_skills:
         for cand_skill in candidate_skills:
-            if jms._skills_match(cand_skill, job_skill):
+            if _skills_match_v3(cand_skill, job_skill):
                 matched.append(job_skill)
+                matched_pairs.append({
+                    "job_skill": job_skill,
+                    "matched_by": cand_skill,
+                })
                 break
     
     coverage = len(matched) / len(job_skills)
     missing = [s for s in job_skills if s not in matched]
     
+    # Determinar confianza según reglas
+    if len(matched) > 0:
+        # Match > 0 → ci=1.0
+        ci = 1.0
+        xi = min(1.0, coverage)
+    elif len(candidate_skills) >= 3:
+        # Match = 0 PERO candidato tiene >=3 skills → señal dudosa (léxico falla)
+        ci = 0.4
+        xi = 0.0
+    else:
+        # Pocos skills en el candidato, no podemos concluir nada
+        ci = 0.3
+        xi = 0.0
+    
     return (
-        min(1.0, coverage),
-        1.0,
+        xi,
+        ci,
         {
             "matched": matched,
+            "matched_pairs": matched_pairs,
             "missing": missing,
             "coverage": round(coverage, 3),
             "matched_count": len(matched),
             "total_required": len(job_skills),
+            "candidate_skills_count": len(candidate_skills),
         }
     )
 

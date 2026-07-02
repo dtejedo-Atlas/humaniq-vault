@@ -169,14 +169,15 @@ class TestSkillsComponent:
         assert "sin skills" in evidence["note"].lower()
     
     def test_sk_no_candidate_skills(self):
-        """SK: candidato sin skills"""
+        """SK: candidato sin skills → xi=0.5, ci=0.0 (no podemos concluir)"""
         cand_skills = []
         job_skills = ["Python", "Java"]
         
         xi, ci, evidence = calculate_sk(cand_skills, job_skills)
         
-        assert xi == 0.0
-        assert ci == 1.0
+        # Nueva lógica: sin skills parseados → señal neutral
+        assert xi == 0.5
+        assert ci == 0.0
 
 
 class TestExperienceComponent:
