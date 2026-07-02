@@ -851,3 +851,7 @@ HMS = round(100 * K * core * HEC^0.15)
 - Resultado: 102 candidatos activos, 98 con empresas; 584 empresas → 573 con calibre, 11 null, 0 pendientes
 - Distribución: multinacional_global 216, corporativo_nacional 122, pyme 112, mediana 108, startup 15
 - Dry-run post-batch (Director Comercial executive/corporativo_nacional): Top5 = Ignacio 78, Alberto 77, Cesar 76, José Carlos 75, Roberto 74. Karina #6 HMS=74 (CC raw 0.75, multinacional vs corporativo dist 1). CC NO la subió sobre Ignacio: ambos tienen CC=0.75
+
+### Badge de calibre de empresa (03-Jun-2026) — COMPLETADO
+- CandidateDetailPage.js: COMPANY_CALIBER_CONFIG (5 niveles con colores) + badge data-testid='company-caliber-badge' junto al nombre de empresa en Experiencia Laboral. Solo visualización; empresas sin calibre no muestran badge
+- Verificado por testing agent iteration_16: frontend 100%, 0 issues
