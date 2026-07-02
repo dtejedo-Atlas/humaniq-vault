@@ -108,20 +108,33 @@ def _infer_area_from_title(title: str) -> Optional[str]:
     """
     Infiere el área funcional a partir de un título de puesto.
     Mapeo simplificado basado en keywords comunes.
+    
+    IMPORTANTE: Títulos con ventas/sales/comercial/commercial/exportaciones/export
+    se mapean directamente a "sales" (no a "commercial").
     """
     if not title:
         return None
     
     title_lower = title.lower()
     
-    # Mapeo de keywords a áreas funcionales
+    # PRIORIDAD 1: Mapear ventas/sales/comercial/exportaciones directamente a "sales"
+    sales_keywords = [
+        "ventas", "sales", "comercial", "commercial", 
+        "exportaciones", "exportación", "export", "exports",
+        "business development", "desarrollo de negocio",
+        "account manager", "key account", "cuentas clave"
+    ]
+    for kw in sales_keywords:
+        if kw in title_lower:
+            return "sales"
+    
+    # PRIORIDAD 2: Mapeo general de keywords a áreas funcionales
     area_keywords = {
         "operations": ["operaciones", "operations", "supply chain", "cadena de suministro", "logística", "logistics", "producción", "production", "manufacturing", "planta"],
         "finance": ["finanzas", "finance", "financiero", "financial", "contabilidad", "accounting", "controller", "tesorería", "treasury", "fiscal", "tax"],
-        "commercial": ["ventas", "sales", "comercial", "commercial", "business development", "desarrollo de negocio", "account", "cliente"],
         "marketing": ["marketing", "mercadotecnia", "brand", "marca", "comunicación", "communication", "digital", "growth"],
-        "hr": ["recursos humanos", "human resources", "hr", "rrhh", "talento", "talent", "people", "capacitación", "training", "compensaciones"],
-        "it_technology": ["tecnología", "technology", "ti", "it", "sistemas", "systems", "software", "developer", "desarrollo", "data", "analytics", "devops", "infrastructure"],
+        "human_resources": ["recursos humanos", "human resources", "hr", "rrhh", "talento", "talent", "people", "capacitación", "training", "compensaciones"],
+        "technology": ["tecnología", "technology", "ti", "it", "sistemas", "systems", "software", "developer", "desarrollo de software", "data", "analytics", "devops", "infrastructure"],
         "legal": ["legal", "jurídico", "abogado", "lawyer", "compliance", "cumplimiento", "regulatorio"],
         "general_management": ["director general", "ceo", "general manager", "gerente general", "country manager", "presidente", "president"],
         "supply_chain": ["supply chain", "cadena de suministro", "compras", "procurement", "purchasing", "sourcing"],

@@ -71,6 +71,12 @@ def get_functional_affinity(candidate_area: str, query_area: str) -> int:
     candidate_area = candidate_area.lower().strip()
     query_area = query_area.lower().strip()
     
+    # FIX: commercial es sinónimo de sales
+    if candidate_area == "commercial":
+        candidate_area = "sales"
+    if query_area == "commercial":
+        query_area = "sales"
+    
     if candidate_area in FUNCTIONAL_AFFINITY:
         return FUNCTIONAL_AFFINITY[candidate_area].get(query_area, 30)
     
