@@ -64,6 +64,25 @@ const SENIORITY_OPTIONS = [
   { value: 'ceo', label: 'CEO / Director General' },
 ];
 
+const WORK_SCHEME_LABELS = {
+  on_site: 'Presencial',
+  hybrid: 'Híbrido',
+  remote: 'Remoto',
+};
+
+const formatSalaryRange = (job) => {
+  const fmt = (v) => `$${Number(v).toLocaleString('es-MX')}`;
+  if (job?.salary_min && job?.salary_max) return `${fmt(job.salary_min)} - ${fmt(job.salary_max)} MXN`;
+  if (job?.salary_min) return `Desde ${fmt(job.salary_min)} MXN`;
+  if (job?.salary_max) return `Hasta ${fmt(job.salary_max)} MXN`;
+  return null;
+};
+
+const formatLanguageReq = (req) => {
+  const [lang, level] = String(req).split(':');
+  return level ? `${lang} (${level})` : lang;
+};
+
 const JobDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -295,10 +314,75 @@ const JobDetailPage = () => {
                 )}
               </div>
             )}
+            {(job?.job_objective || job?.role_context || job?.responsibilities || job?.required_experience || job?.non_negotiables || job?.salary_min || job?.salary_max || job?.work_scheme || job?.schedule || job?.language_requirements?.length > 0) && (
+              <div className="border-t pt-4 mt-4" data-testid="job-details-section">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Detalles de la Vacante</h3>
+                <div className="space-y-3">
+                  {job?.job_objective && (
+                    <div data-testid="job-detail-objective">
+                      <span className="text-sm text-slate-500 block">Objetivo del puesto</span>
+                      <p className="text-sm whitespace-pre-line">{job.job_objective}</p>
+                    </div>
+                  )}
+                  {job?.role_context && (
+                    <div data-testid="job-detail-role-context">
+                      <span className="text-sm text-slate-500 block">Contexto del rol</span>
+                      <p className="text-sm whitespace-pre-line">{job.role_context}</p>
+                    </div>
+                  )}
+                  {job?.responsibilities && (
+                    <div data-testid="job-detail-responsibilities">
+                      <span className="text-sm text-slate-500 block">Responsabilidades</span>
+                      <p className="text-sm whitespace-pre-line">{job.responsibilities}</p>
+                    </div>
+                  )}
+                  {job?.required_experience && (
+                    <div data-testid="job-detail-required-experience">
+                      <span className="text-sm text-slate-500 block">Experiencia requerida</span>
+                      <p className="text-sm whitespace-pre-line">{job.required_experience}</p>
+                    </div>
+                  )}
+                  {job?.non_negotiables && (
+                    <div data-testid="job-detail-non-negotiables">
+                      <span className="text-sm text-slate-500 block">Requisitos no negociables</span>
+                      <p className="text-sm whitespace-pre-line">{job.non_negotiables}</p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {formatSalaryRange(job) && (
+                      <div data-testid="job-detail-salary">
+                        <span className="text-sm text-slate-500 block">Rango salarial</span>
+                        <p className="text-sm font-medium">{formatSalaryRange(job)}</p>
+                      </div>
+                    )}
+                    {job?.work_scheme && (
+                      <div data-testid="job-detail-work-scheme">
+                        <span className="text-sm text-slate-500 block">Esquema</span>
+                        <p className="text-sm font-medium">{WORK_SCHEME_LABELS[job.work_scheme] || job.work_scheme}</p>
+                      </div>
+                    )}
+                    {job?.schedule && (
+                      <div data-testid="job-detail-schedule">
+                        <span className="text-sm text-slate-500 block">Jornada</span>
+                        <p className="text-sm font-medium">{job.schedule}</p>
+                      </div>
+                    )}
+                    {job?.language_requirements?.length > 0 && (
+                      <div data-testid="job-detail-languages">
+                        <span className="text-sm text-slate-500 block">Idiomas</span>
+                        <div>
+                          {job.language_requirements.map((req) => (
+                            <Badge key={req} variant="secondary" className="mr-1 mb-1">{formatLanguageReq(req)}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
-
-        {/* Matches Section */}
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">

@@ -218,6 +218,7 @@ class PreviousCompany(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     description: Optional[str] = None
+    company_caliber: Optional[str] = None  # inferido por IA al parsear
 
 class ResumeFile(BaseModel):
     file_name: str
@@ -455,6 +456,27 @@ class WorkScheme(str, Enum):
     HYBRID = "hybrid"
     REMOTE = "remote"
 
+class WeightedSkill(BaseModel):
+    skill: str
+    weight: float = 1.0
+    required: bool = True
+
+class KnockoutCriterion(BaseModel):
+    criterion: str
+    type: str  # "language" | "location" | "experience_min" | "salary" | "certification" | "custom"
+    severity: str = "important"  # "fatal" | "important"
+    expected_value: Optional[str] = None
+
+class JobScorecard(BaseModel):
+    required_skills: List[WeightedSkill] = []
+    preferred_skills: List[WeightedSkill] = []
+    non_negotiables: List[KnockoutCriterion] = []
+    required_languages: List[str] = []
+    required_location_or_mobility: Optional[str] = None
+    compensation_constraints: Optional[dict] = None
+    process_type: str = "managerial"  # c_level | executive | managerial | operational
+    target_company_caliber: Optional[str] = None  # multinacional_global | corporativo_nacional | mediana | pyme | startup
+
 class Job(BaseModel):
     """Modelo de Vacante para Job Matching Engine - v2 Rediseñado"""
     model_config = ConfigDict(extra="ignore")
@@ -506,6 +528,9 @@ class Job(BaseModel):
     
     # Idioma (para Fase B - soft matching)
     language_requirements: Optional[List[str]] = None  # ["spanish:fluent", "english:advanced"]
+    
+    # Scorecard v3 (motor de scoring)
+    job_scorecard: Optional[JobScorecard] = None
     
     # Metadata
     status: JobStatus = JobStatus.ACTIVE

@@ -19,6 +19,7 @@ from models import (
     Industry, FunctionalArea, JobProfile, CandidateMatch, SearchQuery, ActivityLog,
     DuplicateSuggestionModel, SavedSearch, IndustryCreate, FunctionalAreaCreate,
     Job, JobCreate, JobUpdate, JobStatus as JobStatusEnum, CandidateMatchResult, JobMatchResponse,
+    JobScorecard,
     AssignmentCreate, ExportFormat, ExportSourceType, ExportRequest,
     SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType, FolderCategory,
     StatusChangeRequest, StatusChange, VALID_STATUS_TRANSITIONS, STATUS_COLORS,
@@ -4165,6 +4166,51 @@ async def match_job_candidates_v3(
         return {"engine": "compare", "v3": results, "v2": v2_result}
 
     return {"engine": "v3", "job_id": job_id, "total_evaluated": len(candidates), "results": results}
+
+
+# ============= JOB SCORECARD ENDPOINTS (v3) =============
+
+def default_scorecard_from_job(job: dict) -> dict:
+    """Deriva un scorecard básico para jobs sin scorecard guardado."""
+    from scoring.engine_v3 import derive_default_scorecard
+    return derive_default_scorecard(job)
+
+
+@api_router.put("/jobs/{job_id}/scorecard")
+async def update_job_scorecard(
+    job_id: str,
+    scorecard: JobScorecard,
+    current_user: User = Depends(get_current_user)
+):
+    """Guarda el JobScorecard de una vacante (motor de scoring v3)."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "id": 1})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    await db.jobs.update_one(
+        {"id": job_id},
+        {"$set": {
+            "job_scorecard": scorecard.model_dump(),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }}
+    )
+    return {"job_id": job_id, "scorecard": scorecard, "source": "saved"}
+
+
+@api_router.get("/jobs/{job_id}/scorecard")
+async def get_job_scorecard(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Devuelve el JobScorecard guardado o, si no existe, uno derivado del job."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    saved = job.get("job_scorecard")
+    if saved:
+        return {"job_id": job_id, "scorecard": saved, "source": "saved"}
+    return {"job_id": job_id, "scorecard": default_scorecard_from_job(job), "source": "derived"}
 
 
 # ============= USER MANAGEMENT ENDPOINTS =============

@@ -8,7 +8,8 @@ Módulos:
 - knockouts: Evaluadores de requisitos mínimos
 """
 from .config_v3 import (
-    COMPONENT_WEIGHTS,
+    WEIGHTS_BY_PROCESS,
+    DEFAULT_PROCESS,
     COMPONENT_NAMES,
     KNOCKOUT_VALUES,
     SHRINKAGE_NEUTRAL,
@@ -26,6 +27,7 @@ from .components import (
     calculate_lo,
     calculate_sm,
     calculate_cq,
+    calculate_cc,
 )
 
 from .knockouts import (
@@ -39,7 +41,8 @@ from .knockouts import (
 
 __all__ = [
     # Config
-    "COMPONENT_WEIGHTS",
+    "WEIGHTS_BY_PROCESS",
+    "DEFAULT_PROCESS",
     "COMPONENT_NAMES",
     "KNOCKOUT_VALUES",
     "SHRINKAGE_NEUTRAL",
@@ -55,6 +58,7 @@ __all__ = [
     "calculate_lo",
     "calculate_sm",
     "calculate_cq",
+    "calculate_cc",
     # Knockouts
     "evaluate_knockouts",
     "evaluate_language_knockout",

@@ -8,7 +8,8 @@ from typing import Dict, Any
 sys.path.insert(0, '/app/backend')
 
 from scoring.config_v3 import (
-    COMPONENT_WEIGHTS,
+    WEIGHTS_BY_PROCESS,
+    DEFAULT_PROCESS,
     KNOCKOUT_VALUES,
     SHRINKAGE_NEUTRAL,
 )
@@ -106,14 +107,16 @@ class TestConfig:
     """Tests para config_v3.py"""
     
     def test_weights_sum_to_one(self):
-        """Los pesos de componentes deben sumar 1.0"""
-        total = sum(COMPONENT_WEIGHTS.values())
-        assert abs(total - 1.0) < 1e-9, f"Weights sum to {total}, expected 1.0"
+        """Los pesos de cada perfil deben sumar 1.0"""
+        for profile, weights in WEIGHTS_BY_PROCESS.items():
+            total = sum(weights.values())
+            assert abs(total - 1.0) < 0.001, f"Profile '{profile}' weights sum to {total}, expected 1.0"
     
     def test_all_components_have_weights(self):
-        """Todos los componentes tienen peso definido"""
-        expected = {"SK", "ER", "FA", "SA", "IA", "ED", "TR", "LO", "SM", "CQ"}
-        assert set(COMPONENT_WEIGHTS.keys()) == expected
+        """Todos los componentes tienen peso definido en cada perfil"""
+        expected = {"SK", "ER", "FA", "SA", "IA", "ED", "TR", "LO", "SM", "CQ", "CC"}
+        for profile, weights in WEIGHTS_BY_PROCESS.items():
+            assert set(weights.keys()) == expected, f"Profile '{profile}' has wrong components"
     
     def test_knockout_values(self):
         """Valores de knockout están correctos"""
@@ -557,11 +560,12 @@ class TestIntegration:
     
     def test_weights_coverage(self):
         """Cada componente tiene un peso definido"""
-        component_codes = ["SK", "ER", "FA", "SA", "IA", "ED", "TR", "LO", "SM", "CQ"]
+        component_codes = ["SK", "ER", "FA", "SA", "IA", "ED", "TR", "LO", "SM", "CQ", "CC"]
+        default_weights = WEIGHTS_BY_PROCESS[DEFAULT_PROCESS]
         
         for code in component_codes:
-            assert code in COMPONENT_WEIGHTS, f"Missing weight for {code}"
-            assert COMPONENT_WEIGHTS[code] > 0, f"Weight for {code} must be positive"
+            assert code in default_weights, f"Missing weight for {code}"
+            assert default_weights[code] > 0, f"Weight for {code} must be positive"
 
 
 # =============================================================================
@@ -948,9 +952,9 @@ class TestEngineV3:
         for field in required_fields:
             assert field in result, f"Missing required field: {field}"
         
-        # Verificar component_breakdown tiene 10 componentes
-        assert len(result["component_breakdown"]) == 10, \
-            f"Expected 10 components, got {len(result['component_breakdown'])}"
+        # Verificar component_breakdown tiene 11 componentes
+        assert len(result["component_breakdown"]) == 11, \
+            f"Expected 11 components, got {len(result['component_breakdown'])}"
         
         # Verificar cada componente tiene raw, confidence, adjusted
         for code, comp in result["component_breakdown"].items():

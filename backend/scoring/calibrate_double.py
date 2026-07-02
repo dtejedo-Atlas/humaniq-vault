@@ -19,7 +19,9 @@ load_dotenv('/app/backend/.env')
 from job_matching_service import JobMatchingService
 from embedding_service import EmbeddingService
 from scoring.engine_v3 import score_v3
-from scoring.config_v3 import COMPONENT_NAMES, COMPONENT_WEIGHTS
+from scoring.config_v3 import COMPONENT_NAMES, WEIGHTS_BY_PROCESS, DEFAULT_PROCESS
+
+COMPONENT_WEIGHTS = WEIGHTS_BY_PROCESS[DEFAULT_PROCESS]
 
 
 def get_db():

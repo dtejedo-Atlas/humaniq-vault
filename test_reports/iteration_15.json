@@ -1,0 +1,36 @@
+{
+  "summary": "FASE 4 scoring v3 (JobScorecard + Company Caliber + process_type weights + UI 'Detalles de la Vacante') verified end-to-end. All 5 backend tests PASS (5/5): PUT/GET scorecard for Director Comercial (executive/corporativo_nacional) returns source='saved'; GET scorecard for Gerente de Operaciones returns source='derived' with process_type='managerial'; POST /match-v3 in compare mode returns engine='compare' + v3 + v2, and each v3 result has process_type='executive', weights_used with 11 keys (SK,ER,FA,SA,IA,ED,TR,LO,SM,CQ,CC), and component_breakdown with 11 components including CC; POST /match (v2) still returns Omar Alberto Vega Torres, David Armando Cisneros Figueroa and Ignacio Salazar Soto among matches. Frontend: login OK, /jobs/594c8585... renders correctly, [data-testid='job-details-section'] is present with heading 'Detalles de la Vacante', only fields with data are shown (job-detail-work-scheme = 'Presencial' rendered; the other 8 field testids hidden because the job doesn't have those fields populated — matches the null-hiding requirement). Page not broken: job title 'Director Comercial', area/industria/nivel/experiencia rows visible, Candidatos Compatibles section shows Omar/David/Ignacio at 95/93/93%.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_scorecard_v3.py",
+    "/app/test_reports/pytest/iteration_15.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Pre-login TaxonomyProvider still fetches /api/taxonomy/* before auth -> 4x 403 in console on login (same observation as iterations 12-14, cosmetic).",
+    "Frontend uses process.env.REACT_APP_BACKEND_URL correctly; no hardcoding observed in JobDetailPage.js scorecard/details section.",
+    "server.py:4173 default_scorecard_from_job delegates to scoring.engine_v3.derive_default_scorecard — clean separation.",
+    "The v3 endpoint in compare mode returned in ~3-5s (not the 30-60s worst case) — good perf."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scorecard_v3.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (5/5 pytest pass)",
+    "frontend": "100% - login + navigation + Detalles de la Vacante section + null-field hiding + regression header/matches all verified"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (from /app/memory/test_credentials.md) — working.",
+  "seed_data_creation": "None. Re-saved the existing scorecard for Director Comercial with the SAME values (process_type=executive, target_company_caliber=corporativo_nacional) per instructions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "FASE 4 verification complete. Scorecard endpoints (PUT/GET), match-v3 compare-mode contract (engine='compare', weights_used with 11 keys incl. CC, component_breakdown with CC), and v2 regression are all green. UI job-details-section correctly hides fields with null data. Test file /app/backend/tests/test_scorecard_v3.py can be reused as regression suite.",
+  "rca of the issue": "N/A - no failures. Only note: first-pass v2 regression assertion used response['matches']; actual v2 payload uses 'results' key (fields: candidate_id, candidate_name, match_percentage, breakdown, ...). Test was updated to prefer 'results' first, then all 5 tests passed."
+}

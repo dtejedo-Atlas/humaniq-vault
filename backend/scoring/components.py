@@ -939,3 +939,89 @@ def calculate_cq(
             "checks": checks,
         }
     )
+
+
+
+# =============================================================================
+# CC: COMPANY CALIBER FIT
+# =============================================================================
+
+CALIBER_INDEX: Dict[str, int] = {
+    "startup": 0,
+    "pyme": 1,
+    "mediana": 2,
+    "corporativo_nacional": 3,
+    "multinacional_global": 4,
+}
+
+
+def calculate_cc(
+    candidate: Dict[str, Any],
+    job: Dict[str, Any],
+    scorecard: Optional[Dict[str, Any]] = None
+) -> ComponentResult:
+    """
+    CC: Company Caliber Fit
+    Afinidad entre el calibre de empresas del candidato y el target de la vacante.
+    Es AFINIDAD, no "más grande mejor": sobre-calibre penaliza igual que sub-calibre.
+    
+    Returns:
+        (xi, ci, evidence)
+    """
+    target = (scorecard or {}).get("target_company_caliber")
+    
+    # Sin target definido → NO aplica: neutral, no penaliza
+    if not target or target not in CALIBER_INDEX:
+        return (
+            0.5,
+            0.0,
+            {
+                "criterion": "company_caliber",
+                "candidate_caliber": None,
+                "target_caliber": target,
+                "explanation": "Vacante sin target de calibre de empresa - componente neutral",
+            }
+        )
+    
+    previous_companies = candidate.get("previous_companies") or []
+    with_caliber = [
+        pc for pc in previous_companies
+        if pc.get("company_caliber") in CALIBER_INDEX
+    ]
+    
+    # ci = proporción de empresas con calibre conocido
+    ci = (len(with_caliber) / len(previous_companies)) if previous_companies else 0.0
+    
+    # Ninguna empresa con calibre → neutral
+    if not with_caliber:
+        return (
+            0.5,
+            0.0,
+            {
+                "criterion": "company_caliber",
+                "candidate_caliber": None,
+                "target_caliber": target,
+                "explanation": "Candidato sin calibre de empresa inferido - componente neutral",
+            }
+        )
+    
+    # Calibre representativo = máximo entre las últimas 3 empresas con calibre
+    recent = with_caliber[:3]
+    candidate_index = max(CALIBER_INDEX[pc["company_caliber"]] for pc in recent)
+    candidate_caliber = next(
+        k for k, v in CALIBER_INDEX.items() if v == candidate_index
+    )
+    
+    distance = abs(candidate_index - CALIBER_INDEX[target])
+    xi = 1.0 - (distance / 4.0)
+    
+    return (
+        xi,
+        ci,
+        {
+            "criterion": "company_caliber",
+            "candidate_caliber": candidate_caliber,
+            "target_caliber": target,
+            "explanation": f"Calibre candidato '{candidate_caliber}' vs target '{target}' (distancia ordinal {distance}/4)",
+        }
+    )

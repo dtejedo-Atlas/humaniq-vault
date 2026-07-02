@@ -184,10 +184,19 @@ Siempre responde en formato JSON válido con esta estructura:
                         "title": "puesto",
                         "start_date": "fecha inicio o null",
                         "end_date": "fecha fin o null",
-                        "description": "descripción breve o null"
+                        "description": "descripción breve o null",
+                        "company_caliber": "calibre de la empresa o null"
                     }
                 ]
             }
+
+Para "company_caliber", clasifica el calibre de cada empresa en UNO de estos 5 valores exactos:
+- "multinacional_global": presencia en múltiples países, marca global reconocida
+- "corporativo_nacional": gran empresa nacional o filial grande
+- "mediana": empresa mediana establecida
+- "pyme": pequeña o mediana empresa local
+- "startup": empresa joven / emprendimiento
+Si no hay información suficiente para clasificar una empresa, deja company_caliber en null. NO inventes.
             """
         ).with_model("anthropic", "claude-sonnet-4-5-20250929")
         

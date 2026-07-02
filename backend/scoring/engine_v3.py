@@ -19,7 +19,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timezone
 
 from .config_v3 import (
-    COMPONENT_WEIGHTS,
+    WEIGHTS_BY_PROCESS,
+    DEFAULT_PROCESS,
     COMPONENT_NAMES,
     SHRINKAGE_NEUTRAL,
     BOOST_CAP,
@@ -37,6 +38,7 @@ from .components import (
     calculate_lo,
     calculate_sm,
     calculate_cq,
+    calculate_cc,
 )
 from .knockouts import evaluate_knockouts, summarize_knockouts
 from .confidence import calculate_hec
@@ -316,6 +318,37 @@ def determine_recommended_action(
 
 
 # =============================================================================
+# SCORECARD POR DEFECTO
+# =============================================================================
+
+def derive_default_scorecard(job: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deriva un scorecard básico para jobs sin scorecard guardado.
+    process_type inferido del seniority del job.
+    """
+    seniority = str(job.get("seniority") or "").lower()
+    if seniority in ("c_level", "vp"):
+        process_type = "c_level"
+    elif seniority == "director":
+        process_type = "executive"
+    elif seniority == "manager":
+        process_type = "managerial"
+    else:
+        process_type = "operational"
+    
+    return {
+        "required_skills": [],
+        "preferred_skills": [],
+        "non_negotiables": [],
+        "required_languages": job.get("language_requirements") or [],
+        "required_location_or_mobility": None,
+        "compensation_constraints": None,
+        "process_type": process_type,
+        "target_company_caliber": None,
+    }
+
+
+# =============================================================================
 # FUNCIÓN PRINCIPAL: score_v3
 # =============================================================================
 
@@ -348,6 +381,18 @@ def score_v3(
         ScoreResult completo
     """
     # =========================================================================
+    # 0. RESOLVER SCORECARD Y PESOS POR PROCESS_TYPE
+    # =========================================================================
+    
+    if scorecard is None:
+        scorecard = job.get("job_scorecard") or derive_default_scorecard(job)
+    
+    process_type = scorecard.get("process_type") or DEFAULT_PROCESS
+    if process_type not in WEIGHTS_BY_PROCESS:
+        process_type = DEFAULT_PROCESS
+    weights = WEIGHTS_BY_PROCESS[process_type]
+    
+    # =========================================================================
     # 1. CALCULAR COMPONENTES
     # =========================================================================
     
@@ -370,6 +415,7 @@ def score_v3(
         job.get("embedding")
     )
     cq_xi, cq_ci, cq_ev = calculate_cq(candidate)
+    cc_xi, cc_ci, cc_ev = calculate_cc(candidate, job, scorecard)
     
     # Organizar en diccionario
     raw_components = {
@@ -383,6 +429,7 @@ def score_v3(
         "LO": (lo_xi, lo_ci, lo_ev),
         "SM": (sm_xi, sm_ci, sm_ev),
         "CQ": (cq_xi, cq_ci, cq_ev),
+        "CC": (cc_xi, cc_ci, cc_ev),
     }
     
     # =========================================================================
@@ -398,7 +445,7 @@ def score_v3(
         component_scores[code] = {
             "code": code,
             "name": COMPONENT_NAMES.get(code, code),
-            "weight": COMPONENT_WEIGHTS[code],
+            "weight": weights[code],
             "raw": round(xi, 4),
             "confidence": round(ci, 4),
             "adjusted": round(xi_adjusted, 4),
@@ -411,13 +458,13 @@ def score_v3(
     
     # Media aritmética: A = Σ wi * xi*
     A = sum(
-        COMPONENT_WEIGHTS[code] * cs["adjusted"]
+        weights[code] * cs["adjusted"]
         for code, cs in component_scores.items()
     )
     
     # Media geométrica: G = exp(Σ wi * ln(xi* + 0.01))
     log_sum = sum(
-        COMPONENT_WEIGHTS[code] * math.log(cs["adjusted"] + 0.01)
+        weights[code] * math.log(cs["adjusted"] + 0.01)
         for code, cs in component_scores.items()
     )
     G = math.exp(log_sum)
@@ -472,6 +519,8 @@ def score_v3(
     
     return {
         "engine_version": ENGINE_VERSION,
+        "process_type": process_type,
+        "weights_used": weights,
         "match_score_v3": hms,
         "confidence_score": hec_score,
         
@@ -549,17 +598,17 @@ def format_score_report(result: ScoreResult) -> str:
         f"HMS: {result['match_score_v3']}  |  HEC: {result['confidence_score']:.4f}  |  Acción: {result['recommended_action']}",
         "─" * 70,
         "",
-        "COMPONENTES (10):",
+        "COMPONENTES (11):",
         f"{'Código':<6} {'Nombre':<25} {'Raw':>8} {'CI':>8} {'Adj':>8} {'Peso':>6}",
         "-" * 70,
     ]
     
-    for code in ["SK", "ER", "FA", "SA", "IA", "ED", "TR", "LO", "SM", "CQ"]:
+    for code in ["SK", "ER", "FA", "SA", "IA", "ED", "TR", "LO", "SM", "CQ", "CC"]:
         cb = result["component_breakdown"].get(code, {})
         name = COMPONENT_NAMES.get(code, code)[:25]
         lines.append(
             f"{code:<6} {name:<25} {cb.get('raw', 0):>8.4f} {cb.get('confidence', 0):>8.4f} "
-            f"{cb.get('adjusted', 0):>8.4f} {COMPONENT_WEIGHTS.get(code, 0):>6.2f}"
+            f"{cb.get('adjusted', 0):>8.4f} {result.get('weights_used', {}).get(code, 0):>6.2f}"
         )
     
     lines.extend([

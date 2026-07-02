@@ -5,24 +5,22 @@ Pesos, constantes y valores de knockout para el motor de scoring v3.
 from typing import Dict
 
 # =============================================================================
-# PESOS DE COMPONENTES (deben sumar 1.0)
+# PESOS POR TIPO DE PROCESO (cada perfil debe sumar 1.0)
+# Componentes: SK, ER, FA, SA, IA, ED, TR, LO, SM, CQ, CC (11)
 # =============================================================================
-COMPONENT_WEIGHTS: Dict[str, float] = {
-    "SK": 0.16,  # Skills coverage
-    "ER": 0.15,  # Experience relevance (años en el área)
-    "FA": 0.13,  # Functional affinity
-    "SA": 0.12,  # Seniority alignment
-    "IA": 0.11,  # Industry affinity
-    "ED": 0.10,  # Executive depth
-    "TR": 0.08,  # Trajectory score
-    "LO": 0.06,  # Location fit
-    "SM": 0.05,  # Semantic similarity
-    "CQ": 0.04,  # CV quality / completeness
+WEIGHTS_BY_PROCESS: Dict[str, Dict[str, float]] = {
+    "c_level":     {"SK": 0.07, "ER": 0.14, "FA": 0.12, "SA": 0.13, "IA": 0.10, "ED": 0.11, "TR": 0.09, "LO": 0.05, "SM": 0.05, "CQ": 0.03, "CC": 0.11},
+    "executive":   {"SK": 0.09, "ER": 0.14, "FA": 0.12, "SA": 0.12, "IA": 0.10, "ED": 0.10, "TR": 0.08, "LO": 0.05, "SM": 0.05, "CQ": 0.04, "CC": 0.11},
+    "managerial":  {"SK": 0.14, "ER": 0.14, "FA": 0.13, "SA": 0.11, "IA": 0.10, "ED": 0.09, "TR": 0.07, "LO": 0.06, "SM": 0.05, "CQ": 0.04, "CC": 0.07},
+    "operational": {"SK": 0.24, "ER": 0.14, "FA": 0.13, "SA": 0.10, "IA": 0.09, "ED": 0.05, "TR": 0.06, "LO": 0.07, "SM": 0.05, "CQ": 0.04, "CC": 0.03},
 }
 
-# Validación: los pesos DEBEN sumar 1.0
-_weight_sum = sum(COMPONENT_WEIGHTS.values())
-assert abs(_weight_sum - 1.0) < 1e-9, f"COMPONENT_WEIGHTS must sum to 1.0, got {_weight_sum}"
+DEFAULT_PROCESS = "managerial"
+
+# Validación: cada perfil DEBE sumar 1.0 (tolerancia 0.001)
+for _profile, _weights in WEIGHTS_BY_PROCESS.items():
+    _s = sum(_weights.values())
+    assert abs(_s - 1.0) < 0.001, f"WEIGHTS_BY_PROCESS['{_profile}'] must sum to 1.0, got {_s}"
 
 
 # =============================================================================
@@ -62,6 +60,7 @@ COMPONENT_NAMES: Dict[str, str] = {
     "LO": "Location Fit",
     "SM": "Semantic Similarity",
     "CQ": "CV Quality",
+    "CC": "Company Caliber Fit",
 }
 
 
