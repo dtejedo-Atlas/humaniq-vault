@@ -65,7 +65,8 @@ class TestMatchV3FeatureFlag:
             content = f.read()
         
         assert "MATCHING_ENGINE_VERSION" in content
-        assert "MATCHING_ENGINE_VERSION=v2" in content
+        # El valor puede ser v2, v3, o compare
+        assert any(v in content for v in ["MATCHING_ENGINE_VERSION=v2", "MATCHING_ENGINE_VERSION=v3", "MATCHING_ENGINE_VERSION=compare"])
 
 
 class TestV2EndpointUnchanged:

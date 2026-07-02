@@ -787,9 +787,9 @@ class JobMatchingService:
         job_area_lower = job_area.lower()
         
         # Buscar áreas con afinidad >= 50 hacia el área de la vacante
-        for candidate_area, affinities in FUNCTIONAL_AFFINITY.items():
-            affinity_score = affinities.get(job_area_lower, 0)
-            if affinity_score >= 50:
+        areas_to_check = set(FUNCTIONAL_AFFINITY.keys()) | {"commercial", "business_development"}
+        for candidate_area in areas_to_check:
+            if get_functional_affinity(candidate_area, job_area_lower) >= 50:
                 compatible.add(candidate_area.lower())
         
         # Agregar también áreas adyacentes explícitas
@@ -830,11 +830,12 @@ class JobMatchingService:
         Construye query de MongoDB para pre-filtrar candidatos.
         Excluye soft-deleted y filtra por área funcional y seniority compatibles.
         """
-        # Base: excluir soft-deleted
+        # Base: excluir soft-deleted (incluir is_deleted:None que es común)
         query = {
             "$or": [
                 {"is_deleted": False},
-                {"is_deleted": {"$exists": False}}
+                {"is_deleted": {"$exists": False}},
+                {"is_deleted": None}
             ]
         }
         

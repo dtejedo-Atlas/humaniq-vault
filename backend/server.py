@@ -56,7 +56,7 @@ db = client[os.environ['DB_NAME']]
 
 # Log which database is being used (without exposing credentials)
 db_type = "MongoDB Atlas" if "mongodb+srv" in mongo_url else "Local MongoDB"
-logging.info(f"Connected to {db_type} - Database: {os.environ['DB_NAME']}")
+print(f"[STARTUP] Connected to {db_type} - Database: {os.environ['DB_NAME']}")
 
 # Initialize services
 duplicate_detector = DuplicateDetector(db)
