@@ -819,3 +819,9 @@ HMS = round(100 * K * core * HEC^0.15)
 3. Limpieza Atlas: 1 candidato soft-deleted con razón "registro de prueba" (José Muñoz García / jose.munoz.test@example.com). Atlas activos: 102
 4. Producción→Atlas: ATLAS_URI ya está en backend/.env y server.py la prioriza (línea 50). deployment_agent: PASS, sin blockers. Usuario debe hacer Deploy → Deploy Now
 5. Verificación post-redeploy PENDIENTE: login test en prod + conteo=102 + log "[STARTUP] Connected to MongoDB Atlas"
+
+### Fix login producción (03-Jun-2026)
+- Causa raíz: producción sobrescribe DB_NAME a "atlas-recruiting-ai-atlas_talent_vault" (DB vacía en Atlas, evidencia: 13 smart_folders creados al arrancar el deploy). Sin usuarios → "Credenciales incorrectas"
+- Fix: nueva var ATLAS_DB_NAME=atlas_talent_vault en backend/.env; server.py la prioriza cuando usa ATLAS_URI
+- Verificado en preview: startup log "Connected to MongoDB Atlas - Database: atlas_talent_vault", login OK, candidatos OK
+- PENDIENTE: usuario debe hacer REDEPLOY para que el fix llegue a producción

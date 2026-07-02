@@ -52,11 +52,17 @@ if not mongo_url:
     raise ValueError("Database connection not configured. Set ATLAS_URI or MONGO_URL environment variable.")
 
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+
+# When using Atlas, ATLAS_DB_NAME takes priority (production may override DB_NAME)
+if os.environ.get('ATLAS_URI') and os.environ.get('ATLAS_DB_NAME'):
+    db_name = os.environ['ATLAS_DB_NAME']
+else:
+    db_name = os.environ['DB_NAME']
+db = client[db_name]
 
 # Log which database is being used (without exposing credentials)
 db_type = "MongoDB Atlas" if "mongodb+srv" in mongo_url else "Local MongoDB"
-print(f"[STARTUP] Connected to {db_type} - Database: {os.environ['DB_NAME']}")
+print(f"[STARTUP] Connected to {db_type} - Database: {db_name}")
 
 # Initialize services
 duplicate_detector = DuplicateDetector(db)
