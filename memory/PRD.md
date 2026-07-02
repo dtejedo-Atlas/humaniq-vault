@@ -831,3 +831,16 @@ HMS = round(100 * K * core * HEC^0.15)
 - Catch blocks vacíos: DashboardPage.js y Sidebar.js ahora loguean con console.warn (sin cambio de lógica)
 - 71/71 tests de scoring pasan
 - CONGELADO por usuario: index keys, console statements, is vs ==, hooks, refactors backend (smart_truncate_cv etc), Fase C completa
+
+### FASE 4 Motor v3 (03-Jun-2026) — COMPLETADA Y VERIFICADA
+1. models.py: WeightedSkill, KnockoutCriterion, JobScorecard (+job_scorecard en Job, +company_caliber en PreviousCompany)
+2. atlas_service.py: prompt de parse_resume infiere company_caliber (5 niveles, null si no hay info)
+3. config_v3.py: WEIGHTS_BY_PROCESS con 4 perfiles (c_level/executive/managerial/operational), 11 componentes. Corrección aprobada por usuario: operational SK 0.20→0.24 para sumar 1.0
+4. components.py: calculate_cc (Company Caliber Fit, afinidad ordinal, neutral si sin target/datos)
+5. engine_v3.py: pesos por process_type, CC integrado, scorecard resuelto desde job_scorecard o derivado, process_type+weights_used en respuesta
+6. server.py: PUT/GET /jobs/{id}/scorecard + default_scorecard_from_job
+7. Tests: 95/95 pasan (71 previos adaptados + 24 nuevos en test_scorecard_cc.py)
+8. JobDetailPage.js: sección "Detalles de la Vacante" (data-testid=job-details-section, oculta campos null)
+- Dry-run Director Comercial (executive + corporativo_nacional): Top5 v3 = Ignacio 75, Alberto 74, Cesar 73, Karina 72, Roberto 71. Karina subió #7→#4 por pesos executive (no por CC: todos los candidatos tienen CC neutral porque sus CVs se parsearon antes del cambio; se necesita re-parseo para poblar company_caliber)
+- Testing agent iteration_15: 100% backend y frontend, 0 issues
+- Scorecard guardado en BD SOLO para Director Comercial (como pidió el usuario)
