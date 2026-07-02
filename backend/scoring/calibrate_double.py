@@ -95,7 +95,7 @@ def run_v2_matching(db, job, limit=5):
             match_result["candidate"] = candidate
             match_result["match_score"] = match_result.get("match_percentage", 0)
             results.append(match_result)
-        except Exception as e:
+        except Exception:
             pass
     
     results.sort(key=lambda x: x.get("match_score", 0), reverse=True)

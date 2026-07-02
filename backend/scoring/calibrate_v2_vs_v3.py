@@ -56,7 +56,6 @@ def find_best_job_for_calibration(db):
                 skill_quality += 1
         
         job_area = job.get("functional_area", "")
-        job_industry = job.get("industry", "")
         
         # Contar candidatos afines
         query = {
