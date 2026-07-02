@@ -1,0 +1,52 @@
+{
+  "summary": "Frontend-only verification of company_caliber badge in 'Experiencia Laboral' section on candidate profile page. Login → navegación a candidato Karina Carranza (33d4f668-c74d-4cb3-9c41-9dc9ba4da2bc) → validación de badges. Todos los criterios cumplidos.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [".screenshots/candidate_profile_badges.png"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Guard `COMPANY_CALIBER_CONFIG[company.company_caliber] && (...)` correctamente previene renderizar badge cuando company_caliber es null/undefined/valor no reconocido. Código limpio y localizado.",
+    "OBSERVACIÓN (NO relacionada a este cambio): al cargar la página del candidato aparecen múltiples errores en consola 'Failed to load resource: 403' y 'Error fetching taxonomy: AxiosError'. Como resultado, campos como Industria muestran el slug crudo ('consumer_goods') en lugar del nombre traducido. Esto es preexistente (no introducido por el cambio del badge) pero merece atención del main agent en una próxima iteración.",
+    "Toda la sección 'Experiencia Laboral' se renderiza con `previous_companies?.length > 0`, protegido contra arrays vacíos/undefined."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend only)", "frontend": "100%"},
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin) — usado correctamente desde /app/memory/test_credentials.md",
+  "seed_data_creation": "Ninguna. No se modificaron datos en la BD Atlas.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "verification_details": {
+    "candidate_tested": "Karina Carranza (id=33d4f668-c74d-4cb3-9c41-9dc9ba4da2bc)",
+    "work_history_entries": 4,
+    "badges_rendered": 4,
+    "badge_labels_found": ["Multinacional Global"],
+    "empty_badges": 0,
+    "all_labels_valid": true,
+    "expected_labels_set": ["Multinacional Global", "Corporativo Nacional", "Empresa Mediana", "PyME", "Startup"],
+    "data_testid_present": "company-caliber-badge (verificado por selector)",
+    "regression_checks": {
+      "candidate_header_visible": true,
+      "candidate_name_visible": "Karina Carranza",
+      "position_and_company_visible": "Director LATAM @ The Coca-Cola Company",
+      "email_visible": "karinnca@yahoo.com",
+      "phone_visible": "55 54031022",
+      "location_visible": "Mexico City, Ciudad de México, México",
+      "experiencia_anios_visible": "18 años",
+      "resumen_ia_visible": true,
+      "clasificacion_visible": true,
+      "habilidades_section_visible": true,
+      "work_history_titles_visible": true,
+      "work_history_dates_render": true,
+      "sidebar_cv_history_visible": true
+    }
+  },
+  "context_for_next_testing_agent": "El micro-cambio del badge company_caliber está implementado y funcionando correctamente en /candidates/:id (sección 'Experiencia Laboral'). data-testid='company-caliber-badge' presente. La página del candidato Karina Carranza tiene 4 previous_companies todas con caliber='multinacional_global' (Coca-Cola y afines) — no fue posible probar en este mismo candidato el caso null/missing, pero el código lo maneja correctamente con el guard `COMPANY_CALIBER_CONFIG[company.company_caliber] && (...)`. NOTA IMPORTANTE PARA EL MAIN AGENT: existe un bug preexistente (no relacionado a este cambio) — los endpoints de taxonomía devuelven 403 al usuario admin test_utf8@atlas.com, provocando que la industria se muestre como slug crudo ('consumer_goods') en lugar del label traducido. Investigar en próximas iteraciones si es relevante.",
+  "rca_of_the_issue": "N/A — no se encontraron issues relacionados al cambio solicitado. Feature verificada al 100%."
+}

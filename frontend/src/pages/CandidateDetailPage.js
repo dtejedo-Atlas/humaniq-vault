@@ -81,6 +81,14 @@ const STATUS_CONFIG = {
   on_hold: { label: 'En Pausa', color: 'bg-slate-100 text-slate-800', icon: Pause }
 };
 
+const COMPANY_CALIBER_CONFIG = {
+  multinacional_global: { label: 'Multinacional Global', color: 'bg-indigo-100 text-indigo-800' },
+  corporativo_nacional: { label: 'Corporativo Nacional', color: 'bg-blue-100 text-blue-800' },
+  mediana: { label: 'Empresa Mediana', color: 'bg-emerald-100 text-emerald-800' },
+  pyme: { label: 'PyME', color: 'bg-amber-100 text-amber-800' },
+  startup: { label: 'Startup', color: 'bg-pink-100 text-pink-800' },
+};
+
 const CandidateDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -799,7 +807,17 @@ const CandidateDetailPage = () => {
                     {candidate.previous_companies.map((company, index) => (
                       <div key={index} className="border-l-2 border-cyan-500 pl-4">
                         <h4 className="font-semibold text-slate-900">{company.title}</h4>
-                        <p className="text-sm text-slate-600">{company.company_name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm text-slate-600">{company.company_name}</p>
+                          {COMPANY_CALIBER_CONFIG[company.company_caliber] && (
+                            <Badge
+                              data-testid="company-caliber-badge"
+                              className={`${COMPANY_CALIBER_CONFIG[company.company_caliber].color} text-xs font-medium border-0`}
+                            >
+                              {COMPANY_CALIBER_CONFIG[company.company_caliber].label}
+                            </Badge>
+                          )}
+                        </div>
                         {(company.start_date || company.end_date) && (
                           <p className="text-xs text-slate-500 mt-1">
                             {company.start_date || 'N/A'} - {company.end_date || 'Presente'}
