@@ -373,7 +373,7 @@ class TestLanguageKnockout:
         result = evaluate_language_knockout(SAMPLE_CANDIDATE, SAMPLE_JOB)
         
         assert result["status"] == "cumple"
-        assert result["value"] == 1.0
+        assert result["k_value"] == 1.0
     
     def test_language_missing(self):
         """Knockout: idioma faltante"""
@@ -392,25 +392,44 @@ class TestLanguageKnockout:
         result = evaluate_language_knockout(candidate, job)
         
         assert result["status"] == "cumple"
+    
+    def test_language_no_requirement(self):
+        """Knockout: vacante sin requisito de idiomas → no_aplica"""
+        job = {**SAMPLE_JOB, "required_languages": []}
+        
+        result = evaluate_language_knockout(SAMPLE_CANDIDATE, job)
+        
+        assert result["status"] == "no_aplica"
+        assert result["k_value"] is None
 
 
 class TestLocationKnockout:
     """Tests para evaluate_location_knockout"""
     
     def test_location_remote(self):
-        """Knockout: trabajo remoto"""
+        """Knockout: trabajo remoto → no_aplica (ubicación no importa)"""
         job = {**SAMPLE_JOB, "work_scheme": "remoto"}
         
         result = evaluate_location_knockout(SAMPLE_CANDIDATE, job)
         
-        assert result["status"] == "cumple"
-        assert result["value"] == 1.0
+        # Para trabajo remoto, el criterio no aplica
+        assert result["status"] == "no_aplica"
+        assert result["k_value"] is None
     
     def test_location_match(self):
         """Knockout: ubicación coincide"""
         result = evaluate_location_knockout(SAMPLE_CANDIDATE, SAMPLE_JOB)
         
         assert result["status"] == "cumple"
+    
+    def test_location_no_requirement(self):
+        """Knockout: vacante sin ubicación específica → no_aplica"""
+        job = {**SAMPLE_JOB, "city": None, "state": None}
+        
+        result = evaluate_location_knockout(SAMPLE_CANDIDATE, job)
+        
+        assert result["status"] == "no_aplica"
+        assert result["k_value"] is None
 
 
 class TestExperienceKnockout:
@@ -431,18 +450,54 @@ class TestExperienceKnockout:
         result = evaluate_experience_knockout(candidate, SAMPLE_JOB)
         
         assert result["status"] in ["no_cumple_importante", "no_cumple_fatal"]
+    
+    def test_experience_no_requirement(self):
+        """Knockout: vacante sin requisito de experiencia mínima → no_aplica"""
+        job = {**SAMPLE_JOB, "min_experience": None}
+        
+        result = evaluate_experience_knockout(SAMPLE_CANDIDATE, job)
+        
+        assert result["status"] == "no_aplica"
+        assert result["k_value"] is None
 
 
 class TestSalaryKnockout:
     """Tests para evaluate_salary_knockout"""
     
-    def test_salary_always_insufficient_evidence(self):
-        """Knockout: salary siempre devuelve evidencia_insuficiente"""
-        result = evaluate_salary_knockout(SAMPLE_CANDIDATE, SAMPLE_JOB)
+    def test_salary_no_job_requirement(self):
+        """Knockout: vacante sin restricción salarial → no_aplica"""
+        # Job sin salary_min/max/compensation_constraints
+        job = {**SAMPLE_JOB}
+        job.pop("salary_min", None)
+        job.pop("salary_max", None)
+        job.pop("compensation_constraints", None)
+        
+        result = evaluate_salary_knockout(SAMPLE_CANDIDATE, job)
+        
+        assert result["status"] == "no_aplica"
+        assert result["k_value"] is None
+    
+    def test_salary_with_job_requirement_no_candidate_data(self):
+        """Knockout: vacante con restricción pero candidato sin datos → evidencia_insuficiente"""
+        job = {**SAMPLE_JOB, "salary_min": 50000, "salary_max": 80000}
+        candidate = {**SAMPLE_CANDIDATE}
+        candidate.pop("salary_data", None)
+        candidate.pop("expected_salary", None)
+        
+        result = evaluate_salary_knockout(candidate, job)
         
         assert result["status"] == "evidencia_insuficiente"
-        assert result["value"] == 0.85
-        assert "no está poblado" in result["note"]
+        assert result["k_value"] == 0.85
+    
+    def test_salary_both_have_data_compatible(self):
+        """Knockout: ambos tienen datos y son compatibles → cumple"""
+        job = {**SAMPLE_JOB, "salary_min": 50000, "salary_max": 80000}
+        candidate = {**SAMPLE_CANDIDATE, "salary_data": {"min": 55000, "max": 70000}}
+        
+        result = evaluate_salary_knockout(candidate, job)
+        
+        assert result["status"] == "cumple"
+        assert result["k_value"] == 1.0
 
 
 class TestEvaluateKnockouts:

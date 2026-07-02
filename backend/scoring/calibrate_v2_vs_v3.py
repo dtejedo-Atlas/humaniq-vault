@@ -228,8 +228,24 @@ def print_full_breakdown(v3_result):
     print("-" * 80)
     
     for ko in v3_result["knockout_results"]["results"]:
-        status_icon = "✓" if ko["status"] == "cumple" else ("⚠" if ko["status"] in ["parcial", "evidencia_insuficiente"] else "✗")
-        print(f"  {status_icon} {ko['evaluator']:<15}: {ko['status']:<25} (value={ko['value']:.2f})")
+        criterion = ko.get("criterion", ko.get("evaluator", "N/A"))
+        k_value = ko.get("k_value")
+        status = ko.get("status", "N/A")
+        
+        if status == "no_aplica" or k_value is None:
+            icon = "○"
+            k_str = "N/A"
+        elif status == "cumple":
+            icon = "✓"
+            k_str = f"{k_value:.2f}"
+        elif status in ["parcial", "evidencia_insuficiente"]:
+            icon = "⚠"
+            k_str = f"{k_value:.2f}"
+        else:
+            icon = "✗"
+            k_str = f"{k_value:.2f}"
+        
+        print(f"  {icon} {criterion:<15}: {status:<25} (k={k_str})")
         if ko.get("note"):
             print(f"                     └─ {ko['note'][:60]}")
     
@@ -342,18 +358,25 @@ def main():
     # 5. Tabla comparativa
     print_comparison_table(v2_results, v3_results)
     
-    # 6. Desglose del #1 en v3
-    # Primero, ordenar v3_results por HMS
+    # 6. Desglose del #1 y #5 en v3
+    # Ordenar v3_results por HMS
     v3_with_v2 = list(zip(v3_results, v2_results))
     v3_with_v2.sort(key=lambda x: x[0]["match_score_v3"] if x[0] else 0, reverse=True)
     
     top_v3 = v3_with_v2[0][0]
+    bottom_v3 = v3_with_v2[-1][0] if len(v3_with_v2) >= 5 else v3_with_v2[-1][0]
     
     print("\n" + "=" * 100)
     print("PASO 3: DESGLOSE DEL CANDIDATO #1 EN v3")
     print("=" * 100)
     
-    avg_adj, max_adj = print_full_breakdown(top_v3)
+    avg_adj_1, max_adj_1 = print_full_breakdown(top_v3)
+    
+    print("\n" + "=" * 100)
+    print("PASO 4: DESGLOSE DEL CANDIDATO #5 EN v3")
+    print("=" * 100)
+    
+    avg_adj_5, max_adj_5 = print_full_breakdown(bottom_v3)
     
     # Resumen final
     print("\n" + "=" * 100)
@@ -373,8 +396,12 @@ def main():
     print(f"    - Promedio top 5: {sum(v3_scores)/len(v3_scores):.1f}")
     
     print(f"\n  Candidato #1 v3 ({top_v3['candidate_name']}):")
-    print(f"    - Promedio adjusted: {avg_adj:.4f}")
-    print(f"    - Máximo adjusted: {max_adj:.4f}")
+    print(f"    - Promedio adjusted: {avg_adj_1:.4f}")
+    print(f"    - Máximo adjusted: {max_adj_1:.4f}")
+    
+    print(f"\n  Candidato #5 v3 ({bottom_v3['candidate_name']}):")
+    print(f"    - Promedio adjusted: {avg_adj_5:.4f}")
+    print(f"    - Máximo adjusted: {max_adj_5:.4f}")
     
     print("\n" + "=" * 100)
     print("FIN DE CALIBRACIÓN")

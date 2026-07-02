@@ -574,7 +574,10 @@ def format_score_report(result: ScoreResult) -> str:
     ])
     
     for kr in result["knockout_results"]["results"]:
-        lines.append(f"  - {kr['evaluator']}: {kr['status']} ({kr['value']:.2f}) - {kr.get('note', '')}")
+        criterion = kr.get('criterion', kr.get('evaluator', 'N/A'))
+        k_val = kr.get('k_value')
+        k_str = f"{k_val:.2f}" if k_val is not None else "N/A"
+        lines.append(f"  - {criterion}: {kr['status']} (k={k_str}) - {kr.get('note', '')}")
     
     lines.extend([
         "",
