@@ -830,14 +830,8 @@ class JobMatchingService:
         Construye query de MongoDB para pre-filtrar candidatos.
         Excluye soft-deleted y filtra por área funcional y seniority compatibles.
         """
-        # Base: excluir soft-deleted (incluir is_deleted:None que es común)
-        query = {
-            "$or": [
-                {"is_deleted": False},
-                {"is_deleted": {"$exists": False}},
-                {"is_deleted": None}
-            ]
-        }
+        # Base: criterio canónico para excluir soft-deleted
+        query = {"is_deleted": {"$ne": True}}
         
         conditions = []
         

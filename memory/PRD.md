@@ -799,3 +799,10 @@ HMS = round(100 * K * core * HEC^0.15)
 - **Fase 4:** Scorecard UI en frontend
 
 ---
+
+### Sesión 03-Jun-2026: Normalización DB + Fix Pre-filtro (COMPLETADO)
+1. **Normalización Atlas**: 103 candidatos con `is_deleted: None` → `false`
+2. **Inventario canónico Prod vs Atlas**: query `{"is_deleted": {"$ne": true}}` → 9 candidatos únicos en Prod (Edith Martinez Correa NO existe en Prod, ni como soft-deleted)
+3. **Fix pre-filtro** `_build_prefilter_query` en `job_matching_service.py`: usa `{"is_deleted": {"$ne": True}}`
+4. **Verificación endpoint v2** `POST /jobs/{id}/match` (Director Comercial): Omar (95%), David (93%), Ignacio (93%) — 19 matches totales ✅
+5. **Pendiente decisión usuario**: importar los 9 candidatos únicos de Prod a Atlas
