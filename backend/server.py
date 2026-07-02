@@ -4114,6 +4114,53 @@ async def get_job_matches(
     return await match_job_candidates(job_id, threshold, limit, credentials)
 
 
+@api_router.post("/jobs/{job_id}/match-v3")
+async def match_job_candidates_v3(
+    job_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Matching v3 (HMS). No persiste resultados. Feature flag: MATCHING_ENGINE_VERSION."""
+    await get_current_user(credentials)
+
+    engine_version = os.environ.get("MATCHING_ENGINE_VERSION", "v2")
+    if engine_version == "v2":
+        raise HTTPException(
+            status_code=403,
+            detail="Motor v3 deshabilitado. Configura MATCHING_ENGINE_VERSION=v3 o compare."
+        )
+
+    from scoring.engine_v3 import score_v3
+
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+
+    candidates = await db.candidates.find(
+        {"is_deleted": {"$ne": True}}, {"_id": 0}
+    ).to_list(2000)
+
+    results = []
+    for cand in candidates:
+        try:
+            r = score_v3(cand, job)
+            r["candidate_id"] = cand.get("id")
+            r["candidate_name"] = cand.get("full_name")
+            r["current_title"] = cand.get("current_title")
+            results.append(r)
+        except Exception as e:
+            logger.warning(f"score_v3 falló para {cand.get('id')}: {e}")
+
+    results.sort(key=lambda x: x.get("match_score_v3", 0), reverse=True)
+    results = results[:limit]
+
+    if engine_version == "compare":
+        v2_result = await job_matching_service.match_candidates(job=job, threshold=60, limit=limit)
+        return {"engine": "compare", "v3": results, "v2": v2_result}
+
+    return {"engine": "v3", "job_id": job_id, "total_evaluated": len(candidates), "results": results}
+
+
 # ============= USER MANAGEMENT ENDPOINTS =============
 
 @api_router.get("/users")
