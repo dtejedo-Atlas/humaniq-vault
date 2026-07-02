@@ -844,3 +844,10 @@ HMS = round(100 * K * core * HEC^0.15)
 - Dry-run Director Comercial (executive + corporativo_nacional): Top5 v3 = Ignacio 75, Alberto 74, Cesar 73, Karina 72, Roberto 71. Karina subió #7→#4 por pesos executive (no por CC: todos los candidatos tienen CC neutral porque sus CVs se parsearon antes del cambio; se necesita re-parseo para poblar company_caliber)
 - Testing agent iteration_15: 100% backend y frontend, 0 issues
 - Scorecard guardado en BD SOLO para Director Comercial (como pidió el usuario)
+
+### Batch company_caliber (03-Jun-2026) — COMPLETADO
+- Backup Atlas previo: /app/backups/backup_atlas_talent_vault_20260702_231919.archive.gz (1.22 MB)
+- Script: /app/backend/scripts/enrich_company_caliber.py (aditivo, solo escribe company_caliber; parseo robusto con raw_decode)
+- Resultado: 102 candidatos activos, 98 con empresas; 584 empresas → 573 con calibre, 11 null, 0 pendientes
+- Distribución: multinacional_global 216, corporativo_nacional 122, pyme 112, mediana 108, startup 15
+- Dry-run post-batch (Director Comercial executive/corporativo_nacional): Top5 = Ignacio 78, Alberto 77, Cesar 76, José Carlos 75, Roberto 74. Karina #6 HMS=74 (CC raw 0.75, multinacional vs corporativo dist 1). CC NO la subió sobre Ignacio: ambos tienen CC=0.75
