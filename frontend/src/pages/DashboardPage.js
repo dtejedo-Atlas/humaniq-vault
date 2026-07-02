@@ -24,6 +24,7 @@ const DashboardPage = () => {
         await seedAPI.initializeData();
       } catch (e) {
         // Already initialized, ignore
+        console.warn('Seed data initialization skipped:', e?.response?.status || e?.message);
       }
 
       const response = await dashboardAPI.getStats();

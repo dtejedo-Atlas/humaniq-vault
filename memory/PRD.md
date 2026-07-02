@@ -825,3 +825,9 @@ HMS = round(100 * K * core * HEC^0.15)
 - Fix: nueva var ATLAS_DB_NAME=atlas_talent_vault en backend/.env; server.py la prioriza cuando usa ATLAS_URI
 - Verificado en preview: startup log "Connected to MongoDB Atlas - Database: atlas_talent_vault", login OK, candidatos OK
 - PENDIENTE: usuario debe hacer REDEPLOY para que el fix llegue a producción
+
+### Code Quality - alcance mínimo aprobado (03-Jun-2026)
+- Variables indefinidas: backend de producción LIMPIO (ruff F821 + pylint E0601/E0602/E0606 + pyright possiblyUnbound = 0 hallazgos). Único caso real: `response` en backend_test.py (script de test raíz) → corregido con guard para métodos no soportados
+- Catch blocks vacíos: DashboardPage.js y Sidebar.js ahora loguean con console.warn (sin cambio de lógica)
+- 71/71 tests de scoring pasan
+- CONGELADO por usuario: index keys, console statements, is vs ==, hooks, refactors backend (smart_truncate_cv etc), Fase C completa

@@ -48,6 +48,9 @@ class AtlasTalentVaultTester:
                 response = requests.post(url, json=data, headers=test_headers, timeout=30)
             elif method == 'PUT':
                 response = requests.put(url, json=data, headers=test_headers, timeout=30)
+            else:
+                self.log_test(name, False, f"Unsupported method: {method}")
+                return None
 
             success = response.status_code == expected_status
             details = f"Status: {response.status_code}"

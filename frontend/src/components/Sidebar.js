@@ -103,6 +103,7 @@ const Sidebar = () => {
       setPendingClassificationsCount(response.data.count || 0);
     } catch (error) {
       // Silently fail - not critical
+      console.warn('Error loading pending classifications count:', error?.response?.status || error?.message);
     }
   };
 
