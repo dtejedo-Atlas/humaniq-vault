@@ -812,3 +812,10 @@ HMS = round(100 * K * core * HEC^0.15)
 - Edith: 0 documentos en TODAS las DBs locales (atlas_recruit, atlas_talent_vault) y Atlas (ambas DBs), incluyendo audit logs. Reporte previo de "4 registros" era de un fork anterior, no reproducible
 - DB local "Prod" contiene datos de test → probablemente es copia preview, no producción real
 - Importación BLOQUEADA esperando autorización del usuario
+
+### Cierre de ciclo unificación DB (03-Jun-2026)
+1. NO se importó nada de la DB local (datos de prueba) — cerrado
+2. Caso Edith — cerrado por decisión del usuario
+3. Limpieza Atlas: 1 candidato soft-deleted con razón "registro de prueba" (José Muñoz García / jose.munoz.test@example.com). Atlas activos: 102
+4. Producción→Atlas: ATLAS_URI ya está en backend/.env y server.py la prioriza (línea 50). deployment_agent: PASS, sin blockers. Usuario debe hacer Deploy → Deploy Now
+5. Verificación post-redeploy PENDIENTE: login test en prod + conteo=102 + log "[STARTUP] Connected to MongoDB Atlas"
