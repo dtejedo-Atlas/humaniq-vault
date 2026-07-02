@@ -867,6 +867,62 @@ class TestEngineV3:
         assert result["recommended_action"] in valid_actions, \
             f"Invalid recommended_action: {result['recommended_action']}"
     
+    def test_recommended_action_review_manually_high_hec(self):
+        """
+        TEST: HMS 75-84 con HEC >= 0.75 → review_manually (no low_priority)
+        Caso que antes caía en un hueco de las reglas.
+        """
+        from scoring.engine_v3 import determine_recommended_action
+        
+        # Simular componentes
+        mock_components = {
+            "CQ": {"raw": 0.9},
+            "FA": {"raw": 0.8},
+        }
+        
+        # HMS = 78, HEC = 0.86 (caso real de Ignacio Salazar)
+        action = determine_recommended_action(
+            hms=78,
+            hec=0.86,
+            K=1.0,
+            component_scores=mock_components
+        )
+        
+        assert action == "review_manually", \
+            f"HMS=78 with HEC=0.86 should be 'review_manually', got '{action}'"
+    
+    def test_recommended_action_all_rules(self):
+        """
+        TEST: Todas las reglas de acción funcionan correctamente
+        """
+        from scoring.engine_v3 import determine_recommended_action
+        
+        mock_components = {"CQ": {"raw": 0.9}, "FA": {"raw": 0.3}}
+        mock_components_high_fa = {"CQ": {"raw": 0.9}, "FA": {"raw": 0.8}}
+        
+        # Regla 1: K == 0 → do_not_advance_knockout
+        assert determine_recommended_action(90, 0.9, 0, mock_components) == "do_not_advance_knockout"
+        
+        # Regla 2: HMS >= 85 y HEC >= 0.75 → advance_to_screening
+        assert determine_recommended_action(85, 0.75, 1.0, mock_components) == "advance_to_screening"
+        assert determine_recommended_action(90, 0.80, 1.0, mock_components) == "advance_to_screening"
+        
+        # Regla 3: HMS >= 75 → review_manually (sin condición de HEC)
+        assert determine_recommended_action(75, 0.50, 1.0, mock_components) == "review_manually"
+        assert determine_recommended_action(78, 0.86, 1.0, mock_components) == "review_manually"
+        assert determine_recommended_action(84, 0.90, 1.0, mock_components) == "review_manually"
+        
+        # Regla 4: 65 <= HMS < 75 → possible_backup
+        assert determine_recommended_action(65, 0.80, 1.0, mock_components) == "possible_backup"
+        assert determine_recommended_action(74, 0.80, 1.0, mock_components) == "possible_backup"
+        
+        # Regla 5: HMS < 65 y CQ >= 0.8 y FA < 0.4 → save_for_other_role
+        assert determine_recommended_action(60, 0.80, 1.0, mock_components) == "save_for_other_role"
+        
+        # Regla 6: else → low_priority
+        assert determine_recommended_action(60, 0.80, 1.0, mock_components_high_fa) == "low_priority"
+        assert determine_recommended_action(50, 0.50, 1.0, mock_components_high_fa) == "low_priority"
+    
     def test_output_structure(self):
         """
         TEST: Estructura de salida completa

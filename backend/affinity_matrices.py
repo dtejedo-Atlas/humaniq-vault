@@ -77,6 +77,26 @@ def get_functional_affinity(candidate_area: str, query_area: str) -> int:
     if query_area == "commercial":
         query_area = "sales"
     
+    # FIX: business_development tiene afinidades específicas
+    # No es sinónimo de sales, pero son áreas afines
+    if candidate_area == "business_development":
+        if query_area == "sales":
+            return 85
+        elif query_area == "marketing":
+            return 60
+        else:
+            # Para otras áreas, usar afinidad similar a sales
+            return FUNCTIONAL_AFFINITY.get("sales", {}).get(query_area, 30)
+    
+    if query_area == "business_development":
+        if candidate_area == "sales":
+            return 85
+        elif candidate_area == "marketing":
+            return 60
+        else:
+            # Para otras áreas, usar afinidad similar a sales
+            return FUNCTIONAL_AFFINITY.get(candidate_area, {}).get("sales", 30)
+    
     if candidate_area in FUNCTIONAL_AFFINITY:
         return FUNCTIONAL_AFFINITY[candidate_area].get(query_area, 30)
     

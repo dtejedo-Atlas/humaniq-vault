@@ -276,34 +276,34 @@ def determine_recommended_action(
     """
     Determina la acción recomendada basada en HMS, HEC y contexto.
     
-    Reglas:
-    - knockout fatal (K==0) → "do_not_advance_knockout"
-    - HMS>=85 y HEC>=0.75 → "advance_to_screening"
-    - HMS>=75 y HEC<0.75 → "review_manually"
-    - 65<=HMS<75 → "possible_backup"
-    - HMS<65 y CQ.xi>=0.8 y FA.xi<0.4 → "save_for_other_role"
-    - else → "low_priority"
+    Reglas (evaluadas en orden):
+    1. K == 0 (fatal) → do_not_advance_knockout
+    2. HMS >= 85 y HEC >= 0.75 → advance_to_screening
+    3. HMS >= 75 → review_manually (sin condición de HEC)
+    4. 65 <= HMS < 75 → possible_backup
+    5. HMS < 65 y CQ >= 0.8 y FA < 0.4 → save_for_other_role
+    6. else → low_priority
     
     Returns:
         recommended_action string
     """
-    # Fatal knockout
+    # 1. Fatal knockout
     if K == 0:
         return "do_not_advance_knockout"
     
-    # HMS>=85 y HEC>=0.75
+    # 2. HMS >= 85 y HEC >= 0.75 → advance_to_screening
     if hms >= 85 and hec >= 0.75:
         return "advance_to_screening"
     
-    # HMS>=75 y HEC<0.75
-    if hms >= 75 and hec < 0.75:
+    # 3. HMS >= 75 → review_manually (score alto va a revisión humana)
+    if hms >= 75:
         return "review_manually"
     
-    # 65<=HMS<75
+    # 4. 65 <= HMS < 75 → possible_backup
     if 65 <= hms < 75:
         return "possible_backup"
     
-    # HMS<65 y CQ.xi>=0.8 y FA.xi<0.4 → guardar para otro rol
+    # 5. HMS < 65 y CQ >= 0.8 y FA < 0.4 → guardar para otro rol
     if hms < 65:
         cq_raw = component_scores.get("CQ", {}).get("raw", 0)
         fa_raw = component_scores.get("FA", {}).get("raw", 0)
@@ -311,7 +311,7 @@ def determine_recommended_action(
         if cq_raw >= 0.8 and fa_raw < 0.4:
             return "save_for_other_role"
     
-    # Default
+    # 6. Default
     return "low_priority"
 
 

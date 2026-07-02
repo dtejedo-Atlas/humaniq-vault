@@ -689,16 +689,18 @@ Crear un motor de scoring completamente nuevo en paralelo, sin tocar el código 
 ├── confidence.py         # Cálculo de HEC (6 señales)
 ├── engine_v3.py          # Motor principal score_v3()
 ├── dry_run_v3.py         # Script de prueba con datos reales
+├── calibrate_v2_vs_v3.py # Calibración vs motor actual
+├── calibrate_double.py   # Calibración doble vacante
 └── tests/
     ├── __init__.py
-    └── test_scoring_v3.py  # 55 tests
+    └── test_scoring_v3.py  # 62 tests
 ```
 
 ### Fórmulas Implementadas
 
 **Componentes (10):**
-- SK: Skills Coverage (w=0.16)
-- ER: Experience Relevance (w=0.15)
+- SK: Skills Coverage (w=0.16) - matching por tokens con sinónimos
+- ER: Experience Relevance (w=0.15) - tenure × afinidad funcional
 - FA: Functional Affinity (w=0.13)
 - SA: Seniority Alignment (w=0.12)
 - IA: Industry Affinity (w=0.11)
@@ -741,41 +743,58 @@ Donde:
 - Subcalificación >=2 niveles: 0.04
 - Sobrecalificación >=2 niveles: 0.03
 
+**Knockouts condicionales:**
+- Criterios no definidos por la vacante → no_aplica (k_value=None, no afecta K)
+- Criterios definidos sin datos del candidato → evidencia_insuficiente (k=0.85)
+
 **HMS Final:**
 ```
 HMS = round(100 * K * core * HEC^0.15)
 ```
 
-**Recommended Actions:**
-- K==0 → "do_not_advance_knockout"
-- HMS>=85 y HEC>=0.75 → "advance_to_screening"
-- HMS>=75 y HEC<0.75 → "review_manually"
-- 65<=HMS<75 → "possible_backup"
-- HMS<65 y CQ.xi>=0.8 y FA.xi<0.4 → "save_for_other_role"
-- else → "low_priority"
+**Recommended Actions (evaluadas en orden):**
+1. K == 0 (fatal) → "do_not_advance_knockout"
+2. HMS >= 85 y HEC >= 0.75 → "advance_to_screening"
+3. HMS >= 75 → "review_manually"
+4. 65 <= HMS < 75 → "possible_backup"
+5. HMS < 65 y CQ >= 0.8 y FA < 0.4 → "save_for_other_role"
+6. else → "low_priority"
 
-### Tests Validados (55/55 passed)
-- Shrinkage con ci=0 → adjusted = 0.52
-- Media geométrica colapsa más que aritmética con xi=0
-- Boosts no exceden cap 0.08
-- Penalties no bajan core < 0.0
+### Fixes aplicados en Fase 2
+1. **SK tokenizado**: Matching por tokens con overlap parcial + sinónimos
+2. **Knockouts condicionales**: Criterios no definidos no castigan
+3. **Mapeo de títulos**: ventas/sales/comercial/exportaciones → "sales"
+4. **Matriz de afinidad**: commercial↔sales = 100%, business_development↔sales = 85%
+5. **Regla HMS 75-84**: Sin hueco, va a review_manually
+
+### Calibración Final (02-Jul-2026)
+**Vacante 1: Director Comercial (sales)**
+| Candidato | v2 | HMS v3 | Acción |
+|-----------|-----|--------|--------|
+| Omar Alberto Vega Torres | 95 | 71 | possible_backup |
+| David Armando Cisneros Figueroa | 93 | 72 | possible_backup |
+| Ignacio Salazar Soto | 93 | 78 | **review_manually** |
+| José Carlos Castillo Zazuéta | 92 | 72 | possible_backup |
+| Karina Carranza | 90 | 71 | possible_backup |
+
+**Vacante 2: Gerente de Operaciones (operations)**
+| Candidato | v2 | HMS v3 | Acción |
+|-----------|-----|--------|--------|
+| Alfonso Arzate Gómez | 100 | 85 | **advance_to_screening** |
+| Cristopher Danilo Elizondo Ogawa | 94 | 72 | possible_backup |
+| Gabriel Cedillo Rosales | 93 | 71 | possible_backup |
+| Maria Elena Garcia Lopez | 89 | 77 | **review_manually** |
+| Christian Esparza Calderón | 88 | 66 | possible_backup |
+
+**Distribución (n=10):** Min=66, Max=85, Avg=73.5
+
+### Tests Validados (62/62 passed)
+- Shrinkage, medias A/G, boosts/penalties caps
 - Knockout fatal → HMS = 0
-- HEC siempre en [0, 1]
-- HMS siempre en [0, 100]
-- 6 señales de HEC presentes
-- Estructura de output completa
+- HEC [0,1], HMS [0,100]
+- Reglas de acción completas incluyendo HMS=78/HEC=0.86 → review_manually
 
-### Dry Run con Datos Reales (02-Jul-2026)
-```bash
-cd /app/backend && python scoring/dry_run_v3.py
-```
-Resultado:
-- Vacante: "Gerente de Operaciones" (manufacturing)
-- Candidato 1: Maria Elena Garcia Lopez → HMS 60, low_priority
-- Candidato 2: Bernardo Baader → HMS 41, save_for_other_role
-- Candidato 3: Rafael Bader → HMS 32, save_for_other_role
-
-### Próximas Fases (Congeladas)
+### Próximas Fases
 - **Fase 3:** Conectar endpoint `/api/scoring/v3/evaluate`
 - **Fase 4:** Scorecard UI en frontend
 
