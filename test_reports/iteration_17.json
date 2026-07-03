@@ -1,0 +1,64 @@
+{
+  "summary": "FASE 4 UI (Scorecard v3 + Match v3) NO renderiza en JobDetailPage. Los componentes JobScorecardConfig y MatchV3Results están IMPORTADOS pero NUNCA MONTADOS en el JSX de /app/frontend/src/pages/JobDetailPage.js. Test bloqueado en el primer paso (no existe scorecard-config-card ni match-v3-card en el DOM). No se pudo probar carga, guardado, persistencia, derived, ni match-v3.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "JobDetailPage.js",
+        "issue": "Componentes JobScorecardConfig y MatchV3Results están importados (líneas 53-54) pero nunca se renderizan en el JSX. La página muestra solo el header del job, 'Detalles de la Vacante' y 'Candidatos Compatibles', sin las dos tarjetas nuevas de FASE 4.",
+        "selector": "[data-testid='scorecard-config-card'], [data-testid='match-v3-card']",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Toda la funcionalidad FASE 4 (scorecard config + match v3 UI)",
+        "issue": "No se puede ejecutar ningún flujo del review_request porque las tarjetas no aparecen en la página. Al navegar a /jobs/594c8585-fa9a-43c0-af3c-f63ccf7c34ad NO se encuentran [data-testid='scorecard-config-card'] ni [data-testid='match-v3-card'] (timeout tras 15s).",
+        "affected_selectors": [
+          "scorecard-config-card",
+          "scorecard-process-type-select",
+          "scorecard-caliber-select",
+          "scorecard-language-input",
+          "scorecard-add-language-btn",
+          "scorecard-add-knockout-btn",
+          "scorecard-save-btn",
+          "match-v3-card",
+          "run-match-v3-btn",
+          "match-v3-results",
+          "match-v3-hms",
+          "match-v3-action-badge",
+          "match-v3-breakdown-toggle",
+          "match-v3-breakdown-panel",
+          "match-v3-component-SK",
+          "match-v3-hec-bar",
+          "match-v3-knockout-item"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "CRITICO: montar <JobScorecardConfig jobId={id} /> y <MatchV3Results jobId={id} /> en el JSX de /app/frontend/src/pages/JobDetailPage.js entre el cierre de la Card de detalles del job (línea 387, </Card>) y la apertura de la Card 'Candidatos Compatibles' (línea 388, <Card>). Ambos componentes reciben la prop jobId (usar el id/jobId del useParams o del state del job — verificar cómo se llama en JobDetailPage).",
+    "Una vez montados, re-ejecutar todos los tests de FASE 4 del review_request: carga precargada, guardar+persistir+restaurar, derived en Gerente de Operaciones, match-v3 desglose completo, y regresión de 'Candidatos Compatibles'."
+  ],
+  "critical_code_review_comments": [
+    "Los componentes JobScorecardConfig.js y MatchV3Results.js están bien escritos, con todos los data-testid del review_request presentes y estados de loading/empty/error manejados. El único problema es que jamás se instancian.",
+    "Sugerencia menor: en JobScorecardConfig, cuando source==='derived' se muestra el texto pero también podría marcarse con un data-testid dedicado (ej. data-testid='scorecard-source-derived') para facilitar assertions más limpias en tests futuros.",
+    "OBSERVACIÓN preexistente (no relacionada a FASE 4): la consola muestra múltiples 'Failed to load resource: 403' y 'Error fetching taxonomy: AxiosError' al cargar la página del job con admin test_utf8@atlas.com — mismo bug reportado en iteration_16. No bloquea FASE 4 pero merece atención."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend only per request)",
+    "frontend": "0% — feature no visible, bloqueado en paso 0"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 — usado correctamente desde /app/memory/test_credentials.md. Login OK, navegación OK.",
+  "seed_data_creation": "Ninguna. No se modificaron datos en Atlas. NO fue necesario restaurar el scorecard del Director Comercial porque nunca se llegó a guardar nada.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Cuando el main agent monte <JobScorecardConfig> y <MatchV3Results> en JobDetailPage.js, ejecutar el plan completo del review_request en este orden: (1) verificar carga con process_type='executive' y caliber='corporativo_nacional' en /jobs/594c8585-fa9a-43c0-af3c-f63ccf7c34ad; (2) agregar idioma 'english:advanced' + knockout 'Inglés avanzado indispensable' (tipo Idioma, severidad Importante) + guardar + F5 + verificar persistencia; (3) RESTAURAR con PUT /api/jobs/594c8585-fa9a-43c0-af3c-f63ccf7c34ad/scorecard body {process_type:'executive',target_company_caliber:'corporativo_nacional'}; (4) verificar derived en /jobs/1292337a-26da-46dc-98e1-03cea792def0 (Gerente de Operaciones) SIN guardar; (5) match-v3 con desglose de 11 componentes + HEC bar + knockouts; (6) regresión de Candidatos Compatibles v2 (Omar/David/Ignacio arriba). Los Select son Radix — abrir dropdown y esperar 200ms antes de click en opción. Timeout del match-v3 puede ser 10-60s.",
+  "rca_of_the_issue": "Root cause: main agent creó los archivos JobScorecardConfig.js y MatchV3Results.js correctamente, añadió los imports en JobDetailPage.js (líneas 53-54), y expuso las funciones jobsAPI.getScorecard/saveScorecard/matchV3 en /app/frontend/src/api/index.js — pero olvidó insertar los tags JSX `<JobScorecardConfig jobId={...} />` y `<MatchV3Results jobId={...} />` en el render de JobDetailPage. Reproducción: login como admin → GET /jobs/594c8585-fa9a-43c0-af3c-f63ccf7c34ad → inspeccionar DOM → los data-testid scorecard-config-card y match-v3-card no existen. Mitigación: insertar los dos componentes entre `</Card>` (línea 387) y `<Card>` (línea 388) del JobDetailPage.js, pasando el prop jobId. Sugerencia: envolverlos en un fragmento con `space-y-4` para respetar la separación visual entre secciones."
+}

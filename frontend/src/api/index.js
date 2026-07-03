@@ -119,6 +119,11 @@ export const jobsAPI = {
   delete: (id) => axios.delete(`${API_BASE}/jobs/${id}`),
   getMatches: (id, threshold = 60, limit = 50) => 
     axios.post(`${API_BASE}/jobs/${id}/match`, null, { params: { threshold, limit } }),
+  // Scorecard v3
+  getScorecard: (id) => axios.get(`${API_BASE}/jobs/${id}/scorecard`),
+  saveScorecard: (id, data) => axios.put(`${API_BASE}/jobs/${id}/scorecard`, data),
+  matchV3: (id, limit = 50) =>
+    axios.post(`${API_BASE}/jobs/${id}/match-v3`, null, { params: { limit }, timeout: 300000 }),
   // Ingesta Inteligente - Parse Job Description from PDF/DOCX
   parseJD: (file) => {
     const formData = new FormData();

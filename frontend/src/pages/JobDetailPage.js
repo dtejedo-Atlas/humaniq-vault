@@ -50,6 +50,8 @@ import { jobsAPI, exportsAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
+import JobScorecardConfig from '../components/JobScorecardConfig';
+import MatchV3Results from '../components/MatchV3Results';
 
 const SENIORITY_OPTIONS = [
   { value: 'intern', label: 'Becario / Intern' },
