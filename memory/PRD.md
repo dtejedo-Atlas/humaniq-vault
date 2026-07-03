@@ -855,3 +855,11 @@ HMS = round(100 * K * core * HEC^0.15)
 ### Badge de calibre de empresa (03-Jun-2026) — COMPLETADO
 - CandidateDetailPage.js: COMPANY_CALIBER_CONFIG (5 niveles con colores) + badge data-testid='company-caliber-badge' junto al nombre de empresa en Experiencia Laboral. Solo visualización; empresas sin calibre no muestran badge
 - Verificado por testing agent iteration_16: frontend 100%, 0 issues
+
+### FASE 4 - UI del Scorecard (03-Jun-2026) — COMPLETADA Y VERIFICADA
+- JobScorecardConfig.js: tarjeta "Configuración de Matching (v3)" — dropdowns process_type (4) y target_company_caliber (6 con "Sin preferencia"→null), tag input de idiomas, lista editable de non_negotiables (criterio/tipo/severidad, agregar/quitar), botón guardar con PUT + toasts éxito/error. Precarga GET scorecard (saved o derived con aviso)
+- MatchV3Results.js: tarjeta "Resultados Matching v3" — botón ejecutar match-v3 (403→toast flag), HMS grande + badge acción con colores (6 acciones), acordeón "Ver desglose": tabla 11 componentes (raw/adjusted/peso), barra HEC, knockouts con semáforo
+- api/index.js: jobsAPI.getScorecard/saveScorecard/matchV3 (timeout 300s)
+- Montados en JobDetailPage entre detalles del job y Candidatos Compatibles (v2 intacto)
+- Bug corregido en el camino: JobDetailPage tenía línea corrupta duplicada al final ("xport default") y el primer montaje se perdió; re-aplicado
+- Verificado testing agent iteration_18: frontend 100% (5/5) — carga, guardar+persistir, derived, desglose v3, regresión v2. Scorecard restaurado a executive/corporativo_nacional
