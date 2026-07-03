@@ -1,0 +1,38 @@
+{
+  "summary": "FASE 4 UI (Scorecard v3 + MatchV3Results) verificado END-TO-END con éxito tras el fix de mounting en JobDetailPage.js (líneas 390/393). Todos los pasos del review_request pasan: carga precargada, guardado+persistencia, derived en Gerente de Operaciones, match-v3 con desglose completo de 11 componentes + HEC + knockouts, regresión v2. Scorecard del Director Comercial RESTAURADO al estado original vía PUT /api/jobs/.../scorecard.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PREEXISTENTE (no relacionado a FASE 4, ya reportado en iteration_16 y iteration_17): al cargar /jobs/{id} con el admin test_utf8@atlas.com se disparan múltiples 'Failed to load resource: 403' y 'Error fetching taxonomy: AxiosError'. No bloquea FASE 4 (industria/área siguen mostrándose con slug crudo 'sales', 'food_beverage', 'Director') pero merece atención del main agent en un ciclo futuro.",
+    "Sugerencia menor (no bloqueante): en JobScorecardConfig, cuando source==='derived' el texto se agrega al CardDescription; sería más limpio marcarlo con un data-testid dedicado (ej. 'scorecard-source-badge') para simplificar assertions. Actualmente se verifica via .inner_text() del card.",
+    "Sugerencia menor: la restauración del scorecard vía PUT con solo {process_type, target_company_caliber} borra required_languages y non_negotiables (el endpoint reemplaza el documento completo con defaults). Esto es el comportamiento esperado y usado explícitamente en el review_request, pero valdría documentarlo en el swagger/README para futuros consumidores del endpoint."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only per request)",
+    "frontend": "100% — 5/5 casos del review_request pasan"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin) — cargado de /app/memory/test_credentials.md. Token se persiste en localStorage bajo la key 'atlas_token' (NO 'token' como asumía inicialmente).",
+  "seed_data_creation": "Ninguna. La única escritura hecha fue en el scorecard de Director Comercial (594c8585-fa9a-43c0-af3c-f63ccf7c34ad), y se RESTAURÓ al finalizar con PUT {process_type:'executive', target_company_caliber:'corporativo_nacional'} → 200 OK. Estado final verificado tras reload: process_type='Ejecutivo / Director', caliber='Corporativo Nacional', required_languages=[], non_negotiables=[].",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "FASE 4 UI está 100% funcional. Selectors data-testid usados con éxito: scorecard-config-card, scorecard-process-type-select, scorecard-caliber-select, scorecard-language-input, scorecard-add-language-btn, scorecard-language-tag, scorecard-add-knockout-btn, scorecard-knockout-row, scorecard-knockout-criterion-input, scorecard-knockout-type-select, scorecard-knockout-severity-select, scorecard-save-btn, match-v3-card, run-match-v3-btn, match-v3-results, match-v3-result-card, match-v3-hms, match-v3-action-badge, match-v3-breakdown-toggle, match-v3-breakdown-panel, match-v3-component-{SK..CC}, match-v3-hec-bar, match-v3-knockout-item. Match v3 completó 50 candidatos en ~10-20s. Token localStorage key = 'atlas_token'.",
+  "test_evidence": {
+    "carga_precargada": "Director Comercial → process_type='Ejecutivo / Director' + caliber='Corporativo Nacional' preloaded on first render (source=saved). PASS.",
+    "guardar_y_persistir": "Agregado 'english:advanced' via input+add-language-btn; knockout 'Inglés avanzado indispensable' (Idioma / Importante) via add-knockout-btn; save-btn → toast 'Configuración de matching guardada'. Reload → lang y knockout persisten (verificado en DOM y en GET /api/jobs/.../scorecard body). PASS.",
+    "derived": "Gerente de Operaciones (1292337a-26da-46dc-98e1-03cea792def0) → process_type='Gerencial', caliber='Sin preferencia', card muestra texto 'mostrando valores derivados (aún no guardados)'. NO se guardó nada. PASS.",
+    "match_v3_desglose": "run-match-v3-btn → toast 'Matching v3 completado: 50 candidatos evaluados' (~10-20s). Primer candidato: Ignacio Salazar Soto HMS=78, badge 'Revisión manual' (amarillo). Ver desglose abre panel con tabla de 11 componentes (SK,ER,FA,SA,IA,ED,TR,LO,SM,CQ,CC) con columnas Raw/Ajustado/Peso, HEC bar 86%, 4 knockout items con semáforo. PASS.",
+    "regresion_v2": "Sección 'Candidatos Compatibles' intacta debajo de match-v3: Top 3 = Omar Alberto Vega Torres (95%), David Armando Cisneros Figueroa (93%), Ignacio Salazar Soto (93%). Header 'Director Comercial' + 'Detalles de la Vacante' + skills requeridos/deseables intactos. PASS.",
+    "restore_api": "PUT /api/jobs/594c8585-fa9a-43c0-af3c-f63ccf7c34ad/scorecard con {process_type:'executive', target_company_caliber:'corporativo_nacional'} → 200 OK. Body respuesta confirma required_languages=[], non_negotiables=[], process_type='executive', target_company_caliber='corporativo_nacional', source='saved'. Reload verifica UI muestra 'Ejecutivo / Director' + 'Corporativo Nacional' + languages=[] + knockouts=0."
+  },
+  "rca_of_the_issue": "Iteration_17 fix confirmado: el main agent montó <JobScorecardConfig jobId={id} /> y <MatchV3Results jobId={id} /> en JobDetailPage.js (líneas 390/393, entre el Card de detalles del job y el Card de Candidatos Compatibles). Los components ya estaban bien implementados desde iteration_17 (todos los data-testid correctos, estados loading/empty/error manejados) — solo faltaba montarlos. Ahora todo funciona end-to-end sin regresiones."
+}

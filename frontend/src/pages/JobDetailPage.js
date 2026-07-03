@@ -385,6 +385,13 @@ const JobDetailPage = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Scorecard v3 Config */}
+        <JobScorecardConfig jobId={id} />
+
+        {/* Matching v3 Results */}
+        <MatchV3Results jobId={id} />
+
         <Card>
           <CardHeader>
             <div className="flex justify-between items-center">
