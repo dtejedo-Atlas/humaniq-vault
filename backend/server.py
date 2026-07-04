@@ -4615,6 +4615,7 @@ async def export_job_shortlist(
     include_risks: bool = Query(default=True),
     include_contact_info: bool = Query(default=False),
     client_name: Optional[str] = Query(default=None),
+    engine: str = Query(default="v2"),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -4631,7 +4632,8 @@ async def export_job_shortlist(
             limit=limit,
             include_risks=include_risks,
             include_contact_info=include_contact_info,
-            client_name=client_name
+            client_name=client_name,
+            engine=engine
         )
         return result
     except PermissionError as e:

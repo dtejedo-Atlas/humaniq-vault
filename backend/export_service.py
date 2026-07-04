@@ -22,6 +22,15 @@ from docx.enum.style import WD_STYLE_TYPE
 
 from models import User, UserRole, ExportFormat, ExportSourceType
 
+V3_ACTION_LABELS = {
+    "advance_to_screening": "Avanzar a screening",
+    "review_manually": "Revisión manual",
+    "possible_backup": "Posible backup",
+    "low_priority": "Prioridad baja",
+    "do_not_advance_knockout": "No avanzar (knockout)",
+    "save_for_other_role": "Guardar para otro rol",
+}
+
 logger = logging.getLogger(__name__)
 
 # Paths
@@ -99,7 +108,8 @@ class ExportService:
     async def get_job_matches(
         self, 
         job_id: str, 
-        limit: int = 20
+        limit: int = 20,
+        engine: str = "v2"
     ) -> List[Dict[str, Any]]:
         """Obtiene matches de una vacante con scores"""
         from job_matching_service import JobMatchingService
@@ -110,10 +120,41 @@ class ExportService:
         if not job:
             return []
         
+        if engine == "v3":
+            return await self._get_job_matches_v3(job, limit)
+        
         matching_service = JobMatchingService(self.db, embedding_service)
         result = await matching_service.match_candidates(job, threshold=0, limit=limit)
         
         return result.get("results", [])
+    
+    async def _get_job_matches_v3(self, job: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
+        """Ranking v3 (HMS) para exportación. No persiste nada."""
+        if os.environ.get("MATCHING_ENGINE_VERSION", "v2") == "v2":
+            raise ValueError("Motor v3 deshabilitado. Configura MATCHING_ENGINE_VERSION=v3 o compare.")
+        from scoring.engine_v3 import score_v3
+        
+        candidates = await self.db.candidates.find(
+            {"is_deleted": {"$ne": True}}, {"_id": 0}
+        ).to_list(2000)
+        
+        results = []
+        for cand in candidates:
+            try:
+                r = score_v3(cand, job)
+                results.append({
+                    "candidate_id": cand.get("id"),
+                    "match_percentage": r.get("match_score_v3"),
+                    "recommended_action": V3_ACTION_LABELS.get(r.get("recommended_action"), r.get("recommended_action")),
+                    "strengths": [],
+                    "risks": [],
+                    "missing_skills": [],
+                })
+            except Exception as e:
+                logger.warning(f"score_v3 export falló para {cand.get('id')}: {e}")
+        
+        results.sort(key=lambda x: x.get("match_percentage") or 0, reverse=True)
+        return results[:limit]
     
     def prepare_candidate_for_export(
         self, 
@@ -144,6 +185,7 @@ class ExportService:
         # Agregar datos de match si existen
         if match_data:
             export_data["match_percentage"] = match_data.get("match_percentage")
+            export_data["recommended_action"] = match_data.get("recommended_action")
             export_data["strengths"] = match_data.get("strengths", [])
             export_data["risks"] = match_data.get("risks", [])
             export_data["missing_skills"] = match_data.get("missing_skills", [])
@@ -279,9 +321,16 @@ class ExportService:
             
             if candidate.get("match_percentage"):
                 match_para = doc.add_paragraph()
-                match_run = match_para.add_run(f"Match: {candidate['match_percentage']}%")
+                score_label = "HMS" if candidate.get("recommended_action") else "Match"
+                score_suffix = "" if candidate.get("recommended_action") else "%"
+                match_run = match_para.add_run(f"{score_label}: {candidate['match_percentage']}{score_suffix}")
                 match_run.bold = True
                 match_run.font.color.rgb = RGBColor(49, 130, 206)
+            
+            if candidate.get("recommended_action"):
+                action_para = doc.add_paragraph()
+                action_run = action_para.add_run(f"Acción recomendada: {candidate['recommended_action']}")
+                action_run.font.color.rgb = RGBColor(113, 128, 150)
             
             doc.add_paragraph()
             
@@ -350,7 +399,8 @@ class ExportService:
         limit: int = 20,
         include_risks: bool = True,
         include_contact_info: bool = False,
-        client_name: Optional[str] = None
+        client_name: Optional[str] = None,
+        engine: str = "v2"
     ) -> Dict[str, Any]:
         """
         Exporta shortlist de una vacante.
@@ -375,7 +425,7 @@ class ExportService:
             raise ValueError("Vacante no encontrada")
         
         # Obtener matches
-        matches = await self.get_job_matches(job_id, limit=min(limit, 20))
+        matches = await self.get_job_matches(job_id, limit=min(limit, 20), engine=engine)
         
         if not matches:
             raise ValueError("No hay candidatos para esta vacante")

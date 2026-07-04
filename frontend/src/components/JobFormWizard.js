@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -135,13 +135,22 @@ const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false
       const response = await jobsAPI.parseJD(file);
       const { data } = response.data;
 
+      // Validar industria y área funcional contra la taxonomía ANTES de setearlas
+      const validIndustryKeys = new Set(industries.map(i => i.value));
+      const validAreaKeys = new Set(functionalAreas.map(a => a.value));
+      const parsedIndustry = data.industry && (industries.length === 0 || validIndustryKeys.has(data.industry)) ? data.industry : '';
+      const parsedArea = data.functional_area && (functionalAreas.length === 0 || validAreaKeys.has(data.functional_area)) ? data.functional_area : '';
+      const discarded = [];
+      if (data.industry && !parsedIndustry) discarded.push(`industria "${data.industry}"`);
+      if (data.functional_area && !parsedArea) discarded.push(`área funcional "${data.functional_area}"`);
+
       // Pre-llenar el formulario con los datos extraídos
       setFormData(prev => ({
         ...prev,
         title: data.title || prev.title,
         company: data.company || prev.company,
-        industry: data.industry || prev.industry,
-        functional_area: data.functional_area || prev.functional_area,
+        industry: parsedIndustry || prev.industry,
+        functional_area: parsedArea || prev.functional_area,
         seniority: data.seniority || prev.seniority,
         min_experience: data.min_experience ?? prev.min_experience,
         max_experience: data.max_experience ?? prev.max_experience,
@@ -167,6 +176,9 @@ const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false
       });
 
       toast.success('Documento procesado correctamente. Revisa la información extraída.');
+      if (discarded.length > 0) {
+        toast.warning(`Valores fuera de la taxonomía: ${discarded.join(', ')}. Selecciónalos manualmente.`);
+      }
     } catch (error) {
       console.error('Error uploading JD:', error);
       const errorMsg = error.response?.data?.detail || 'Error procesando el documento';

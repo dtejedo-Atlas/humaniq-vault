@@ -178,6 +178,7 @@ export const exportsAPI = {
     params.append('include_risks', options.includeRisks !== false);
     params.append('include_contact_info', options.includeContact || false);
     if (options.clientName) params.append('client_name', options.clientName);
+    if (options.engine) params.append('engine', options.engine);
     return axios.post(`${API_BASE}/exports/job/${jobId}?${params.toString()}`);
   },
   exportCandidates: (candidateIds, options = {}) =>

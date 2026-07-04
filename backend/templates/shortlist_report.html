@@ -499,8 +499,11 @@
                 </div>
                 {% if candidate.match_percentage %}
                 <div class="match-score">
-                    <div class="match-score-value">{{ candidate.match_percentage }}%</div>
-                    <div class="match-score-label">Match</div>
+                    <div class="match-score-value">{{ candidate.match_percentage }}{% if not candidate.recommended_action %}%{% endif %}</div>
+                    <div class="match-score-label">{% if candidate.recommended_action %}HMS{% else %}Match{% endif %}</div>
+                    {% if candidate.recommended_action %}
+                    <div class="match-score-label">{{ candidate.recommended_action }}</div>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>

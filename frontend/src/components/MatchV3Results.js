@@ -3,14 +3,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Checkbox } from './ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from './ui/collapsible';
-import { Loader2, Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { Loader2, Zap, ChevronDown, ChevronUp, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
-import { jobsAPI } from '../api';
+import { jobsAPI, exportsAPI } from '../api';
 
 const COMPONENT_LABELS = {
   SK: 'Skills',
@@ -51,6 +69,54 @@ const MatchV3Results = ({ jobId }) => {
   const [results, setResults] = useState(null);
   const [processType, setProcessType] = useState(null);
   const [expanded, setExpanded] = useState({});
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportOptions, setExportOptions] = useState({
+    format: 'pdf',
+    limit: 10,
+    includeContact: false,
+    clientName: '',
+  });
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const response = await exportsAPI.exportJobShortlist(jobId, {
+        format: exportOptions.format,
+        limit: exportOptions.limit,
+        includeContact: exportOptions.includeContact,
+        clientName: exportOptions.clientName || null,
+        engine: 'v3',
+      });
+
+      const downloadUrl = `${process.env.REACT_APP_BACKEND_URL}${response.data.download_url}`;
+      const token = localStorage.getItem('token');
+      const fileResponse = await fetch(downloadUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!fileResponse.ok) {
+        throw new Error('Error descargando archivo');
+      }
+      const blob = await fileResponse.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = response.data.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success(`Shortlist v3 exportada: ${response.data.candidate_count} candidatos`);
+      setShowExportDialog(false);
+    } catch (error) {
+      console.error('Export v3 error:', error);
+      toast.error(error.response?.data?.detail || error.message || 'Error exportando shortlist v3');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const runMatchV3 = async () => {
     setLoading(true);
@@ -93,10 +159,24 @@ const MatchV3Results = ({ jobId }) => {
               {processType && ` — proceso: ${processType}`}
             </CardDescription>
           </div>
-          <Button onClick={runMatchV3} disabled={loading} variant="outline" size="sm" data-testid="run-match-v3-btn">
-            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {results ? 'Re-ejecutar' : 'Ejecutar Matching v3'}
-          </Button>
+          <div className="flex gap-2">
+            {results?.length > 0 && (
+              <Button
+                onClick={() => setShowExportDialog(true)}
+                variant="outline"
+                size="sm"
+                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                data-testid="export-shortlist-v3-button"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Exportar Shortlist
+              </Button>
+            )}
+            <Button onClick={runMatchV3} disabled={loading} variant="outline" size="sm" data-testid="run-match-v3-btn">
+              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {results ? 'Re-ejecutar' : 'Ejecutar Matching v3'}
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -230,6 +310,98 @@ const MatchV3Results = ({ jobId }) => {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent className="sm:max-w-md" data-testid="export-v3-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-indigo-600" />
+              Exportar Shortlist v3
+            </DialogTitle>
+            <DialogDescription>
+              Genera un documento con el ranking v3 (HMS y acción recomendada)
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Formato</Label>
+              <div className="flex gap-3">
+                <Button
+                  variant={exportOptions.format === 'pdf' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions({ ...exportOptions, format: 'pdf' })}
+                  className={exportOptions.format === 'pdf' ? 'bg-indigo-600' : ''}
+                  data-testid="export-v3-format-pdf"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  PDF
+                </Button>
+                <Button
+                  variant={exportOptions.format === 'docx' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setExportOptions({ ...exportOptions, format: 'docx' })}
+                  className={exportOptions.format === 'docx' ? 'bg-indigo-600' : ''}
+                  data-testid="export-v3-format-docx"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  DOCX
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Número de candidatos</Label>
+              <Select
+                value={exportOptions.limit.toString()}
+                onValueChange={(v) => setExportOptions({ ...exportOptions, limit: parseInt(v) })}
+              >
+                <SelectTrigger data-testid="export-v3-limit-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">Top 5 candidatos</SelectItem>
+                  <SelectItem value="10">Top 10 candidatos</SelectItem>
+                  <SelectItem value="15">Top 15 candidatos</SelectItem>
+                  <SelectItem value="20">Top 20 candidatos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Nombre del cliente (opcional)</Label>
+              <Input
+                value={exportOptions.clientName}
+                onChange={(e) => setExportOptions({ ...exportOptions, clientName: e.target.value })}
+                placeholder="Ej: Grupo Industrial XYZ"
+                data-testid="export-v3-client-input"
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="export-v3-contact"
+                checked={exportOptions.includeContact}
+                onCheckedChange={(checked) => setExportOptions({ ...exportOptions, includeContact: !!checked })}
+                data-testid="export-v3-contact-checkbox"
+              />
+              <Label htmlFor="export-v3-contact" className="text-sm font-normal">
+                Incluir información de contacto (solo admin)
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleExport} disabled={exporting} className="bg-indigo-600 hover:bg-indigo-700" data-testid="export-v3-confirm-btn">
+              {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              Exportar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };

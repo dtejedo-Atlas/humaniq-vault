@@ -1,0 +1,59 @@
+{
+  "summary": "Frontend E2E de los 2 fixes solicitados. RESULTADO: 2 BUGS CRITICOS bloquean ambos flujos. (1) WIZARD INDUSTRIA: la validacion en handleFileUpload esta implementada, PERO el dropdown de industria/area muestra 0 opciones cuando se abre el wizard tras recargar la pagina — la refetch-on-mount del wizard que menciona el review_request NO esta implementada en JobFormWizard.js (no hay useEffect que llame refetch). El taxonomyContext falla en re-mount con 4x403 porque TaxonomyContext.useEffect corre ANTES que AuthContext.useEffect setee axios.defaults.headers, y lastTokenRef bloquea reintentos. (2) EXPORT V2 y V3: ambos endpoints POST /api/exports funcionan bien (200), pero el GET /api/exports/{id}/download devuelve 500 → handleExport en JobDetailPage.js:200 y MatchV3Results.js:93 leen 'localStorage.getItem(\"token\")' cuando la key correcta es 'atlas_token' (per AuthContext.js:16 e iteration_18). Bearer null → JWT DecodeError → auth.py:40 tira AttributeError porque usa 'jwt.JWTError' que no existe en PyJWT 2.x. Toasts de exito NUNCA se disparan; solo aparecen los toast.error. UI de dialogos (v2 y v3) SI funcionan (data-testids correctos, Top 5 seleccionable). REGRESION scorecard v3 config card: OK (process_type='Ejecutivo / Director' se carga, breakdown panel se abre).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/exports/{export_id}/download", "issue": "500 Internal Server Error debido a bug en /app/backend/auth.py:40 — usa 'except jwt.JWTError' pero PyJWT 2.x no expone esa clase (usar 'jwt.PyJWTError' o 'jwt.exceptions.InvalidTokenError'). Cuando el frontend envia 'Bearer null' (por el bug del token key), jwt.decode tira DecodeError('Not enough segments'), NO es ExpiredSignatureError, y el segundo except tira AttributeError: module 'jwt' has no attribute 'JWTError'. Resultado: 500 en lugar de 401. Traceback en backend.err.log.", "priority": "CRITICAL"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "JobDetailPage.handleExport (v2)", "issue": "localStorage.getItem('token') → key incorrecta; debe ser 'atlas_token'. Consecuencia: fetch de descarga envia 'Authorization: Bearer null' → backend 500 → toast.error 'Error descargando archivo' → nunca aparece 'Shortlist exportada'.", "selector": "src/pages/JobDetailPage.js:200", "priority": "CRITICAL"},
+      {"component": "MatchV3Results.handleExport", "issue": "Mismo bug: localStorage.getItem('token') debe ser 'atlas_token'. Consecuencia: download 500 → toast.error 'Error descargando archivo' → nunca aparece 'Shortlist v3 exportada'.", "selector": "src/components/MatchV3Results.js:93", "priority": "CRITICAL"},
+      {"component": "JobFormWizard", "issue": "El review_request afirma que 'el wizard hace refetch de taxonomia al montarse si esta vacia' — NO EXISTE. No hay useEffect en JobFormWizard.js que llame refetch(). Cuando la taxonomia esta vacia (por race condition al remount), el dropdown de industria muestra 0 opciones y NO se puede continuar el wizard.", "selector": "data-testid=job-industry-select / data-testid=job-area-select (SelectContent con 0 SelectItem)", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [
+      {"flow": "TaxonomyContext bootstrap on hard-reload/direct URL", "issue": "En mount inicial (F5/goto), TaxonomyContext.useEffect (hijo) corre antes que AuthContext.useEffect (padre) en Strict Mode/React 18. AuthContext setea axios.defaults.headers.common['Authorization'] DENTRO de su useEffect. Consecuencia: los 4 GET /api/taxonomy/{industries,functional-areas,seniority-levels,lookup} salen SIN header y devuelven 403. lastTokenRef.current queda con el token, por lo que futuros triggers de useEffect no reintentan. industries/functionalAreas quedan en []. Reproducible: log 'Taxonomy loaded' aparece solo al hacer login desde /login (donde token era null → cambia → dispara fetch DESPUES de que AuthContext ya seteo el header). Al recargar /jobs directo, no hay 'Taxonomy loaded' → arrays vacios permanentes.", "affected_selectors": ["[data-testid=job-industry-select]", "[data-testid=job-area-select]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "URGENTE: Cambiar localStorage.getItem('token') → localStorage.getItem('atlas_token') en JobDetailPage.js:200 y MatchV3Results.js:93. Considerar centralizar en un helper (ej: getAuthToken()) para evitar futuras divergencias.",
+    "URGENTE: Fix /app/backend/auth.py:40 — cambiar 'except jwt.JWTError' por 'except jwt.PyJWTError' (o 'except jwt.exceptions.InvalidTokenError'). Bug latente que convierte todo 401 en 500 cuando llega un token malformado.",
+    "IMPLEMENTAR el fix prometido en JobFormWizard.js: agregar useEffect([]) que llame refetch() si industries.length===0 (obtener refetch de useTaxonomy). Sin esto, el wizard queda inservible en remount directo.",
+    "OPCIONAL (raiz del race condition): TaxonomyContext deberia setear axios header antes de fetch, o AuthContext deberia setear el header sincronicamente en useState initializer (fuera del useEffect) cuando lee token de localStorage."
+  ],
+  "critical_code_review_comments": [
+    "JobDetailPage.js:200 y MatchV3Results.js:93 duplican la logica de auth-fetch con la key hardcodeada 'token' (incorrecta). Extraer a exportsAPI.downloadFile(url) que use axios (que ya tiene el header via defaults) o al menos un helper getAuthToken(). Alternativamente, hacer el endpoint GET /api/exports/{id}/download aceptar el token via query param como fallback (no ideal pero robusto para <a href>).",
+    "auth.py: PyJWT >=2.0 no tiene jwt.JWTError; usar jwt.PyJWTError o jwt.exceptions.InvalidTokenError. Esto es un bug latente en TODOS los endpoints protegidos: si llega un token corrupto, 500 en vez de 401.",
+    "TaxonomyContext / AuthContext race: patron mas robusto seria que AuthContext.setToken tambien setee axios.defaults.headers de forma inmediata en el mismo tick (no dentro de useEffect), o que TaxonomyContext espere a que 'user' este resuelto (no solo token) para hacer el fetch inicial.",
+    "JobFormWizard.js: la validacion de industria/area vs taxonomia (linea 141-142) es correcta, pero incluye la escape hatch 'industries.length === 0' que hace pasar el valor RAW si la taxonomia esta vacia — eso es peligroso porque, en presencia del race condition, se aceptaria cualquier string parseado por el LLM sin validar. Mejor forzar '' cuando taxonomia esta vacia.",
+    "Sonner toasts: 'toast.success' se llama SOLO despues de que la descarga completa. Si el backend genera el archivo OK pero la descarga falla, el usuario ve solo el error y no sabe que el export SI se genero server-side (queda huerfano en /tmp). Considerar dividir: toast.info('Export generado') al recibir 200 del POST, toast.success('Descarga completada') al final."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only, aunque se detecto 1 bug backend por RCA)",
+    "frontend": "40% — 2/5 casos pasan (V2 dialog abre, V3 dialog abre + regresion scorecard). 3/5 fallan (wizard industria vacia, V2 export toast success, V3 export toast success)."
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin). localStorage key = 'atlas_token'.",
+  "seed_data_creation": "PDF de prueba /tmp/test_jd.pdf creado pero NO subido — el wizard estaba bloqueado antes de poder testear el flujo de parseo por dropdown vacio. NO se creo ninguna vacante ni se modifico BD.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Selectors validados: create-job-button (JobsPage), job-industry-select, job-area-select, job-title-input (JobFormWizard). export-shortlist-button (JobDetailPage v2), export-shortlist-v3-button, export-v3-dialog, export-v3-confirm-btn (MatchV3Results). scorecard-config-card, run-match-v3-btn, match-v3-results, match-v3-breakdown-toggle, match-v3-breakdown-panel. Toast 'Matching v3 completado: 50 candidatos evaluados' se dispara OK al finalizar match-v3 (~10s). Para reproducir el bug de wizard: goto /jobs directo (F5), abrir Nueva Vacante, abrir dropdown industria → 0 opciones. Para verificar export tras fix: cambiar la key en las 2 lineas mencionadas + fix auth.py, luego repetir el flujo. Backend export_service genera el PDF correctamente (log 'Export ... created ... 5 candidates, format=pdf').",
+  "rca_of_the_issue": {
+    "wizard_industria_vacia": {
+      "sintoma": "Al abrir el wizard tras un mount directo (F5 en /jobs, o navigate directo), el dropdown de Industria/Area muestra 0 opciones.",
+      "root_cause": "TaxonomyContext.useEffect (hijo) corre antes que AuthContext.useEffect (padre) en React 18. AuthContext setea axios.defaults.headers.common['Authorization'] DENTRO de useEffect (AuthContext.js:22). Cuando TaxonomyContext llama fetchTaxonomy, aun no hay header → 403. lastTokenRef.current queda con el token → no se reintenta. industries=[] permanente. Ademas, JobFormWizard NO tiene el useEffect de refetch-on-mount que el review_request afirma tener.",
+      "reproduccion": "1) Login. 2) Goto /jobs (o F5). 3) Console: 4x 'Failed to load resource: 403' + 'Error fetching taxonomy: AxiosError'. 4) Click 'Nueva Vacante'. 5) Click dropdown Industria → 0 opciones.",
+      "mitigacion": "Agregar en JobFormWizard: const { refetch } = useTaxonomy(); useEffect(() => { if (industries.length === 0) refetch(); }, []); Y arreglar el race en TaxonomyContext (esperar a user resuelto, no solo token)."
+    },
+    "export_download_500": {
+      "sintoma": "POST /api/exports/... devuelve 200, pero GET /api/exports/{id}/download devuelve 500. Toast 'Error descargando archivo'. Nunca se muestra 'Shortlist exportada' ni 'Shortlist v3 exportada'.",
+      "root_cause_frontend": "JobDetailPage.js:200 y MatchV3Results.js:93 hacen 'const token = localStorage.getItem(\"token\")'. Pero AuthContext.js:16,51,72 usa la key 'atlas_token'. token===null → 'Authorization: Bearer null'.",
+      "root_cause_backend": "Con 'Bearer null', jwt.decode(null) tira DecodeError('Not enough segments'). auth.py:40 tiene 'except jwt.JWTError' pero PyJWT 2.x no expone 'JWTError' (renombrado a 'PyJWTError'). Python lanza AttributeError al evaluar la clase de la except → 500.",
+      "reproduccion": "Ver network log: POST 200 → GET 500 en misma requesición.",
+      "mitigacion": "Frontend: cambiar 'token' → 'atlas_token' en las 2 lineas. Backend: cambiar 'jwt.JWTError' → 'jwt.PyJWTError' en auth.py:40. Ambos fixes son de 1 caracter/palabra."
+    }
+  }
+}
