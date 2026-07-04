@@ -169,6 +169,11 @@ def clean_previous_company(pc_data: dict) -> Optional[dict]:
     if not company_name and not title:
         return None
     
+    # Validar company_caliber contra los 5 niveles canónicos
+    caliber = pc_data.get('company_caliber')
+    if caliber not in ('multinacional_global', 'corporativo_nacional', 'mediana', 'pyme', 'startup'):
+        caliber = None
+    
     return {
         'company_name': company_name or 'Empresa no especificada',
         'title': title or 'Puesto no especificado',
@@ -178,6 +183,7 @@ def clean_previous_company(pc_data: dict) -> Optional[dict]:
         'description': safe_string(pc_data.get('description')),
         'industry': safe_string(pc_data.get('industry')),
         'location': safe_string(pc_data.get('location')),
+        'company_caliber': caliber,
     }
 
 
