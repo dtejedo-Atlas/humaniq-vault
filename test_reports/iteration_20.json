@@ -1,0 +1,33 @@
+{
+  "summary": "RETEST de iteration_19 completo. LOS 3 FIXES SOLICITADOS FUNCIONAN: (1) WIZARD INDUSTRIA - PASS: tras hard-reload en /jobs (repro del race condition, 4x 403 taxonomia siguen apareciendo), abrir el wizard dispara el refetch de JobFormWizard.js:111-116 y el dropdown data-testid='job-industry-select' muestra 23 opciones seleccionables. PDF upload/parse (~35s) completa sin romper el dropdown (23 opciones despues del parse). Wizard cancelado antes del submit (NO se creo vacante). (2) EXPORT V2 - PASS: POST /api/exports/... => 200, GET /api/exports/{id}/download => 200, PDF descargado (shortlist_594c8585..._dc65d06d.pdf, Top 5 PDF). El token 'atlas_token' se lee correctamente ahora. (3) EXPORT V3 - PASS: POST /api/exports => 200, GET .../download => 200, PDF descargado, toast success 'Shortlist v3 exportada: 10 candidatos' visible. (4) REGRESION LOGIN - PASS: logout via 'Salir' → /login → login test_utf8@atlas.com/Humaniq123 → /dashboard OK. El cambio de jwt.JWTError a jwt.InvalidTokenError en auth.py:40 no rompio el flujo normal.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "TaxonomyContext bootstrap on hard-reload", "issue": "SUBYACENTE (no bloqueante para los flujos actuales): en cada F5 en /jobs siguen apareciendo 4x 403 'Failed to load resource' + 'Error fetching taxonomy: AxiosError' porque TaxonomyContext.useEffect corre antes que AuthContext setee axios.defaults.headers. El fix del wizard (refetch on mount) enmascara el sintoma, pero cualquier otro componente que consuma useTaxonomy() ANTES de abrir el wizard vera arrays vacios. Recomendacion opcional: setear axios header sincronicamente en AuthContext (useState initializer) para eliminar la causa raiz.", "affected_selectors": ["[data-testid=job-industry-select]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "OPCIONAL: eliminar la causa raiz del race TaxonomyContext ↔ AuthContext (setear axios.defaults.headers en initializer, no en useEffect). Los 4x 403 en cada mount son cosmeticos ahora, pero contaminan logs y podrian romper futuros componentes que dependan de taxonomia en mount."
+  ],
+  "critical_code_review_comments": [
+    "JobDetailPage.js:200 y MatchV3Results.js:93 aun duplican la logica 'const token = localStorage.getItem(atlas_token)' + fetch manual con Bearer header. Refactor sugerido: extraer a exportsAPI.downloadFile(exportId) que use el axios instance compartido (que ya trae el header interceptor).",
+    "JobFormWizard.js:111-116 usa useEffect([]) con eslint-disable — funcional pero fragil. Considerar dependencia explicita [industries.length] o mover el guard al TaxonomyContext (retry automatico en fetchTaxonomy si falla)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only retest)",
+    "frontend": "100% — 4/4 casos pasan (wizard industria + PDF parse, export v2 PDF Top 5, export v3 PDF Top 5, regresion login)"
+  },
+  "test_credentials": "test_utf8@atlas.com / Humaniq123 (admin). localStorage key = 'atlas_token'.",
+  "seed_data_creation": "Ninguna. PDF /tmp/test_jd.pdf usado solo para verificar parseo en wizard. Wizard cancelado antes del submit — NO se creo vacante. Solo se descargaron 2 archivos PDF (exports v2 + v3) de la vacante 594c8585-fa9a-43c0-af3c-f63ccf7c34ad (Director Comercial).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Los 3 fixes de iter_19 estan validados en produccion (preview). No se detectaron regresiones. Los 403 de taxonomia en mount son cosmeticos gracias al refetch del wizard, pero siguen apareciendo en console. Radix Selects dentro de Dialog: scopear selectores con '[role=\"dialog\"] button[role=\"combobox\"]' porque JobDetailPage tiene scorecard combobox en background. Sonner toasts se auto-dismiss en ~4s → verificar antes de wait_for_timeout largos, o mejor validar por network response (POST /api/exports 200 + GET .../download 200 + download event).",
+  "rca_of_the_issue": "No hay bugs. Los 3 fixes reportados por el main agent estan aplicados y funcionan:\n1) JobDetailPage.js:200 → localStorage.getItem('atlas_token') ✓\n2) MatchV3Results.js:93 → localStorage.getItem('atlas_token') ✓\n3) auth.py:40 → except jwt.InvalidTokenError ✓ (login normal sigue funcionando; token malformado ahora devuelve 401)\n4) JobFormWizard.js:105 destructure incluye refetch, JobFormWizard.js:111-116 useEffect([]) llama refetch() si industries.length===0 ✓"
+}

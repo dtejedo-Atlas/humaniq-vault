@@ -197,7 +197,7 @@ const JobDetailPage = () => {
       link.download = response.data.filename;
       
       // Agregar token al header para autenticación
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('atlas_token');
       
       // Usar fetch para descargar con auth
       const fileResponse = await fetch(downloadUrl, {

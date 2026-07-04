@@ -90,7 +90,7 @@ const MatchV3Results = ({ jobId }) => {
       });
 
       const downloadUrl = `${process.env.REACT_APP_BACKEND_URL}${response.data.download_url}`;
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('atlas_token');
       const fileResponse = await fetch(downloadUrl, {
         headers: { Authorization: `Bearer ${token}` },
       });

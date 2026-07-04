@@ -102,10 +102,18 @@ const JobFormWizard = ({ onSubmit, onCancel, initialData = null, loading = false
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const fileInputRef = useRef(null);
-  const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
+  const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName, refetch } = useTaxonomy();
 
   const industries = getIndustryOptions();
   const functionalAreas = getFunctionalAreaOptions();
+
+  // Retry: si la taxonomía no cargó (fetch falló al iniciar sesión), reintentar al abrir el wizard
+  useEffect(() => {
+    if (industries.length === 0) {
+      refetch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
