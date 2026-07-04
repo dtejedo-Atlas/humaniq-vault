@@ -863,3 +863,9 @@ HMS = round(100 * K * core * HEC^0.15)
 - Montados en JobDetailPage entre detalles del job y Candidatos Compatibles (v2 intacto)
 - Bug corregido en el camino: JobDetailPage tenía línea corrupta duplicada al final ("xport default") y el primer montaje se perdió; re-aplicado
 - Verificado testing agent iteration_18: frontend 100% (5/5) — carga, guardar+persistir, derived, desglose v3, regresión v2. Scorecard restaurado a executive/corporativo_nacional
+
+### 3 diagnósticos con fix (03-Jun-2026) — COMPLETADOS (iteration_19 encontró RCA, iteration_20: 4/4 PASS)
+1. Dropdown industria wizard: (a) validación de industry/functional_area parseados contra taxonomía en JobFormWizard.handleFileUpload (inválidos → vacío + toast.warning), (b) refetch de taxonomía al montar el wizard si industries vacío. Causa raíz subyacente NO tocada (race TaxonomyContext corre antes de que AuthContext setee axios headers → 4x403 cosméticos en cada F5; el refetch lo enmascara)
+2. Export shortlist: root cause real = localStorage.getItem('token') cuando la key es 'atlas_token' → descarga con Bearer null → 500. Corregido en JobDetailPage y MatchV3Results. Bug adicional backend: auth.py 'jwt.JWTError' no existe en PyJWT → AttributeError→500 en tokens malformados; corregido a jwt.InvalidTokenError (ahora 401). Se agregó botón export a tarjeta v3: mismo dialog, endpoint /exports/job/{id}?engine=v3 (export_service._get_job_matches_v3: ranking HMS + acción recomendada en PDF/DOCX; templates actualizados: label HMS + acción)
+3. Desglose Juan Manuel Herrera (job COO f7dd7cf3): reportado (HMS 66, #15, CC neutral ci=0 porque su CV se parseó sin calibre — candidato subido después del batch/antes del prompt nuevo, empresas anonimizadas)
+- NOTA RECURRENTE: JobFormWizard.js y JobDetailPage.js sufrieron 2 veces corrupción de "cola duplicada" tras edits (contenido duplicado tras export default) — revisar tail del archivo tras editar esos archivos grandes
