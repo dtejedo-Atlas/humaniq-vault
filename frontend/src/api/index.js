@@ -15,6 +15,10 @@ export const candidatesAPI = {
     formData.append('note_text', note);
     return axios.post(`${API_BASE}/candidates/${id}/notes`, formData);
   },
+  getNotes: (id) => axios.get(`${API_BASE}/candidates/${id}/notes`),
+  assignJob: (id, jobId) => axios.post(`${API_BASE}/candidates/${id}/assign-job`, { job_id: jobId }),
+  updateAssignmentStage: (id, jobId, stage) =>
+    axios.put(`${API_BASE}/candidates/${id}/job-assignments/${jobId}`, { stage }),
   changeStatus: (id, newStatus, notes = null) => 
     axios.put(`${API_BASE}/candidates/${id}/status`, { new_status: newStatus, notes }),
   getStatusHistory: (id) => axios.get(`${API_BASE}/candidates/${id}/status-history`),
@@ -80,7 +84,8 @@ export const searchAPI = {
 // Dashboard
 export const dashboardAPI = {
   getStats: () => axios.get(`${API_BASE}/dashboard/stats`),
-  getRecentActivity: (limit = 10) => axios.get(`${API_BASE}/dashboard/recent-activity`, { params: { limit } })
+  getRecentActivity: (limit = 10) => axios.get(`${API_BASE}/dashboard/recent-activity`, { params: { limit } }),
+  getOperational: () => axios.get(`${API_BASE}/dashboard/operational`)
 };
 
 // Status Config
@@ -119,6 +124,7 @@ export const jobsAPI = {
   delete: (id) => axios.delete(`${API_BASE}/jobs/${id}`),
   getMatches: (id, threshold = 60, limit = 50) => 
     axios.post(`${API_BASE}/jobs/${id}/match`, null, { params: { threshold, limit } }),
+  getAssignments: (id) => axios.get(`${API_BASE}/jobs/${id}/assignments`),
   // Scorecard v3
   getScorecard: (id) => axios.get(`${API_BASE}/jobs/${id}/scorecard`),
   saveScorecard: (id, data) => axios.put(`${API_BASE}/jobs/${id}/scorecard`, data),

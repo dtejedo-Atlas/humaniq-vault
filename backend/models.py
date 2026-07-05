@@ -231,6 +231,14 @@ class RecruiterNote(BaseModel):
     created_by: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+class JobAssignment(BaseModel):
+    """Vínculo candidato↔vacante. El stage vive en el vínculo, no en el candidato."""
+    job_id: str
+    stage: str = "new"  # new/reviewing/qualified/ready_to_send/submitted/interviewed/offer/placed/discarded
+    assigned_by: str
+    assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 class AIClassification(BaseModel):
     industry: Optional[str] = None
     functional_area: Optional[str] = None
@@ -262,6 +270,7 @@ class Candidate(BaseModel):
     resume_files: List[ResumeFile] = []
     salary_data: Optional[str] = None
     notes: List[RecruiterNote] = []
+    job_assignments: List[JobAssignment] = []
     tags: List[str] = []
     status: CandidateStatus = CandidateStatus.NEW
     status_history: List[StatusChange] = []  # Historial de cambios de estado
@@ -629,6 +638,10 @@ class CandidateMatchResult(BaseModel):
     strengths: List[str] = []                     # Fortalezas principales
     risks: List[Dict[str, Any]] = []              # Riesgos detectados
     missing_skills: List[str] = []                # Skills faltantes
+    
+    # Flags de visibilidad (enriquecidos en el endpoint, no en el motor)
+    is_placed: Optional[bool] = None
+    notes_count: Optional[int] = None
     
     # Datos adicionales del candidato para display
     years_experience: Optional[int] = None

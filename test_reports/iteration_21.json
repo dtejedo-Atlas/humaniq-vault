@@ -1,0 +1,50 @@
+{
+  "summary": "Testing del bloque 'DASHBOARD OPERATIVO + VISIBILIDAD DE EQUIPO'. Backend 8/9 tests PASS (login, dashboard operativo, assign-job, listado /jobs/{id}/assignments, stages independientes por assignment, rechazo de stage inválido, placed→restricción automática, notas). Frontend: DashboardPage.js renderiza Centro de Control + KPIs + Tablero + Bandeja + Actividad correctamente. GAP CRÍTICO DE INTEGRACIÓN: JobAssignmentsCard y AssignJobDialog están definidos y funcionan a nivel de código, pero NO están importados/renderizados en JobDetailPage.js — por lo tanto no hay forma de asignar candidatos o cambiar stages desde la UI de la vacante. PlacedBadge/NotesBadge solo se referencian dentro del JobAssignmentsCard huérfano, así que el badge COLOCADO no aparece en listas ni perfiles de candidato. BUG MENOR CONFIRMADO: create_candidate() inserta activity_logs sin entity_name ni user_name → dashboard muestra 'Test UTF8 creó al candidato entidad' (fallback string 'entidad').",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/candidates", "issue": "Inserta activity_logs directamente (server.py:482) sin entity_name ni user_name. Todos los eventos candidate_created en el feed renderizan 'Test UTF8 creó al candidato entidad'. Fix: reemplazar el insert directo por `await log_activity(current_user, 'candidate_created', 'candidate', candidate_id, candidate.full_name)`."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "JobDetailPage", "issue": "NO importa ni renderiza JobAssignmentsCard. La tarjeta 'Candidatos Asignados' definida en /app/frontend/src/components/JobAssignmentsCard.js jamás aparece en la vista de vacante.", "selector": "[data-testid=\"job-assignments-card\"]", "priority": "HIGH"},
+      {"component": "JobDetailPage / CandidateDetailPage / CandidatesPage", "issue": "AssignJobDialog nunca se instancia — no hay botón 'Asignar a vacante' en ninguna vista. El flujo de asignación desde UI está muerto.", "selector": "[data-testid=\"assign-job-dialog\"]", "priority": "HIGH"},
+      {"component": "CandidatesPage / CandidateDetailPage / MatchV3Results", "issue": "PlacedBadge y NotesBadge solo se referencian dentro del JobAssignmentsCard huérfano. En listas de candidatos y perfil individual el badge 'COLOCADO' no aparece nunca (contradice el requerimiento del review request).", "selector": "[data-testid=\"placed-badge\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Team activity feed", "issue": "Los eventos candidate_created muestran 'entidad' como fallback (entity_name es null en DB). Backend server.py:482 usa insert directo en activity_logs en vez de la helper log_activity().", "affected_selectors": ["[data-testid=\"activity-item\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_operational_dashboard_and_assignments.py",
+    "/app/test_reports/pytest/operational_dashboard_assignments.xml"
+  ],
+  "action_items": [
+    "1) Importar JobAssignmentsCard en JobDetailPage.js y renderizarlo con jobId (probablemente debajo de MatchV3Results o encima). Sin esto la tarjeta de asignaciones no existe en la UI.",
+    "2) Wire de AssignJobDialog: agregar un botón 'Asignar a vacante' en CandidateDetailPage (y opcionalmente en la fila de MatchV3Results) que abra el diálogo con candidateId/candidateName. Sin esto no hay forma de crear assignments desde la UI.",
+    "3) Renderizar PlacedBadge condicionalmente en CandidatesPage (fila de la tabla), en CandidateDetailPage (encabezado) y en MatchV3Results usando isPlacedCandidate(candidate). El backend ya expone is_restricted+restriction_info y job_assignments en el candidato → todo listo para el badge, solo falta importarlo/mostrarlo.",
+    "4) Fix menor: en /app/backend/server.py:482 (create_candidate) reemplazar el insert directo por: `await log_activity(current_user, 'candidate_created', 'candidate', candidate_id, candidate.full_name)`. Elimina el fallback 'entidad' del feed.",
+    "5) OPCIONAL: exponer is_placed y notes_count en GET /api/candidates y GET /api/candidates/{id} para que la UI no tenga que derivarlo del cliente (hoy solo se derivan en /api/jobs/{id}/assignments y en resultados de matching)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:482 rompe la trazabilidad del feed de actividad — activity_logs se inserta directamente sin user_name/entity_name en vez de reusar log_activity(). Ya hay 3 candidatos con este bug en producción (visibles en el screenshot del dashboard).",
+    "JobAssignmentsCard.js y AssignJobDialog.js son código muerto en producción — completos pero no wired en JobDetailPage. Sospecha: el main agent construyó los componentes pero omitió la integración en la página host.",
+    "server.py:4523-4527 my_unassigned filtra por `created_by == current_user.id` — para super_admin/admin que no crearon candidatos esto siempre será 0. Considerar si Admin debería ver 'sin asignar' de todo el equipo (product decision).",
+    "server.py:769 candidate_is_placed sólo comprueba assignment.stage='placed' O restriction_info.category='placed_by_humaniq'. Si un assignment queda huérfano (job eliminado), el candidato seguirá figurando como placed. Menor pero conviene documentar."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_operational_dashboard_and_assignments.py"
+  ],
+  "success_rate": {
+    "backend": "89% (8/9 pytest — el único fallo es la aserción intencional de entity_name en candidate_created log)",
+    "frontend": "50% — dashboard (Centro de Control) OK; JobDetailPage assignments card ausente; AssignJobDialog no wired; badge COLOCADO no aparece en listas/perfiles"
+  },
+  "test_credentials": "Admin: test_utf8@atlas.com / Humaniq123 — access_token bearer, localStorage key 'atlas_token'",
+  "seed_data_creation": "Se crearon y limpiaron: 2 candidatos TEST_ (soft-delete) + 2 vacantes TEST_ (DELETE) + 1 candidato TEST_ActivityLog. Verificado: 0 vacantes TEST_ y 0 candidatos TEST_ no eliminados restantes en Atlas. NOTA: los logs de actividad (activity_logs) NO fueron limpiados — quedan ~10 eventos 'Test UTF8 …' con TEST_Assign Candidate en el feed (no se puede borrar via API sin exponer endpoint, y aparecen porque el feed no filtra soft-deleted).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend endpoints funcionan perfectamente incluyendo el flujo crítico (placed→auto-restricción, stages independientes por assignment). El bloqueo real es la INTEGRACIÓN FRONTEND: JobAssignmentsCard, AssignJobDialog y PlacedBadge existen pero no están wired. Al re-testear después del fix: verificar (a) JobDetailPage renderiza [data-testid=\"job-assignments-card\"], (b) hay un botón 'Asignar a vacante' que abre [data-testid=\"assign-job-dialog\"], (c) tras placed el badge [data-testid=\"placed-badge\"] aparece en la lista de candidatos y en el perfil, (d) el feed muestra el full_name del candidato (no 'entidad'). Cleanup: reusar el fixture test_data del test file — ya hace soft-delete + unrestrict + delete job.",
+  "rca_of_the_issue": "Dos causas raíz distintas:\n(1) INTEGRACIÓN FRONTEND: El agente E1 construyó JobAssignmentsCard.js, AssignJobDialog.js y CandidateBadges.js con testids y APIs correctamente cableadas, pero olvidó importarlos y renderizarlos en JobDetailPage.js / CandidateDetailPage.js / CandidatesPage.js / MatchV3Results.js. `grep -rn 'JobAssignmentsCard|AssignJobDialog|PlacedBadge' /app/frontend/src/pages` retorna 0 matches. Los componentes existen en el bundle pero son inalcanzables por el usuario.\n(2) BUG ACTIVITY LOG: /app/backend/server.py:482-489 inserta manualmente en activity_logs sin pasar por log_activity(current_user, action, entity_type, entity_id, entity_name). Como entity_name se persiste como null, el frontend cae al fallback ternario `{ev.entity_name || 'entidad'}` (DashboardPage.js:199). Reproducción: crear cualquier candidato → refrescar /dashboard → ver 'Xxx creó al candidato entidad' en Actividad del equipo. Fix trivial de 1 línea. Los otros usos de log_activity ya pasan correctamente entity_name (assignments, notes, matching, etc.)."
+}

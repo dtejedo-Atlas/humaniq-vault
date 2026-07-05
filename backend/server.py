@@ -666,6 +666,8 @@ async def add_candidate_note(
         }
     )
     
+    await log_activity(current_user, "note_added", "candidate", candidate_id, candidate_doc.get("full_name"))
+    
     return {"message": "Nota agregada exitosamente"}
 
 
@@ -757,8 +759,52 @@ RESTRICTION_CATEGORIES = {
     "legal_issue": "Problema legal",
     "conflict_of_interest": "Conflicto de interés",
     "performance_issue": "Problema de desempeño",
+    "placed_by_humaniq": "Colocado por Humaniq",
     "other": "Otro"
 }
+
+JOB_ASSIGNMENT_STAGES = {"new", "reviewing", "qualified", "ready_to_send", "submitted", "interviewed", "offer", "placed", "discarded"}
+
+
+def candidate_is_placed(cand: dict) -> bool:
+    """Colocado = restricción placed_by_humaniq activa O algún job_assignment en stage placed"""
+    if cand.get("is_restricted") and (cand.get("restriction_info") or {}).get("category") == "placed_by_humaniq":
+        return True
+    return any(a.get("stage") == "placed" for a in (cand.get("job_assignments") or []))
+
+
+async def log_activity(user, action: str, entity_type: str, entity_id: str = None, entity_name: str = None, details: dict = None):
+    """Registro aditivo de eventos para el feed de actividad"""
+    try:
+        await db.activity_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": getattr(user, 'id', None),
+            "user_name": getattr(user, 'name', None) or getattr(user, 'email', 'Sistema'),
+            "action": action,
+            "entity_type": entity_type,
+            "entity_id": entity_id,
+            "entity_name": entity_name,
+            "details": details or {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logger.warning(f"log_activity falló: {e}")
+
+
+async def enrich_results_with_flags(results: list):
+    """Agrega is_placed y notes_count a resultados de matching (solo lectura)"""
+    ids = [r.get("candidate_id") for r in results if r.get("candidate_id")]
+    if not ids:
+        return
+    docs = await db.candidates.find(
+        {"id": {"$in": ids}},
+        {"_id": 0, "id": 1, "is_restricted": 1, "restriction_info": 1, "job_assignments": 1, "notes": 1}
+    ).to_list(len(ids))
+    flags = {d["id"]: d for d in docs}
+    for r in results:
+        fd = flags.get(r.get("candidate_id"), {})
+        r["is_placed"] = candidate_is_placed(fd)
+        r["notes_count"] = len(fd.get("notes") or [])
 
 @api_router.post("/candidates/{candidate_id}/restrict")
 async def mark_candidate_restricted(
@@ -1387,6 +1433,9 @@ async def upload_resume(
     
     result.warnings = warnings
     
+    if result.status == "success" and result.candidate_id:
+        await log_activity(current_user, "candidate_uploaded", "candidate", result.candidate_id, (parsed_data or {}).get("full_name"))
+    
     response = result.to_response()
     response["parsed_data"] = parsed_data
     response["has_low_confidence_duplicates"] = len(soft_duplicates) > 0 and soft_duplicates[0]['confidence'] < 0.85 if soft_duplicates else False
@@ -1953,6 +2002,9 @@ async def approve_atlas_classification(
         {"id": candidate_id},
         {"$set": update_data}
     )
+    
+    full_name_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "full_name": 1})
+    await log_activity(current_user, "classification_approved", "candidate", candidate_id, (full_name_doc or {}).get("full_name"))
     
     return {"message": "Clasificación aprobada"}
 
@@ -4110,6 +4162,14 @@ async def match_job_candidates(
         limit=limit
     )
     
+    try:
+        await enrich_results_with_flags(result.get("results", []))
+    except Exception as e:
+        logger.warning(f"No se pudieron enriquecer flags v2: {e}")
+    
+    user_for_log = await get_current_user(credentials)
+    await log_activity(user_for_log, "matching_run", "job", job_id, job.get("title"), {"engine": "v2"})
+    
     return result
 
 
@@ -4167,6 +4227,14 @@ async def match_job_candidates_v3(
     results.sort(key=lambda x: x.get("match_score_v3", 0), reverse=True)
     results = results[:limit]
 
+    try:
+        await enrich_results_with_flags(results)
+    except Exception as e:
+        logger.warning(f"No se pudieron enriquecer flags v3: {e}")
+
+    user_v3 = await get_current_user(credentials)
+    await log_activity(user_v3, "matching_run", "job", job_id, job.get("title"), {"engine": "v3"})
+
     if engine_version == "compare":
         v2_result = await job_matching_service.match_candidates(job=job, threshold=60, limit=limit)
         return {"engine": "compare", "v3": results, "v2": v2_result}
@@ -4217,6 +4285,303 @@ async def get_job_scorecard(
     if saved:
         return {"job_id": job_id, "scorecard": saved, "source": "saved"}
     return {"job_id": job_id, "scorecard": default_scorecard_from_job(job), "source": "derived"}
+
+
+# ============= JOB ASSIGNMENTS (vínculo candidato↔vacante) + DASHBOARD OPERATIVO =============
+
+class AssignJobRequest(PydanticBaseModel):
+    job_id: str
+
+class UpdateAssignmentStageRequest(PydanticBaseModel):
+    stage: str
+
+
+@api_router.post("/candidates/{candidate_id}/assign-job")
+async def assign_candidate_to_job(
+    candidate_id: str,
+    request: AssignJobRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Asigna un candidato a una vacante (stage inicial: new)"""
+    cand = await db.candidates.find_one({"id": candidate_id, "is_deleted": {"$ne": True}}, {"_id": 0, "full_name": 1, "job_assignments": 1})
+    if not cand:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    job = await db.jobs.find_one({"id": request.job_id}, {"_id": 0, "title": 1, "company": 1})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    if any(a.get("job_id") == request.job_id for a in (cand.get("job_assignments") or [])):
+        raise HTTPException(status_code=409, detail="El candidato ya está asignado a esta vacante")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    assignment = {
+        "job_id": request.job_id,
+        "stage": "new",
+        "assigned_by": current_user.name,
+        "assigned_at": now,
+        "updated_at": now,
+    }
+    await db.candidates.update_one({"id": candidate_id}, {"$push": {"job_assignments": assignment}})
+    await log_activity(current_user, "candidate_assigned", "candidate", candidate_id, cand.get("full_name"), {"job_id": request.job_id, "job_title": job.get("title")})
+    return {"message": "Candidato asignado", "assignment": assignment}
+
+
+@api_router.put("/candidates/{candidate_id}/job-assignments/{job_id}")
+async def update_assignment_stage(
+    candidate_id: str,
+    job_id: str,
+    request: UpdateAssignmentStageRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Actualiza el stage del vínculo. Si llega a 'placed', crea la restricción de colocación."""
+    if request.stage not in JOB_ASSIGNMENT_STAGES:
+        raise HTTPException(status_code=400, detail=f"Stage inválido. Válidos: {sorted(JOB_ASSIGNMENT_STAGES)}")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    result = await db.candidates.update_one(
+        {"id": candidate_id, "job_assignments.job_id": job_id},
+        {"$set": {"job_assignments.$.stage": request.stage, "job_assignments.$.updated_at": now}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+    
+    cand = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "full_name": 1, "is_restricted": 1, "restriction_info": 1})
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1, "company": 1})
+    
+    if request.stage == "placed":
+        restriction_info = {
+            "category": "placed_by_humaniq",
+            "category_label": RESTRICTION_CATEGORIES["placed_by_humaniq"],
+            "reason": f"Colocado en '{(job or {}).get('title')}' — Cliente: {(job or {}).get('company') or 'N/D'}",
+            "job_id": job_id,
+            "job_title": (job or {}).get("title"),
+            "client": (job or {}).get("company"),
+            "placed_at": now,
+            "marked_by": current_user.id,
+            "marked_by_name": current_user.name,
+            "marked_at": now,
+        }
+        await db.candidates.update_one(
+            {"id": candidate_id},
+            {"$set": {"is_restricted": True, "restriction_info": restriction_info, "updated_at": now}}
+        )
+        await log_activity(current_user, "candidate_placed", "candidate", candidate_id, (cand or {}).get("full_name"), {"job_id": job_id, "job_title": (job or {}).get("title")})
+    else:
+        await log_activity(current_user, "assignment_stage_changed", "candidate", candidate_id, (cand or {}).get("full_name"), {"job_id": job_id, "stage": request.stage})
+    
+    return {"message": "Stage actualizado", "stage": request.stage}
+
+
+@api_router.get("/jobs/{job_id}/assignments")
+async def get_job_assignments(
+    job_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Candidatos asignados a una vacante con su stage en ese vínculo"""
+    cands = await db.candidates.find(
+        {"is_deleted": {"$ne": True}, "job_assignments.job_id": job_id},
+        {"_id": 0, "id": 1, "full_name": 1, "current_title": 1, "current_company": 1,
+         "job_assignments": 1, "is_restricted": 1, "restriction_info": 1, "notes": 1}
+    ).to_list(500)
+    
+    items = []
+    for c in cands:
+        a = next((x for x in c.get("job_assignments", []) if x.get("job_id") == job_id), None)
+        if not a:
+            continue
+        items.append({
+            "candidate_id": c["id"],
+            "candidate_name": c.get("full_name"),
+            "current_title": c.get("current_title"),
+            "stage": a.get("stage"),
+            "assigned_by": a.get("assigned_by"),
+            "updated_at": a.get("updated_at"),
+            "is_placed": candidate_is_placed(c),
+            "notes_count": len(c.get("notes") or []),
+        })
+    return {"job_id": job_id, "assignments": items, "total": len(items)}
+
+
+@api_router.get("/candidates/{candidate_id}/notes")
+async def get_candidate_notes(
+    candidate_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Notas del candidato — visibles para todo el equipo"""
+    cand = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "notes": 1})
+    if not cand:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    notes = cand.get("notes") or []
+    return {"candidate_id": candidate_id, "notes": notes, "total": len(notes)}
+
+
+@api_router.get("/dashboard/operational")
+async def get_operational_dashboard(current_user: User = Depends(get_current_user)):
+    """Dashboard operativo: KPIs, tablero de vacantes, actividad y bandeja personal (solo lectura)"""
+    now = datetime.now(timezone.utc)
+    active_q = {"is_deleted": {"$ne": True}}
+    
+    def parse_dt(v):
+        if not v:
+            return None
+        if isinstance(v, datetime):
+            return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+        try:
+            return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            return None
+    
+    # ===== KPIs =====
+    total_candidates = await db.candidates.count_documents(active_q)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+    candidates_this_month = await db.candidates.count_documents({**active_q, "created_at": {"$gte": month_start}})
+    pending_pipeline = [
+        {"$match": {"is_deleted": {"$ne": True}}},
+        {"$addFields": {
+            "has_classification": {"$ifNull": ["$ai_classification", None]},
+            "conf_score": {"$ifNull": ["$ai_classification.confidence_score", 0]},
+            "is_approved": {"$ifNull": ["$ai_classification.approved_by_recruiter", False]},
+        }},
+        {"$match": {"$or": [
+            {"has_classification": None},
+            {"$and": [{"conf_score": {"$lt": 0.75}}, {"is_approved": False}]},
+        ]}},
+        {"$count": "n"},
+    ]
+    pending_rows = await db.candidates.aggregate(pending_pipeline).to_list(1)
+    pending_classifications = pending_rows[0]["n"] if pending_rows else 0
+    placed_count = await db.candidates.count_documents({"$and": [active_q, {"$or": [
+        {"is_restricted": True, "restriction_info.category": "placed_by_humaniq"},
+        {"job_assignments": {"$elemMatch": {"stage": "placed"}}},
+    ]}]})
+    
+    jobs = await db.jobs.find({"$or": [{"status": "active"}, {"status": {"$exists": False}}]}, {"_id": 0}).to_list(500)
+    days_open_list = []
+    for j in jobs:
+        dt = parse_dt(j.get("created_at"))
+        j["_days_open"] = (now - dt).days if dt else 0
+        days_open_list.append(j["_days_open"])
+    avg_days_open = round(sum(days_open_list) / len(days_open_list), 1) if days_open_list else 0
+    
+    # ===== users map =====
+    users = await db.users.find({}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(100)
+    user_names = {u["id"]: (u.get("name") or u.get("email")) for u in users}
+    
+    # ===== candidates_by_stage por vacante =====
+    stage_pipeline = [
+        {"$match": {**active_q, "job_assignments.0": {"$exists": True}}},
+        {"$unwind": "$job_assignments"},
+        {"$group": {"_id": {"job": "$job_assignments.job_id", "stage": "$job_assignments.stage"}, "n": {"$sum": 1}}},
+    ]
+    stage_counts = {}
+    assignment_last = {}
+    async for row in db.candidates.aggregate(stage_pipeline):
+        jid = row["_id"]["job"]
+        stage_counts.setdefault(jid, {})[row["_id"]["stage"]] = row["n"]
+    async for row in db.candidates.aggregate([
+        {"$match": {**active_q, "job_assignments.0": {"$exists": True}}},
+        {"$unwind": "$job_assignments"},
+        {"$group": {"_id": "$job_assignments.job_id", "last": {"$max": "$job_assignments.updated_at"}}},
+    ]):
+        assignment_last[row["_id"]] = row["last"]
+    
+    # última actividad por job desde activity_logs
+    job_activity_last = {}
+    async for row in db.activity_logs.aggregate([
+        {"$match": {"entity_type": "job"}},
+        {"$group": {"_id": "$entity_id", "last": {"$max": "$timestamp"}}},
+    ]):
+        job_activity_last[row["_id"]] = row["last"]
+    
+    jobs_board = []
+    for j in jobs:
+        candidates_by_stage = stage_counts.get(j["id"], {})
+        last_candidates = [parse_dt(j.get("updated_at")), parse_dt(j.get("created_at")),
+                           parse_dt(job_activity_last.get(j["id"])), parse_dt(assignment_last.get(j["id"]))]
+        last_activity = max([d for d in last_candidates if d], default=None)
+        days_inactive = (now - last_activity).days if last_activity else 999
+        health = "green" if days_inactive < 7 else ("yellow" if days_inactive <= 14 else "red")
+        jobs_board.append({
+            "id": j["id"],
+            "title": j.get("title"),
+            "company": j.get("company"),
+            "days_open": j["_days_open"],
+            "created_by": user_names.get(j.get("created_by"), j.get("created_by") or "—"),
+            "candidates_by_stage": candidates_by_stage,
+            "assigned_total": sum(candidates_by_stage.values()),
+            "last_activity_date": last_activity.isoformat() if last_activity else None,
+            "health": health,
+        })
+    health_order = {"red": 0, "yellow": 1, "green": 2}
+    jobs_board.sort(key=lambda x: (health_order[x["health"]], -x["days_open"]))
+    
+    # ===== recent_activity =====
+    logs = await db.activity_logs.find({}, {"_id": 0}).sort("timestamp", -1).to_list(20)
+    for lg in logs:
+        if not lg.get("user_name"):
+            lg["user_name"] = user_names.get(lg.get("user_id"), "Sistema")
+    
+    # ===== action_inbox =====
+    my_unassigned = await db.candidates.count_documents({
+        **active_q, "created_by": current_user.id,
+        "$or": [{"job_assignments": {"$exists": False}}, {"job_assignments": {"$size": 0}}],
+    })
+    my_stale_jobs = [
+        {"id": j["id"], "title": j["title"], "days_inactive": (now - parse_dt(j["last_activity_date"])).days if j["last_activity_date"] else None}
+        for j in jobs_board
+        if user_names.get(current_user.id) == j["created_by"] and j["health"] != "green"
+    ]
+    action_inbox = {
+        "pending_classifications": pending_classifications,
+        "my_unassigned_candidates": my_unassigned,
+        "my_stale_jobs": my_stale_jobs[:10],
+    }
+    
+    # ===== charts =====
+    by_area = []
+    async for row in db.candidates.aggregate([
+        {"$match": active_q},
+        {"$group": {"_id": "$functional_area", "n": {"$sum": 1}}},
+        {"$sort": {"n": -1}}, {"$limit": 10},
+    ]):
+        by_area.append({"area": row["_id"] or "sin_clasificar", "count": row["n"]})
+    
+    week_buckets = {}
+    for i in range(8):
+        week_start = (now - timedelta(days=now.weekday()) - timedelta(weeks=7 - i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        week_buckets[week_start.strftime("%d %b")] = [week_start, 0]
+    async for c in db.candidates.find({**active_q, "created_at": {"$gte": (now - timedelta(weeks=8)).isoformat()}}, {"_id": 0, "created_at": 1}):
+        dt = parse_dt(c.get("created_at"))
+        if not dt:
+            continue
+        for label, (start, _) in week_buckets.items():
+            if start <= dt < start + timedelta(weeks=1):
+                week_buckets[label][1] += 1
+                break
+    new_by_week = [{"week": label, "count": v[1]} for label, v in week_buckets.items()]
+    
+    caliber_rank = {"multinacional_global": 4, "corporativo_nacional": 3, "mediana": 2, "pyme": 1, "startup": 0}
+    caliber_dist = {k: 0 for k in caliber_rank}
+    async for c in db.candidates.find(active_q, {"_id": 0, "previous_companies.company_caliber": 1}):
+        calibers = [pc.get("company_caliber") for pc in (c.get("previous_companies") or []) if pc.get("company_caliber") in caliber_rank]
+        if calibers:
+            rep = max(calibers, key=lambda x: caliber_rank[x])
+            caliber_dist[rep] += 1
+    by_caliber = [{"caliber": k, "count": v} for k, v in caliber_dist.items()]
+    
+    return {
+        "kpis": {
+            "total_candidates_active": total_candidates,
+            "total_jobs_active": len(jobs),
+            "candidates_this_month": candidates_this_month,
+            "avg_days_jobs_open": avg_days_open,
+            "pending_classifications_count": pending_classifications,
+            "placed_candidates_count": placed_count,
+        },
+        "jobs_board": jobs_board,
+        "recent_activity": logs,
+        "action_inbox": action_inbox,
+        "charts": {"by_functional_area": by_area, "new_by_week": new_by_week, "by_caliber": by_caliber},
+    }
 
 
 # ============= USER MANAGEMENT ENDPOINTS =============
@@ -4641,6 +5006,8 @@ async def export_job_shortlist(
             client_name=client_name,
             engine=engine
         )
+        job_doc = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1})
+        await log_activity(current_user, "shortlist_exported", "job", job_id, (job_doc or {}).get("title"), {"engine": engine, "format": str(format)})
         return result
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
