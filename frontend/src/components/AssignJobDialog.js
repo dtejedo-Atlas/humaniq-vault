@@ -51,7 +51,7 @@ const AssignJobDialog = ({ candidateId, candidateName, open, onOpenChange, onAss
             <UserPlus className="w-5 h-5 text-cyan-600" />
             Asignar a vacante
           </DialogTitle>
-          <DialogDescription>{candidateName} entrará al pipeline en etapa "Nuevo"</DialogDescription>
+          <DialogDescription>{candidateName} entrará a la vacante en etapa "Asignado"</DialogDescription>
         </DialogHeader>
         <div className="py-3 space-y-2">
           <Label>Vacante</Label>

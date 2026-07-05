@@ -896,3 +896,12 @@ HMS = round(100 * K * core * HEC^0.15)
 - Stages independientes por vacante verificados (candidato en 2 vacantes mantiene etapas separadas)
 **Testing**: iteration_21 (backend 8/9 → gaps de wiring detectados) + iteration_22 (backend 9/9, frontend E2E completo) + verificación manual del badge en perfil con placement temporal (revertido). Datos de prueba limpiados de Atlas.
 **Bug corregido en el camino**: CandidateDetailPage.js quedó con sufijo corrupto "ailPage;" tras un search_replace (recurrencia #4 del patrón de cola corrupta en archivos grandes) — corregido por testing agent; tail del archivo verificado limpio.
+
+### Simplificación de pipeline (05-Jul-2026) — COMPLETADO (opción A del usuario)
+- El usuario NO quiere un ATS completo: solo saber si se entrevistó, comentarios y si se contrató/descartó
+- Etapas reducidas de 9 a 4: new(Asignado) / interviewed(Entrevistado) / placed(Colocado, mantiene restricción automática) / discarded(Descartado)
+- Backend: JOB_ASSIGNMENT_STAGES actualizado; stage inválido (ej. reviewing) → 400 (verificado curl)
+- Migración Atlas: 0 assignments con etapas viejas (DB limpia)
+- JobAssignmentsCard.js reescrito: select con 4 etapas + panel de comentarios expandible por candidato (toggle con contador, lista de notas con autor/fecha, textarea para agregar — usa /api/candidates/{id}/notes)
+- DashboardPage STAGE_SHORT y AssignJobDialog actualizados
+- Verificado E2E con screenshot: 4 opciones en select, comentario agregado y visible en la vacante. Datos de prueba limpiados

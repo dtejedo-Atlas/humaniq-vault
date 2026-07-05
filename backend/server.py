@@ -755,7 +755,7 @@ RESTRICTION_CATEGORIES = {
     "other": "Otro"
 }
 
-JOB_ASSIGNMENT_STAGES = {"new", "reviewing", "qualified", "ready_to_send", "submitted", "interviewed", "offer", "placed", "discarded"}
+JOB_ASSIGNMENT_STAGES = {"new", "interviewed", "placed", "discarded"}
 
 
 def candidate_is_placed(cand: dict) -> bool:

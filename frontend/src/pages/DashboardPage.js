@@ -21,7 +21,7 @@ const HEALTH_STYLES = {
   green: 'border-l-4 border-l-cyan-500',
 };
 const HEALTH_DOT = { red: 'bg-orange-500', yellow: 'bg-amber-400', green: 'bg-cyan-400' };
-const STAGE_SHORT = { new: 'Nvo', reviewing: 'Rev', qualified: 'Cal', ready_to_send: 'Listo', submitted: 'Env', interviewed: 'Ent', offer: 'Ofe', placed: 'Col', discarded: 'Desc' };
+const STAGE_SHORT = { new: 'Asig', interviewed: 'Ent', placed: 'Col', discarded: 'Desc' };
 const ACTION_LABELS = {
   candidate_created: 'creó al candidato',
   candidate_uploaded: 'subió el CV de',

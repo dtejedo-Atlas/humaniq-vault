@@ -234,7 +234,7 @@ class RecruiterNote(BaseModel):
 class JobAssignment(BaseModel):
     """Vínculo candidato↔vacante. El stage vive en el vínculo, no en el candidato."""
     job_id: str
-    stage: str = "new"  # new/reviewing/qualified/ready_to_send/submitted/interviewed/offer/placed/discarded
+    stage: str = "new"  # new(Asignado)/interviewed/placed/discarded
     assigned_by: str
     assigned_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
