@@ -4156,6 +4156,23 @@ async def match_job_candidates(
     except Exception as e:
         logger.warning(f"No se pudieron enriquecer flags v2: {e}")
     
+    # Doble visualización (transición v2→v3): agrega HMS v3 + acción a cada resultado v2.
+    # Solo lectura/display — NO altera el orden ni los scores v2.
+    try:
+        from scoring.engine_v3 import score_v3
+        ids = [r.get("candidate_id") for r in result.get("results", []) if r.get("candidate_id")]
+        if ids:
+            docs = await db.candidates.find({"id": {"$in": ids}}, {"_id": 0}).to_list(len(ids))
+            cmap = {d["id"]: d for d in docs}
+            for r in result.get("results", []):
+                cd = cmap.get(r.get("candidate_id"))
+                if cd:
+                    v3 = score_v3(cd, job)
+                    r["v3_hms"] = v3.get("match_score_v3")
+                    r["v3_action"] = v3.get("recommended_action")
+    except Exception as e:
+        logger.warning(f"No se pudo calcular v3 comparativo: {e}")
+    
     user_for_log = await get_current_user(credentials)
     await log_activity(user_for_log, "matching_run", "job", job_id, job.get("title"), {"engine": "v2"})
     

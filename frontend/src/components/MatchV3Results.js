@@ -53,7 +53,7 @@ const COMPONENT_LABELS = {
 
 const COMPONENT_ORDER = ['SK', 'ER', 'FA', 'SA', 'IA', 'ED', 'TR', 'LO', 'SM', 'CQ', 'CC'];
 
-const ACTION_CONFIG = {
+export const ACTION_CONFIG = {
   advance_to_screening: { label: 'Avanzar a screening', color: 'bg-green-100 text-green-800' },
   review_manually: { label: 'Revisión manual', color: 'bg-yellow-100 text-yellow-800' },
   possible_backup: { label: 'Posible backup', color: 'bg-orange-100 text-orange-800' },

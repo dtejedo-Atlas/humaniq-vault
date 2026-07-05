@@ -51,7 +51,7 @@ import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import JobScorecardConfig from '../components/JobScorecardConfig';
-import MatchV3Results from '../components/MatchV3Results';
+import MatchV3Results, { ACTION_CONFIG } from '../components/MatchV3Results';
 import JobAssignmentsCard from '../components/JobAssignmentsCard';
 import { PlacedBadge } from '../components/CandidateBadges';
 
@@ -467,6 +467,16 @@ const JobDetailPage = () => {
                                 <Badge className={getMatchColor(candidate.match_percentage)}>
                                   {candidate.match_percentage}% Match
                                 </Badge>
+                                {candidate.v3_hms != null && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${(ACTION_CONFIG[candidate.v3_action] || {}).color || 'bg-slate-100 text-slate-700'}`}
+                                    data-testid="v2-row-v3-badge"
+                                    title={`Motor v3 (HMS): ${candidate.v3_hms} — ${(ACTION_CONFIG[candidate.v3_action] || {}).label || candidate.v3_action || ''}`}
+                                  >
+                                    v3: {candidate.v3_hms} · {(ACTION_CONFIG[candidate.v3_action] || {}).label || candidate.v3_action}
+                                  </Badge>
+                                )}
                               </div>
                               
                               <p className="text-sm text-slate-600 truncate">

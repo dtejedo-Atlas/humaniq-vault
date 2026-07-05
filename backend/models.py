@@ -642,6 +642,9 @@ class CandidateMatchResult(BaseModel):
     # Flags de visibilidad (enriquecidos en el endpoint, no en el motor)
     is_placed: Optional[bool] = None
     notes_count: Optional[int] = None
+    # Doble visualización v2/v3 (transición): calculados en el endpoint, no alteran el orden v2
+    v3_hms: Optional[int] = None
+    v3_action: Optional[str] = None
     
     # Datos adicionales del candidato para display
     years_experience: Optional[int] = None

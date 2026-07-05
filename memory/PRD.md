@@ -912,3 +912,13 @@ HMS = round(100 * K * core * HEC^0.15)
 - 7.2 (assignment huérfano al borrar vacante): decisión del usuario = comportamiento deseado, la restricción persiste. NO tocar
 - Regresión: suite pytest actualizada a 4 etapas (test usa interviewed en vez de reviewing) → 9/9 PASS
 - FASE CERRADA por el usuario
+
+### Doble visualización v2/v3 + limpiezas (05-Jul-2026) — COMPLETADO
+1. **Doble visualización**: en "Candidatos Compatibles" (v2) cada fila muestra badge compacto "v3: {HMS} · {acción}" (data-testid=v2-row-v3-badge, color según ACTION_CONFIG exportado de MatchV3Results). Orden sigue siendo v2. Flag MATCHING_ENGINE_VERSION intacto (compare en preview). Backend: endpoint /jobs/{id}/match enriquece resultados con v3_hms/v3_action vía score_v3 (try/except, solo display); campos agregados a CandidateMatchResult (response_model los filtraba — ese fue el bug inicial). Motor v2/v3 NO tocados. Verificado por curl + screenshot (17 badges)
+2. **Batch company_caliber**: backup previo backup_atlas_talent_vault_20260705_211422_pre_caliber.archive.gz (1.4MB). Resultado: 6 candidatos procesados, 105 sin pendientes, 0 inferidos, 9 empresas quedan null por info insuficiente (Daniel Andres 1, Alejandro Aragón 1, Mario Ulises 3, María Aurora 1, Romina 1, Monserrat 2). Gamaliel YA estaba enriquecido en Atlas desde el batch de junio
+3. **Bandeja de clasificaciones**: 106 de 111 candidatos activos con approved_by_recruiter=False (solo 5 aprobados)
+
+### ⚠️ HALLAZGO CRÍTICO DE ENTORNO (05-Jul-2026) — LEER SIEMPRE
+- El servidor se conecta con prioridad **ATLAS_URI > MONGO_URL** (server.py ~línea 51). En este pod MONGO_URL=localhost (copia local DESACTUALIZADA) y ATLAS_URI=cluster Atlas real
+- **Toda consulta directa con python/mongo debe usar ATLAS_URI + ATLAS_DB_NAME**, NO MONGO_URL. Un diagnóstico previo leyó datos obsoletos de la copia local (Gamaliel aparecía sin calibres cuando en Atlas ya los tenía)
+- El script scripts/enrich_company_caliber.py usa ATLAS_URI correctamente
