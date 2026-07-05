@@ -567,7 +567,10 @@ const CandidateDetailPage = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-2xl">{candidate.full_name}</CardTitle>
+                    <CardTitle className="text-2xl flex items-center gap-3 flex-wrap">
+                      {candidate.full_name}
+                      {isPlacedCandidate(candidate) && <PlacedBadge />}
+                    </CardTitle>
                     {candidate.current_title && (
                       <CardDescription className="text-base mt-2">
                         {candidate.current_title}

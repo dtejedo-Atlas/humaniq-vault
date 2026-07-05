@@ -878,3 +878,21 @@ HMS = round(100 * K * core * HEC^0.15)
 ### Tooltip componentes neutrales en desglose v3 (04-Jun-2026) — HECHO
 - MatchV3Results.js: icono Info ámbar + Tooltip cuando ci=0. Mensajes específicos para CC (sin target → "define calibre objetivo en Configuración de Matching"; sin datos del candidato) y genérico con evidence.explanation para el resto. data-testid=match-v3-neutral-hint-{code}
 - Verificación: compila limpio; validación visual pendiente por el usuario (va a configurar el scorecard COO y correr matching él mismo)
+
+### BLOQUE: Dashboard Operativo + Visibilidad de Equipo (05-Jul-2026) — COMPLETADO Y VERIFICADO
+**Backend** (server.py, models.py — scoring/, job_matching_service.py y pipeline de parsing NO tocados, verificado con git diff = 0 líneas):
+- `GET /api/dashboard/operational`: kpis, jobs_board, recent_activity, action_inbox, charts
+- `POST /api/candidates/{id}/assign-job` (crea vínculo stage=new), `GET /api/jobs/{id}/assignments`, `PUT /api/candidates/{id}/job-assignments/{job_id}` (cambio de stage; stage inválido → 400)
+- Stages: new, reviewing, qualified, ready_to_send, submitted, interviewed, offer, placed, discarded
+- Al mover a `placed`: se crea automáticamente restricción `placed_by_humaniq` (is_restricted=true, restriction_info con job/cliente/fecha) + log de actividad candidate_placed
+- `POST/GET /api/candidates/{id}/notes`
+- v2 y v3 matching enriquecen resultados con is_placed + notes_count (enrich_results_with_flags, solo lectura)
+- Fix: create_candidate ahora usa log_activity con entity_name (feed ya no muestra "entidad")
+**Frontend**:
+- DashboardPage.js: "Centro de Control" — KPIs (candidatos activos, vacantes, nuevos mes, días prom., por revisar, colocados), Tablero de Vacantes, Mi Bandeja, Actividad del equipo
+- JobAssignmentsCard.js montado en JobDetailPage: pipeline por vacante con select de etapa
+- AssignJobDialog.js: botón "Asignar a vacante" en CandidateDetailPage (data-testid=assign-job-button)
+- PlacedBadge "COLOCADO" (naranja): perfil junto al nombre, lista /candidates, filas de assignment, resultados matching v2 y v3. NotesBadge con contador
+- Stages independientes por vacante verificados (candidato en 2 vacantes mantiene etapas separadas)
+**Testing**: iteration_21 (backend 8/9 → gaps de wiring detectados) + iteration_22 (backend 9/9, frontend E2E completo) + verificación manual del badge en perfil con placement temporal (revertido). Datos de prueba limpiados de Atlas.
+**Bug corregido en el camino**: CandidateDetailPage.js quedó con sufijo corrupto "ailPage;" tras un search_replace (recurrencia #4 del patrón de cola corrupta en archivos grandes) — corregido por testing agent; tail del archivo verificado limpio.
