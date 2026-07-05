@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import CVVersionHistory from '../components/CVVersionHistory';
+import AssignJobDialog from '../components/AssignJobDialog';
+import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -120,6 +122,7 @@ const CandidateDetailPage = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showRestrictDialog, setShowRestrictDialog] = useState(false);
+  const [showAssignJobDialog, setShowAssignJobDialog] = useState(false);
   const [restrictReason, setRestrictReason] = useState('');
   const [restrictCategory, setRestrictCategory] = useState('');
   const [restricting, setRestricting] = useState(false);
@@ -370,6 +373,13 @@ const CandidateDetailPage = () => {
       title={candidate.full_name}
       subtitle={candidate.current_title || 'Candidato'}
     >
+      <AssignJobDialog
+        candidateId={id}
+        candidateName={candidate.full_name}
+        open={showAssignJobDialog}
+        onOpenChange={setShowAssignJobDialog}
+        onAssigned={() => fetchCandidate()}
+      />
       <div className="space-y-6">
         {/* Permission Warning Banner */}
         {!canEdit && editReason && (
@@ -421,6 +431,17 @@ const CandidateDetailPage = () => {
                 Descargar CV
               </Button>
             )}
+            
+            {/* Asignar a vacante */}
+            <Button 
+              variant="outline"
+              onClick={() => setShowAssignJobDialog(true)}
+              className="text-cyan-600 border-cyan-300 hover:bg-cyan-50"
+              data-testid="assign-job-button"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Asignar a vacante
+            </Button>
             
             {/* Marcar como restringido */}
             <Button 

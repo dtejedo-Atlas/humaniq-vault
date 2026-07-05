@@ -1,0 +1,42 @@
+{
+  "summary": "RETEST del bloque DASHBOARD OPERATIVO + VISIBILIDAD DE EQUIPO. Backend regression 9/9 PASS incluyendo el fix de entity_name (candidate_created ahora usa log_activity con full_name). Frontend E2E validado: JobAssignmentsCard renderiza en JobDetailPage, AssignJobDialog abre desde CandidateDetailPage y crea el assignment, cambio de stage a 'Colocado' propaga PlacedBadge en (a) assignment-row, (c) lista /candidates y actualiza KPI COLOCADOS del dashboard. Independencia de stages entre 2 vacantes verificada por UI. Feed de actividad muestra full_name del candidato (no 'entidad'). Un fix crítico aplicado por testing: CandidateDetailPage.js tenía basura sintáctica 'ailPage;' al final del archivo que rompía todo el módulo con 'ReferenceError: ailPage is not defined' y dejaba la página en blanco. Único gap remanente: PlacedBadge NO se renderiza junto al nombre en CandidateDetailPage (requerimiento b), aunque los imports existen — hay que agregarlo cerca de <CardTitle>{candidate.full_name}</CardTitle> o en Layout title.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CandidateDetailPage", "issue": "PlacedBadge está importado (línea 6) pero nunca se renderiza junto al nombre del candidato (ni en Layout title ni en <CardTitle> línea 570). Requerimiento (b) del review request: 'el perfil del candidato muestra placed-badge junto a su nombre'. Sólo aparece el banner 'Candidato Restringido' en la parte superior, no el badge naranja 'COLOCADO' junto al nombre.", "selector": "[data-testid=\"placed-badge\"] en CandidateDetailPage", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_operational_dashboard_and_assignments.py",
+    "/app/test_reports/pytest/operational_dashboard_assignments_v2.xml"
+  ],
+  "action_items": [
+    "1) En CandidateDetailPage.js agregar <PlacedBadge /> condicional junto al nombre. Ejemplo (línea ~570): <CardTitle className='text-2xl flex items-center gap-2'>{candidate.full_name}{isPlacedCandidate(candidate) && <PlacedBadge />}</CardTitle>. También conviene mostrarlo en el header (Layout title) para máxima visibilidad.",
+    "2) BUG CRÍTICO YA CORREGIDO POR TESTING: /app/frontend/src/pages/CandidateDetailPage.js tenía la línea basura 'ailPage;' después de 'export default CandidateDetailPage;' — esto rompía TODO el módulo con ReferenceError y dejaba la página del candidato en blanco (uncaught runtime error). Fix aplicado (eliminado el sufijo residual)."
+  ],
+  "critical_code_review_comments": [
+    "CRÍTICO: CandidateDetailPage.js:1206 contenía 'ailPage;' como sufijo huérfano (probablemente residuo de un search-replace mal ejecutado que dejó cortado 'CandidateDet' del identificador). Este error rompía toda la página con ReferenceError. RECOMIENDO al main agent revisar el resto de archivos por si otro search_replace dejó basura similar (buscar patrones tipo /^[a-z][A-Za-z]+;$/ en pages/).",
+    "CandidateDetailPage.js importa PlacedBadge + isPlacedCandidate pero no los usa en el render. El wiring está a medio hacer (código muerto). Repite el mismo patrón del bug reportado en iteración 21.",
+    "El toast de 'Colocado' es informativo y correcto ('...marcado como COLOCADO — restricción creada automáticamente') — buena UX.",
+    "Job B correctamente muestra PlacedBadge dentro del assignment-row porque a.is_placed refleja el estado global del candidato — pero la etapa del assignment sigue siendo 'Nuevo' (independencia verificada). Comportamiento consistente."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/CandidateDetailPage.js (eliminado 'ailPage;' huérfano)",
+    "/app/test_reports/setup_e2e_seed.py (script auxiliar para crear seed data)"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 pytest incluido test_candidate_created_log_has_entity_name que ahora PASA)",
+    "frontend": "90% — todos los flujos E2E críticos funcionan tras el fix del ReferenceError; sólo falta el PlacedBadge junto al nombre en CandidateDetailPage"
+  },
+  "test_credentials": "Admin: test_utf8@atlas.com / Humaniq123 — token en localStorage['atlas_token']",
+  "seed_data_creation": "Creados y limpiados: 1 TEST_E2E Candidate + 2 TEST_E2E Job A/B en /app/test_reports/setup_e2e_seed.py. Cleanup verificado: 0 TEST_E2E candidates y 0 TEST_E2E jobs remanentes en Atlas. También se limpiaron leftovers de una corrida previa (mismo prefijo).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "El bloque DASHBOARD OPERATIVO + VISIBILIDAD DE EQUIPO está 90% completo. Backend 100%. Frontend: sólo falta agregar <PlacedBadge /> junto al nombre en CandidateDetailPage.js (línea ~570 o en el Layout title). El resto funciona: JobAssignmentsCard, AssignJobDialog, stage change → PlacedBadge en assignment-row, KPI, feed con full_name, badge en lista /candidates, independencia de stages entre vacantes. IMPORTANTE: durante el testing se encontró y corrigió un error de sintaxis huérfano ('ailPage;' al final de CandidateDetailPage.js) que rompía la página con ReferenceError — revisar si otros archivos tienen basura similar de un search_replace mal aplicado.",
+  "rca_of_the_issue": "El fix del wiring frontend (JobAssignmentsCard, AssignJobDialog, PlacedBadge en CandidatesPage) del main agent está aplicado correctamente y funciona. Sin embargo, durante la aplicación del fix quedó basura sintáctica al final de CandidateDetailPage.js: 'export default CandidateDetailPage;\\nailPage;\\n'. Esto rompía la evaluación del módulo con ReferenceError: ailPage is not defined en tiempo de render, dejando la página del candidato en blanco y por consecuencia haciendo imposible el flujo E2E de asignación desde el perfil (STEP 1 fallaba porque assign-job-button nunca llegaba al DOM). Tras eliminar 'ailPage;' todo el flujo E2E funciona. Adicionalmente PlacedBadge no está renderizado junto al nombre en CandidateDetailPage — sólo importado pero nunca usado en el JSX del componente."
+}

@@ -478,15 +478,7 @@ async def create_candidate(
     
     await db.candidates.insert_one(candidate_doc)
     
-    # Log activity
-    await db.activity_logs.insert_one({
-        "id": str(uuid.uuid4()),
-        "user_id": current_user.id,
-        "action": "candidate_created",
-        "entity_type": "candidate",
-        "entity_id": candidate_id,
-        "timestamp": datetime.now(timezone.utc).isoformat()
-    })
+    await log_activity(current_user, "candidate_created", "candidate", candidate_id, candidate.full_name)
     
     return candidate
 

@@ -27,6 +27,7 @@ import {
   CollapsibleTrigger,
 } from './ui/collapsible';
 import { Loader2, Zap, ChevronDown, ChevronUp, Download, FileText, FileSpreadsheet, Info } from 'lucide-react';
+import { PlacedBadge, NotesBadge } from './CandidateBadges';
 import {
   Tooltip,
   TooltipContent,
@@ -232,6 +233,8 @@ const MatchV3Results = ({ jobId }) => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-semibold text-slate-900 truncate">{r.candidate_name}</h4>
+                              {r.is_placed && <PlacedBadge />}
+                              <NotesBadge count={r.notes_count} />
                               <Badge className={`${action.color} border-0`} data-testid="match-v3-action-badge">
                                 {action.label}
                               </Badge>

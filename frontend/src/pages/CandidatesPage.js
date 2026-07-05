@@ -18,6 +18,7 @@ import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate } from '../utils/helpers';
+import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
@@ -266,7 +267,10 @@ const CandidatesPage = () => {
                       <TableRow key={candidate.id} data-testid={`candidate-row-${candidate.id}`}>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-slate-900">{candidate.full_name}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-slate-900">{candidate.full_name}</p>
+                              {isPlacedCandidate(candidate) && <PlacedBadge />}
+                            </div>
                             {candidate.city && (
                               <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
                                 <MapPin className="w-3 h-3" />

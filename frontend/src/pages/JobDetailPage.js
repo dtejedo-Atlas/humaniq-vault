@@ -52,6 +52,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import JobScorecardConfig from '../components/JobScorecardConfig';
 import MatchV3Results from '../components/MatchV3Results';
+import JobAssignmentsCard from '../components/JobAssignmentsCard';
+import { PlacedBadge } from '../components/CandidateBadges';
 
 const SENIORITY_OPTIONS = [
   { value: 'intern', label: 'Becario / Intern' },
@@ -386,6 +388,9 @@ const JobDetailPage = () => {
           </CardContent>
         </Card>
 
+        {/* Candidatos Asignados (pipeline de la vacante) */}
+        <JobAssignmentsCard jobId={id} />
+
         {/* Scorecard v3 Config */}
         <JobScorecardConfig jobId={id} />
 
@@ -458,6 +463,7 @@ const JobDetailPage = () => {
                                 <h4 className="font-semibold text-slate-900 truncate">
                                   {candidate.candidate_name}
                                 </h4>
+                                {candidate.is_placed && <PlacedBadge />}
                                 <Badge className={getMatchColor(candidate.match_percentage)}>
                                   {candidate.match_percentage}% Match
                                 </Badge>
