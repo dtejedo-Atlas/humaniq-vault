@@ -37,8 +37,7 @@ API = f"{BASE_URL}/api"
 ADMIN_EMAIL = "test_utf8@atlas.com"
 ADMIN_PASS = "Humaniq123"
 
-VALID_STAGES = {"new", "reviewing", "qualified", "ready_to_send",
-                "submitted", "interviewed", "offer", "placed", "discarded"}
+VALID_STAGES = {"new", "interviewed", "placed", "discarded"}
 
 
 # ---------- Fixtures ----------
@@ -239,19 +238,19 @@ class TestAssignments:
                               headers=hdr, json={"job_id": j}, timeout=15)
             assert r.status_code == 200, r.text
 
-        # move assignment on job_a to 'reviewing'
+        # move assignment on job_a to 'interviewed'
         r = requests.put(f"{API}/candidates/{cid}/job-assignments/{job_a}",
-                         headers=hdr, json={"stage": "reviewing"}, timeout=15)
+                         headers=hdr, json={"stage": "interviewed"}, timeout=15)
         assert r.status_code == 200, r.text
-        assert r.json()["stage"] == "reviewing"
+        assert r.json()["stage"] == "interviewed"
 
-        # Verify: job_a listing → cand1 stage 'reviewing', job_b listing → cand1 stage 'new'
+        # Verify: job_a listing → cand1 stage 'interviewed', job_b listing → cand1 stage 'new'
         ass_a = requests.get(f"{API}/jobs/{job_a}/assignments", headers=hdr, timeout=15).json()
         ass_b = requests.get(f"{API}/jobs/{job_b}/assignments", headers=hdr, timeout=15).json()
 
         row_a = next(a for a in ass_a["assignments"] if a["candidate_id"] == cid)
         row_b = next(a for a in ass_b["assignments"] if a["candidate_id"] == cid)
-        assert row_a["stage"] == "reviewing", f"expected reviewing, got {row_a['stage']}"
+        assert row_a["stage"] == "interviewed", f"expected interviewed, got {row_a['stage']}"
         assert row_b["stage"] == "new", (
             f"STAGE LEAK: cand assignment to jobB changed to {row_b['stage']} when jobA was moved"
         )

@@ -161,7 +161,7 @@ export default function DashboardPage() {
                 <span className={`font-bold ${action_inbox.pending_classifications > 0 ? 'text-orange-400' : 'text-slate-500'}`}>{action_inbox.pending_classifications}</span>
               </Link>
               <Link to="/candidates" className="flex items-center justify-between text-slate-300 hover:text-cyan-300 py-1" data-testid="inbox-unassigned-link">
-                <span>Mis candidatos sin vacante</span>
+                <span>{action_inbox.unassigned_scope === 'team' ? 'Candidatos sin vacante (equipo)' : 'Mis candidatos sin vacante'}</span>
                 <span className="font-bold text-slate-400">{action_inbox.my_unassigned_candidates}</span>
               </Link>
               {action_inbox.my_stale_jobs.length > 0 && (

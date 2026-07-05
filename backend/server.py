@@ -630,7 +630,7 @@ async def add_candidate_note(
     note_text: str = Form(...),
     current_user: User = Depends(get_current_user)
 ):
-    """Add note to candidate"""
+    """Add note to candidate — cualquier usuario autenticado puede comentar"""
     candidate_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
     
     if not candidate_doc:
@@ -638,9 +638,6 @@ async def add_candidate_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Candidato no encontrado"
         )
-    
-    # Verificar permisos de edición
-    await verify_candidate_edit_permission(candidate_id, current_user)
     
     note = RecruiterNote(
         note=note_text,
@@ -4513,10 +4510,14 @@ async def get_operational_dashboard(current_user: User = Depends(get_current_use
             lg["user_name"] = user_names.get(lg.get("user_id"), "Sistema")
     
     # ===== action_inbox =====
-    my_unassigned = await db.candidates.count_documents({
-        **active_q, "created_by": current_user.id,
+    is_admin = current_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+    unassigned_q = {
+        **active_q,
         "$or": [{"job_assignments": {"$exists": False}}, {"job_assignments": {"$size": 0}}],
-    })
+    }
+    if not is_admin:
+        unassigned_q["created_by"] = current_user.id
+    my_unassigned = await db.candidates.count_documents(unassigned_q)
     my_stale_jobs = [
         {"id": j["id"], "title": j["title"], "days_inactive": (now - parse_dt(j["last_activity_date"])).days if j["last_activity_date"] else None}
         for j in jobs_board
@@ -4525,6 +4526,7 @@ async def get_operational_dashboard(current_user: User = Depends(get_current_use
     action_inbox = {
         "pending_classifications": pending_classifications,
         "my_unassigned_candidates": my_unassigned,
+        "unassigned_scope": "team" if is_admin else "mine",
         "my_stale_jobs": my_stale_jobs[:10],
     }
     

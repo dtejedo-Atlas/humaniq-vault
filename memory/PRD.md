@@ -905,3 +905,10 @@ HMS = round(100 * K * core * HEC^0.15)
 - JobAssignmentsCard.js reescrito: select con 4 etapas + panel de comentarios expandible por candidato (toggle con contador, lista de notas con autor/fecha, textarea para agregar — usa /api/candidates/{id}/notes)
 - DashboardPage STAGE_SHORT y AssignJobDialog actualizados
 - Verificado E2E con screenshot: 4 opciones en select, comentario agregado y visible en la vacante. Datos de prueba limpiados
+
+### 2 micro-ajustes de cierre de fase (05-Jul-2026) — COMPLETADOS
+1. Notas para todos: POST /api/candidates/{id}/notes sin verify_candidate_edit_permission — cualquier usuario autenticado comenta cualquier candidato (autor+fecha como trazabilidad). Verificado: recruiter no-dueño agregó nota (200, autor correcto)
+2. Bandeja admin: action_inbox "candidatos sin vacante" — admin/super_admin ven TODO el equipo; recruiter/researcher solo los suyos. Backend devuelve unassigned_scope (team/mine) y el label del dashboard cambia a "Candidatos sin vacante (equipo)". Verificado: admin=109 (team), dtejedo recruiter=82 (mine)
+- 7.2 (assignment huérfano al borrar vacante): decisión del usuario = comportamiento deseado, la restricción persiste. NO tocar
+- Regresión: suite pytest actualizada a 4 etapas (test usa interviewed en vez de reviewing) → 9/9 PASS
+- FASE CERRADA por el usuario
