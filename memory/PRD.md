@@ -874,3 +874,7 @@ HMS = round(100 * K * core * HEC^0.15)
 1. Backup previo: backup_atlas_talent_vault_20260704_184931.archive.gz (1.29 MB). Batch: 13 candidatos post-batch procesados (incl. Juan Manuel), 50 empresas inferidas, 9 null, 0 errores
 2. CAUSA RAÍZ pipeline: clean_previous_company() en server.py descartaba company_caliber del parseo → corregido (valida contra 5 niveles). Verificado E2E: CV de prueba subido → calibres persistidos automáticamente (Coca-Cola FEMSA/Bimbo→multinacional_global, distribuidora local→pyme) → candidato de prueba hard-deleted
 3. COO job scorecard → process_type=executive (guardado). Juan Manuel: #15→#13, HMS 66. CC sigue neutral en esa vacante porque el scorecard no tiene target_company_caliber definido (por diseño: sin target → no aplica)
+
+### Tooltip componentes neutrales en desglose v3 (04-Jun-2026) — HECHO
+- MatchV3Results.js: icono Info ámbar + Tooltip cuando ci=0. Mensajes específicos para CC (sin target → "define calibre objetivo en Configuración de Matching"; sin datos del candidato) y genérico con evidence.explanation para el resto. data-testid=match-v3-neutral-hint-{code}
+- Verificación: compila limpio; validación visual pendiente por el usuario (va a configurar el scorecard COO y correr matching él mismo)

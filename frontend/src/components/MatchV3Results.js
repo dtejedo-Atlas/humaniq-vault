@@ -26,7 +26,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from './ui/collapsible';
-import { Loader2, Zap, ChevronDown, ChevronUp, Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Loader2, Zap, ChevronDown, ChevronUp, Download, FileText, FileSpreadsheet, Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
 import { toast } from 'sonner';
 import { jobsAPI, exportsAPI } from '../api';
 
@@ -53,6 +59,21 @@ const ACTION_CONFIG = {
   low_priority: { label: 'Prioridad baja', color: 'bg-gray-100 text-gray-800' },
   do_not_advance_knockout: { label: 'No avanzar (knockout)', color: 'bg-red-100 text-red-800' },
   save_for_other_role: { label: 'Guardar para otro rol', color: 'bg-blue-100 text-blue-800' },
+};
+
+const getNeutralHint = (code, comp) => {
+  if (!comp || comp.confidence > 0) return null;
+  if (code === 'CC') {
+    const ev = comp.evidence || {};
+    if (!ev.target_caliber) {
+      return 'CC neutral: define un calibre de empresa objetivo en la Configuración de Matching (v3) para activar este componente.';
+    }
+    return 'CC neutral: el candidato no tiene calibre de empresa inferido en su historial.';
+  }
+  const explanation = comp.evidence?.explanation;
+  return explanation
+    ? `Componente neutral: ${explanation}`
+    : 'Componente neutral por falta de evidencia — no penaliza al candidato.';
 };
 
 const KNOCKOUT_STATUS_CONFIG = {
@@ -255,11 +276,26 @@ const MatchV3Results = ({ jobId }) => {
                                     const comp = r.component_breakdown?.[code];
                                     if (!comp) return null;
                                     const weight = r.weights_used?.[code];
+                                    const neutralHint = getNeutralHint(code, comp);
                                     return (
                                       <tr key={code} className="border-b border-slate-100" data-testid={`match-v3-component-${code}`}>
                                         <td className="py-1.5 pr-2">
                                           <span className="font-mono text-xs text-slate-500 mr-2">{code}</span>
                                           {COMPONENT_LABELS[code] || code}
+                                          {neutralHint && (
+                                            <TooltipProvider delayDuration={150}>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span className="inline-flex align-middle ml-1.5 cursor-help" data-testid={`match-v3-neutral-hint-${code}`}>
+                                                    <Info className="w-3.5 h-3.5 text-amber-500" />
+                                                  </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-xs text-xs">
+                                                  {neutralHint}
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          )}
                                         </td>
                                         <td className="py-1.5 pr-2 text-right font-mono">{Number(comp.raw).toFixed(2)}</td>
                                         <td className="py-1.5 pr-2 text-right font-mono">{Number(comp.adjusted).toFixed(2)}</td>
