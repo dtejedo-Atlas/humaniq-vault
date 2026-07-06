@@ -922,3 +922,11 @@ HMS = round(100 * K * core * HEC^0.15)
 - El servidor se conecta con prioridad **ATLAS_URI > MONGO_URL** (server.py ~línea 51). En este pod MONGO_URL=localhost (copia local DESACTUALIZADA) y ATLAS_URI=cluster Atlas real
 - **Toda consulta directa con python/mongo debe usar ATLAS_URI + ATLAS_DB_NAME**, NO MONGO_URL. Un diagnóstico previo leyó datos obsoletos de la copia local (Gamaliel aparecía sin calibres cuando en Atlas ya los tenía)
 - El script scripts/enrich_company_caliber.py usa ATLAS_URI correctamente
+
+### Bulk-approve clasificaciones + fix taxonomía (06-Jul-2026) — COMPLETADO (opción B del usuario)
+1. Backup previo: backup_atlas_talent_vault_20260706_034001_pre_bulk_approve.archive.gz (1.44MB)
+2. Script scripts/bulk_approve_classifications.py: 108 aprobados (conf >=0.85), replica el endpoint approve (aplica industry/functional_area/seniority/tags a nivel raíz + approved_by/approved_at). Normalización aplicada: 12 industrias + 12 áreas no canónicas → slug del catálogo (Financial Services→financial_services x3, Operations→operations x3, Finance→finance x3, etc.)
+3. Bandeja final: 2 candidatos (Berenice Rangel 0.75, Monserrat Rodríguez 0.82) para revisión individual
+4. Bernardo Baader (aprobado previo) también normalizado en ai_classification
+5. FIX DE RAÍZ en atlas_service.py: (a) HABÍA DOS _normalize_to_key en la clase — la 2ª (flujo vacantes, con default silencioso a professional_services) pisaba la 1ª; renombrada a _normalize_to_key_with_default y call sites del wizard actualizados. (b) _normalize_to_key (candidatos) ahora también mapea espacios→guión bajo. (c) classify_candidate: si tras normalizar el valor sigue fuera del catálogo → confidence penalizada a min(conf, 0.5) + nota en reasoning → cae a bandeja
+6. Verificado: filtros industry=financial_services y functional_area=quality incluyen a los normalizados; 0 valores no canónicos restantes en activos

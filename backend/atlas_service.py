@@ -308,6 +308,17 @@ Responde SOLO con JSON válido.
             if functional_area_key and not get_functional_area_by_key(functional_area_key):
                 classification['functional_area'] = self._normalize_to_key(functional_area_key, 'functional_area')
             
+            # Si tras normalizar algún valor sigue fuera del catálogo, penalizar confidence
+            # para que el candidato caiga a la bandeja de revisión individual
+            final_ind = classification.get('industry')
+            final_area = classification.get('functional_area')
+            if (final_ind and not get_industry_by_key(final_ind)) or \
+               (final_area and not get_functional_area_by_key(final_area)):
+                original_conf = classification.get('confidence_score', 0.0)
+                classification['confidence_score'] = min(original_conf, 0.5)
+                classification['reasoning'] = (classification.get('reasoning') or '') + \
+                    ' [Confidence penalizada: valor de taxonomía fuera del catálogo canónico]'
+            
             return classification
         except json.JSONDecodeError:
             return {
@@ -328,12 +339,14 @@ Responde SOLO con JSON válido.
         if category_type == 'industry':
             for item in INDUSTRIES:
                 if (value_lower == item['key'] or 
+                    value_lower.replace(' ', '_') == item['key'] or
                     value_lower == item['name_es'].lower() or 
                     value_lower == item['name_en'].lower()):
                     return item['key']
         else:
             for item in FUNCTIONAL_AREAS:
                 if (value_lower == item['key'] or 
+                    value_lower.replace(' ', '_') == item['key'] or
                     value_lower == item['name_es'].lower() or 
                     value_lower == item['name_en'].lower()):
                     return item['key']
@@ -548,12 +561,12 @@ Responde SOLO con JSON válido.
             # Industria
             industry_key = parsed_data.get('industry')
             if industry_key and not get_industry_by_key(industry_key):
-                parsed_data['industry'] = self._normalize_to_key(industry_key, 'industry')
+                parsed_data['industry'] = self._normalize_to_key_with_default(industry_key, 'industry')
             
             # Área funcional
             functional_area_key = parsed_data.get('functional_area')
             if functional_area_key and not get_functional_area_by_key(functional_area_key):
-                parsed_data['functional_area'] = self._normalize_to_key(functional_area_key, 'functional_area')
+                parsed_data['functional_area'] = self._normalize_to_key_with_default(functional_area_key, 'functional_area')
             
             # Asegurar que los números sean números
             for field in ['min_experience', 'max_experience', 'salary_min', 'salary_max']:
@@ -590,9 +603,9 @@ Responde SOLO con JSON válido.
                 "extraction_notes": "Error en parsing. Revise el documento manualmente."
             }
 
-    def _normalize_to_key(self, value: str, taxonomy_type: str) -> str:
+    def _normalize_to_key_with_default(self, value: str, taxonomy_type: str) -> str:
         """
-        Normalize a taxonomy value to its canonical key.
+        Normalize a taxonomy value to its canonical key (flujo de vacantes).
         Falls back to a default if not found.
         """
         from taxonomy import get_all_industries, get_all_functional_areas
