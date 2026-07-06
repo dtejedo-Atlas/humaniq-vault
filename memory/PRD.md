@@ -935,3 +935,13 @@ HMS = round(100 * K * core * HEC^0.15)
 - DashboardPage.js (Centro de Control) no usaba el componente Layout → sin sidebar ni header. Envuelto en <Layout title="Centro de Control"> (los 3 returns: loading/error/main); h1 interno duplicado eliminado, indicador "Base universal" conservado alineado a la derecha
 - Verificado por screenshot: sidebar completo con badge "Por Revisar" + dashboard 4 zonas ajustado
 - NOTA: app desplegada en producción (https://atlas-recruiting-ai.emergent.host) — los fixes en preview requieren redeploy del usuario
+
+### Diagnóstico + optimización carga masiva CVs (06-Jul-2026) — COMPLETADO
+**Hallazgo**: el batch YA era paralelo (BackgroundProcessor 3 workers, cola asyncio, límite 50 archivos, error por CV aislado) y la UI YA tenía progreso incremental (poll 1.5s, barra X de N, fila por CV con estado en vivo). El modo "individual" del UploadPage es el secuencial legado (toggle).
+**Cambios (solo orquestación)**:
+1. Workers 3→5 (background_processor.py línea final)
+2. Clasificación IA + Resumen IA ahora corren EN PARALELO por CV (asyncio.create_task, antes eran 2 llamadas LLM secuenciales) — ahorra ~8s/CV
+3. Instrumentación: ProcessingJob.stage_timings (ms por etapa) + avg_stage_timings_ms en GET /candidates/batch/{id}
+**Tiempos por etapa (1 CV solo, sin contención)**: extracción 7ms · parse LLM (incl. calibre) 5.9s · dedup 242ms · clasificación+resumen (paralelo) 10.0s · storage 226ms · embedding 213ms · db_save 105ms · TOTAL 16.7s
+**Prueba real 20 CVs (5 workers)**: 398s wall (~20s/CV efectivo) vs secuencial estimado ~8.2min → mejora ~20%. BOTTLENECK REAL: throttling del gateway LLM — bajo 5 workers (hasta 15 llamadas LLM simultáneas) la latencia por llamada se triplica (clasificación 10s→30s, dedup y db_save inflados por saturación del event loop). Más workers NO ayudan; el techo es el rate limit del proveedor.
+**Nota de test**: curl envía DOCX como application/octet-stream (rechazado por pipeline) — usar -F "files=@f;type=<mime docx>". Candidatos sintéticos (@pruebacarga.mx) hard-deleted tras la prueba (22).

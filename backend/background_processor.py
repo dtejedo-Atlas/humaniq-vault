@@ -46,6 +46,7 @@ class ProcessingJob(BaseModel):
     extracted_name: Optional[str] = None
     extracted_email: Optional[str] = None
     retry_count: int = 0
+    stage_timings: Dict[str, int] = {}
     
     def __init__(self, **data):
         if data.get('created_at') is None:
@@ -70,7 +71,8 @@ class ProcessingJob(BaseModel):
             "processing_time_ms": self.processing_time_ms,
             "extracted_name": self.extracted_name,
             "extracted_email": self.extracted_email,
-            "retry_count": self.retry_count
+            "retry_count": self.retry_count,
+            "stage_timings": self.stage_timings
         }
 
 
@@ -299,8 +301,21 @@ class BackgroundProcessor:
             "stats": stats,
             "is_complete": stats["pending"] == 0 and stats["processing"] == 0,
             "jobs": [j.to_dict() for j in jobs if j],
+            "avg_stage_timings_ms": self._avg_stage_timings(jobs),
             "created_at": batch.created_at.isoformat() if batch.created_at else None
         }
+    
+    @staticmethod
+    def _avg_stage_timings(jobs) -> Dict[str, int]:
+        """Promedio de duración por etapa entre jobs con timings"""
+        sums, counts = {}, {}
+        for j in jobs:
+            if not j:
+                continue
+            for stage, ms in (j.stage_timings or {}).items():
+                sums[stage] = sums.get(stage, 0) + ms
+                counts[stage] = counts.get(stage, 0) + 1
+        return {s: int(sums[s] / counts[s]) for s in sums}
     
     async def retry_job(self, job_id: str) -> bool:
         """Reintentar un job fallido"""
@@ -375,4 +390,5 @@ class BackgroundProcessor:
 
 
 # Instancia global del processor
-background_processor = BackgroundProcessor(max_concurrent=3)
+background_processor = BackgroundProcessor(max_concurrent=5)
+rocessor = BackgroundProcessor(max_concurrent=3)

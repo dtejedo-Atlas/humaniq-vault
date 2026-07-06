@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import json
 import logging
+import asyncio
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 import uuid
@@ -1540,6 +1541,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     # Actualizar progreso
     job.progress = 10
     job.current_stage = "text_extraction"
+    _t = time.time()
     
     # 1. Extracción de texto
     extracted_text = ""
@@ -1558,8 +1560,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         })
         result["warnings"].append(f"Error de extracción: {str(e)[:100]}")
     
+    job.stage_timings["text_extraction"] = int((time.time() - _t) * 1000)
     job.progress = 25
     job.current_stage = "ai_parsing"
+    _t = time.time()
     
     # 2. Parsing con AI
     parsed_data = {}
@@ -1591,8 +1595,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     result["extracted_name"] = parsed_data.get('full_name')
     result["extracted_email"] = parsed_data.get('email')
     
+    job.stage_timings["ai_parsing"] = int((time.time() - _t) * 1000)
     job.progress = 40
     job.current_stage = "duplicate_detection"
+    _t = time.time()
     
     # 3. Detección de duplicados
     duplicates = []
@@ -1605,6 +1611,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     if duplicates and max(d['confidence'] for d in duplicates) >= 0.90:
         result["warnings"].append(f"Posible duplicado detectado (confianza >= 90%)")
     
+    job.stage_timings["duplicate_detection"] = int((time.time() - _t) * 1000)
     job.progress = 50
     job.current_stage = "creating_candidate"
     
@@ -1658,11 +1665,18 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     
     job.progress = 60
     job.current_stage = "ai_classification"
+    _t = time.time()
     
-    # 5. Clasificación AI
+    # 5. Clasificación AI + Resumen AI (en paralelo — 2 llamadas LLM independientes entre sí)
+    classification_task = None
+    summary_task = None
+    if extracted_text and len(extracted_text.strip()) >= 50:
+        classification_task = asyncio.create_task(atlas_service.classify_candidate(parsed_data, extracted_text))
+        summary_task = asyncio.create_task(atlas_service.generate_summary(parsed_data, extracted_text))
+    
     try:
-        if extracted_text and len(extracted_text.strip()) >= 50:
-            classification = await atlas_service.classify_candidate(parsed_data, extracted_text)
+        if classification_task:
+            classification = await classification_task
             
             candidate.industry = classification.get('industry')
             candidate.functional_area = classification.get('functional_area')
@@ -1684,16 +1698,17 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
             "recoverable": True
         })
     
-    # Generar resumen
+    # Resumen (misma etapa, corre en paralelo con la clasificación)
     try:
-        if extracted_text and len(extracted_text.strip()) >= 50:
-            summary = await atlas_service.generate_summary(parsed_data, extracted_text)
-            candidate.ai_summary = summary
+        if summary_task:
+            candidate.ai_summary = await summary_task
     except Exception as e:
         result["warnings"].append("Resumen AI no generado")
     
+    job.stage_timings["ai_classification_y_resumen"] = int((time.time() - _t) * 1000)
     job.progress = 75
     job.current_stage = "storage"
+    _t = time.time()
     
     # 6. Almacenar archivo
     try:
@@ -1728,8 +1743,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         )
         candidate.resume_files = [resume_file]
     
+    job.stage_timings["storage"] = int((time.time() - _t) * 1000)
     job.progress = 85
     job.current_stage = "embedding_generation"
+    _t = time.time()
     
     # 7. Embeddings (opcional)
     try:
@@ -1747,8 +1764,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     if candidate.current_title:
         candidate.title_normalized = normalize_for_search(candidate.current_title)
     
+    job.stage_timings["embedding_generation"] = int((time.time() - _t) * 1000)
     job.progress = 95
     job.current_stage = "database_save"
+    _t = time.time()
     
     # 8. Guardar en DB
     try:
@@ -1784,6 +1803,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         })
         return result
     
+    job.stage_timings["database_save"] = int((time.time() - _t) * 1000)
     job.progress = 100
     job.current_stage = "completed"
     
