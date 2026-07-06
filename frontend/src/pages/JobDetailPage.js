@@ -52,6 +52,15 @@ import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import JobScorecardConfig from '../components/JobScorecardConfig';
 import MatchV3Results, { ACTION_CONFIG } from '../components/MatchV3Results';
+
+// Etiquetas simples para roles consultora (recruiter/researcher)
+const SIMPLE_ACTION = {
+  advance_to_screening: { label: 'Entrevistar', color: 'bg-green-100 text-green-800' },
+  review_manually: { label: 'Revisar', color: 'bg-yellow-100 text-yellow-800' },
+  possible_backup: { label: 'Backup', color: 'bg-blue-100 text-blue-800' },
+  low_priority: { label: 'Prioridad baja', color: 'bg-slate-100 text-slate-600' },
+  do_not_advance_knockout: { label: 'No avanza', color: 'bg-red-100 text-red-800' },
+};
 import JobAssignmentsCard from '../components/JobAssignmentsCard';
 import { PlacedBadge } from '../components/CandidateBadges';
 
@@ -92,6 +101,7 @@ const JobDetailPage = () => {
   const navigate = useNavigate();
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const { user } = useAuth();
+  const isTechnical = user?.role === 'admin' || user?.role === 'super_admin';
   
   const [job, setJob] = useState(null);
   const [matches, setMatches] = useState(null);
@@ -391,11 +401,11 @@ const JobDetailPage = () => {
         {/* Candidatos Asignados (pipeline de la vacante) */}
         <JobAssignmentsCard jobId={id} />
 
-        {/* Scorecard v3 Config */}
+        {/* Scorecard v3 Config — visible para todos los roles */}
         <JobScorecardConfig jobId={id} />
 
-        {/* Matching v3 Results */}
-        <MatchV3Results jobId={id} />
+        {/* Matching v3 Results (vista técnica) — solo admin/super_admin */}
+        {isTechnical && <MatchV3Results jobId={id} />}
 
         <Card>
           <CardHeader>
@@ -443,7 +453,10 @@ const JobDetailPage = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {matches?.results?.map((candidate, index) => (
+                {(isTechnical
+                  ? matches?.results
+                  : [...(matches?.results || [])].sort((a, b) => (b.v3_hms ?? -1) - (a.v3_hms ?? -1))
+                )?.map((candidate, index) => (
                   <Card key={candidate.candidate_id} className="border">
                     <Collapsible
                       open={expandedCards[candidate.candidate_id]}
@@ -464,17 +477,39 @@ const JobDetailPage = () => {
                                   {candidate.candidate_name}
                                 </h4>
                                 {candidate.is_placed && <PlacedBadge />}
-                                <Badge className={getMatchColor(candidate.match_percentage)}>
-                                  {candidate.match_percentage}% Match
-                                </Badge>
-                                {candidate.v3_hms != null && (
-                                  <Badge
-                                    variant="outline"
-                                    className={`text-xs ${(ACTION_CONFIG[candidate.v3_action] || {}).color || 'bg-slate-100 text-slate-700'}`}
-                                    data-testid="v2-row-v3-badge"
-                                    title={`Motor v3 (HMS): ${candidate.v3_hms} — ${(ACTION_CONFIG[candidate.v3_action] || {}).label || candidate.v3_action || ''}`}
-                                  >
-                                    v3: {candidate.v3_hms} · {(ACTION_CONFIG[candidate.v3_action] || {}).label || candidate.v3_action}
+                                {isTechnical ? (
+                                  <>
+                                    <Badge className={getMatchColor(candidate.match_percentage)}>
+                                      {candidate.match_percentage}% Match
+                                    </Badge>
+                                    {candidate.v3_hms != null && (
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-xs ${(ACTION_CONFIG[candidate.v3_action] || {}).color || 'bg-slate-100 text-slate-700'}`}
+                                        data-testid="v2-row-v3-badge"
+                                        title={`Motor v3 (HMS): ${candidate.v3_hms} — ${(ACTION_CONFIG[candidate.v3_action] || {}).label || candidate.v3_action || ''}`}
+                                      >
+                                        v3: {candidate.v3_hms} · {(ACTION_CONFIG[candidate.v3_action] || {}).label || candidate.v3_action}
+                                      </Badge>
+                                    )}
+                                  </>
+                                ) : candidate.v3_hms != null ? (
+                                  <>
+                                    <Badge className={getMatchColor(candidate.v3_hms)} data-testid="recruiter-match-badge">
+                                      Match {candidate.v3_hms}
+                                    </Badge>
+                                    {candidate.v3_action && (
+                                      <Badge
+                                        className={`text-xs border-0 ${(SIMPLE_ACTION[candidate.v3_action] || {}).color || 'bg-slate-100 text-slate-700'}`}
+                                        data-testid="recruiter-action-badge"
+                                      >
+                                        {(SIMPLE_ACTION[candidate.v3_action] || {}).label || candidate.v3_action}
+                                      </Badge>
+                                    )}
+                                  </>
+                                ) : (
+                                  <Badge className={getMatchColor(candidate.match_percentage)} data-testid="recruiter-match-badge">
+                                    {candidate.match_percentage}% Match
                                   </Badge>
                                 )}
                               </div>
@@ -512,7 +547,7 @@ const JobDetailPage = () => {
                                     {candidate.risks.length} riesgos
                                   </span>
                                 )}
-                                {candidate.missing_skills?.length > 0 && (
+                                {isTechnical && candidate.missing_skills?.length > 0 && (
                                   <span className="flex items-center text-xs text-red-600">
                                     <XCircle className="w-3 h-3 mr-1" />
                                     {candidate.missing_skills.length} skills faltantes
@@ -537,7 +572,8 @@ const JobDetailPage = () => {
 
                       <CollapsibleContent>
                         <div className="px-4 pb-4 border-t pt-4 bg-slate-50">
-                          {/* Score Breakdown */}
+                          {/* Score Breakdown (técnico) — solo admin/super_admin */}
+                          {isTechnical && (
                           <div className="mb-4">
                             <h5 className="text-sm font-medium text-slate-700 mb-3">Desglose de Compatibilidad</h5>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -562,6 +598,7 @@ const JobDetailPage = () => {
                               })}
                             </div>
                           </div>
+                          )}
 
                           {/* Strengths */}
                           {candidate.strengths?.length > 0 && (
@@ -595,8 +632,8 @@ const JobDetailPage = () => {
                             </div>
                           )}
 
-                          {/* Missing Skills */}
-                          {candidate.missing_skills?.length > 0 && (
+                          {/* Missing Skills — solo vista técnica */}
+                          {isTechnical && candidate.missing_skills?.length > 0 && (
                             <div>
                               <h5 className="text-sm font-medium text-red-700 mb-2 flex items-center gap-1">
                                 <XCircle className="w-4 h-4" />

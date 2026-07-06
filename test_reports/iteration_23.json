@@ -1,0 +1,25 @@
+{
+  "summary": "VALIDACIÓN COMPLETA de la nueva feature VISTA POR ROL en /jobs/{id} (JobDetailPage.js). Backend pytest 4/4 PASS (test_job_matches_role_view.py): la respuesta de GET /api/jobs/{id}/matches tiene la MISMA estructura de claves para admin y recruiter (mismos campos: match_percentage, v3_hms, v3_action, strengths, risks) — filtrado 100% frontend confirmado. MATCHING_ENGINE_VERSION=compare intacto. Frontend E2E validado sobre la vacante 'Director de Operaciones (COO)' (job_id=f7dd7cf3-e710-4054-baf5-592c3340c3f9) con ambos roles: ADMIN ve vista técnica completa (badge % Match + doble badge v2-row-v3-badge, tarjeta MatchV3Results 'Resultados Matching v3', JobScorecardConfig, y al expandir muestra Desglose de Compatibilidad + Fortalezas + Riesgos + Skills Faltantes cuando aplica). RECRUITER (Diego Tejedo, rol recruiter) ve vista simplificada: UN solo badge recruiter-match-badge con formato 'Match {n}' (todos los 20 empiezan con 'Match '), badge recruiter-action-badge con etiquetas simples en español (Revisar/Backup/Prioridad baja detectadas), lista ORDENADA descendente por número (78,78,76,75,75,71,69,69,69,67,67,67,67,67,66,66,65,63,60,57), NO aparece v2-row-v3-badge (0) ni '% Match' (0) ni la tarjeta MatchV3Results (0), al expandir SOLO se ven Fortalezas y Riesgos (breakdown=0, missing_skills=0), y la tarjeta JobScorecardConfig SÍ es visible y editable con inputs. JobAssignmentsCard visible para ambos roles.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_job_matches_role_view.py",
+    "/app/test_reports/pytest/role_view_matches.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "JobDetailPage.js:456-458 sort para no-técnicos usa (b.v3_hms ?? -1) - (a.v3_hms ?? -1): correcto para descendente, pero deja los candidatos SIN v3_hms al final (score=-1). Si en producción hay muchos fallos de v3 podrías querer un fallback secundario a match_percentage. Comportamiento actual está OK y documentado.",
+    "JobDetailPage.js:497-514 el fallback cuando v3_hms es null muestra el % v2 con el data-testid 'recruiter-match-badge' — consistente con el spec, PERO el texto entonces será '{n}% Match' en lugar de 'Match {n}'. En la vacante de prueba TODOS los candidatos tenían v3_hms así que el fallback no se ejercitó en E2E; convendría probarlo con una vacante nueva sin scorecard.",
+    "Duplicación menor: 'isAdmin' (línea 124) y 'isTechnical' (línea 104) son idénticos. Consolidar en una sola variable evitaría confusión futura.",
+    "SIMPLE_ACTION map (línea 57-63) está definido dentro del archivo — considerar extraerlo a un módulo compartido si otras páginas de recruiter necesitan las mismas etiquetas."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_job_matches_role_view.py (nuevo test para verificar parity de estructura de respuesta entre roles)"
+  ],
+  "success_rate": {"backend": "100% (4/4 pytest)", "frontend": "100% — todos los requerimientos (a)-(f) del review verificados via DOM inspection y screenshots"},
+  "test_credentials": "Admin: test_utf8@atlas.com / Humaniq123 | Recruiter: dtejedo@gmail.com / Humaniq2026! — tokens en localStorage['atlas_token']",
+  "seed_data_creation": "Ninguna. Prueba de solo lectura sobre la vacante existente 'Director de Operaciones (COO)' (id=f7dd7cf3-e710-4054-baf5-592c3340c3f9). No se creó ni modificó ningún candidato/vacante/assignment.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Feature VISTA POR ROL en JobDetailPage.js completamente funcional para admin y recruiter. Backend intacto (MATCHING_ENGINE_VERSION=compare). El único edge case no ejercitado en E2E fue el fallback de recruiter cuando v3_hms es null (todos los candidatos de la vacante tenían v3_hms). El chevron de expandir filas requiere selector por SVG lucide-chevron-down dentro del card 'Candidatos Compatibles' — usar JS evaluate con querySelectorAll('button') filtrando por presencia de svg.lucide-chevron-down si necesitas expandir en tests futuros. Screenshots guardados en /app/.screenshots/ (admin_exp3.png, rec_exp3.png)."
+}
