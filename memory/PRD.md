@@ -960,3 +960,14 @@ HMS = round(100 * K * core * HEC^0.15)
 - recruiter/researcher → lista ordenada por v3_hms desc (client-side), UN badge "Match {HMS}" (recruiter-match-badge) + acción simple (recruiter-action-badge): Entrevistar/Revisar/Backup/Prioridad baja/No avanza (SIMPLE_ACTION map); desglose expandido muestra SOLO Fortalezas y Riesgos; MatchV3Results oculto; JobScorecardConfig visible/editable para todos; badges COLOCADO y asignaciones visibles para todos
 - Fallback documentado: si v3_hms es null, recruiter ve % v2 (edge case no ejercitado en E2E)
 - Test nuevo: /app/backend/tests/test_job_matches_role_view.py (4/4)
+
+### FIX: cola de carga masiva persistida en MongoDB (06-Jul-2026) — COMPLETADO Y PROBADO
+**Causa raíz del fallo en producción**: 2 réplicas + estado de lotes en memoria de una sola réplica → polls a la réplica equivocada daban 404 "Lote no encontrado" (reproducido: 200/404 alternante en prod). Riesgo adicional: OOM con 5 workers bajo 1Gi.
+**Fix (background_processor.py reescrito + server.py)**:
+1. Estado de lotes/jobs persistido en colecciones upload_batches/upload_jobs (write-through). get_batch_status y get_job leen SOLO de Mongo → cualquier réplica responde. self.batches en memoria ELIMINADO. Los bytes de archivos siguen en memoria de la réplica receptora (solo ella procesa)
+2. Workers 5→3 (límite 1Gi producción)
+3. Recuperación tras reinicio: heartbeat updated_at en cada etapa (persist_job en process_cv_job); _mark_stale_jobs en el polling marca failed los jobs huérfanos (processing >10 min sin heartbeat, pending >30 min) con error "El servidor se reinició..." recoverable
+4. db inyectado: background_processor.db = db (server.py línea 64). create_batch/get_batch_status/get_job ahora async
+**Prueba preview**: lote de 20 CVs → 20/20 completed con candidate_id, 0 polls con 404 (13 polls), ~2 min total (más rápido que 5 workers por menos contención LLM: dedup 11s vs 29s, db_save 4.3s vs 18s). git diff scoring/ y job_matching_service.py = 0. Datos de prueba limpiados (candidatos + docs upload_*)
+**Bug colateral corregido**: línea corrupta 'rocessor = BackgroundProcessor(max_concurrent=3)' al final del archivo (recurrencia #5 del patrón de cola corrupta)
+**PENDIENTE: usuario debe hacer REDEPLOY a producción**

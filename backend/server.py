@@ -61,6 +61,7 @@ if os.environ.get('ATLAS_URI') and os.environ.get('ATLAS_DB_NAME'):
 else:
     db_name = os.environ['DB_NAME']
 db = client[db_name]
+background_processor.db = db
 
 # Log which database is being used (without exposing credentials)
 db_type = "MongoDB Atlas" if "mongodb+srv" in mongo_url else "Local MongoDB"
@@ -504,7 +505,7 @@ async def get_batch_status(
     """
     Obtener estado de un lote de uploads.
     """
-    batch_status = background_processor.get_batch_status(batch_id)
+    batch_status = await background_processor.get_batch_status(batch_id)
     
     if not batch_status:
         raise HTTPException(
@@ -523,7 +524,7 @@ async def get_job_status(
     """
     Obtener estado detallado de un job individual.
     """
-    job = background_processor.get_job(job_id)
+    job = await background_processor.get_job(job_id)
     
     if not job:
         raise HTTPException(
@@ -531,7 +532,7 @@ async def get_job_status(
             detail="Job no encontrado"
         )
     
-    return job.to_dict()
+    return job
 
 
 @api_router.post("/candidates/job/{job_id}/retry")
@@ -1542,6 +1543,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     # Actualizar progreso
     job.progress = 10
     job.current_stage = "text_extraction"
+    await background_processor.persist_job(job)
     _t = time.time()
     
     # 1. Extracción de texto
@@ -1564,6 +1566,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.stage_timings["text_extraction"] = int((time.time() - _t) * 1000)
     job.progress = 25
     job.current_stage = "ai_parsing"
+    await background_processor.persist_job(job)
     _t = time.time()
     
     # 2. Parsing con AI
@@ -1599,6 +1602,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.stage_timings["ai_parsing"] = int((time.time() - _t) * 1000)
     job.progress = 40
     job.current_stage = "duplicate_detection"
+    await background_processor.persist_job(job)
     _t = time.time()
     
     # 3. Detección de duplicados
@@ -1615,6 +1619,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.stage_timings["duplicate_detection"] = int((time.time() - _t) * 1000)
     job.progress = 50
     job.current_stage = "creating_candidate"
+    await background_processor.persist_job(job)
     
     # 4. Crear candidato (con validación defensiva)
     candidate_id = str(uuid.uuid4())
@@ -1667,6 +1672,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     
     job.progress = 60
     job.current_stage = "ai_classification"
+    await background_processor.persist_job(job)
     _t = time.time()
     
     # 5. Clasificación AI + Resumen AI (en paralelo — 2 llamadas LLM independientes entre sí)
@@ -1748,6 +1754,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.stage_timings["storage"] = int((time.time() - _t) * 1000)
     job.progress = 85
     job.current_stage = "embedding_generation"
+    await background_processor.persist_job(job)
     _t = time.time()
     
     # 7. Embeddings (opcional)
@@ -1769,6 +1776,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.stage_timings["embedding_generation"] = int((time.time() - _t) * 1000)
     job.progress = 95
     job.current_stage = "database_save"
+    await background_processor.persist_job(job)
     _t = time.time()
     
     # 8. Guardar en DB
@@ -1847,7 +1855,7 @@ async def upload_batch(
     await background_processor.start_workers(process_cv_job)
     
     # Crear batch
-    batch = background_processor.create_batch(current_user.id, len(files))
+    batch = await background_processor.create_batch(current_user.id, len(files))
     
     # Agregar cada archivo a la cola
     jobs_added = []
