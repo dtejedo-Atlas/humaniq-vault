@@ -1152,6 +1152,7 @@ async def upload_resume(
                 years_experience=years_exp,
                 skills=skills,
                 languages=languages,
+                cv_language=safe_string(parsed_data.get('cv_language')),
                 previous_companies=previous_companies_objs,
                 source="CV Upload",
                 created_by=current_user.id
@@ -1649,6 +1650,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
             years_experience=years_exp,
             skills=skills,
             languages=languages,
+            cv_language=safe_string(parsed_data.get('cv_language')),
             previous_companies=previous_companies_objs,
             source="CV Upload (Batch)",
             created_by=user_id

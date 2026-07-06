@@ -178,6 +178,7 @@ Siempre responde en formato JSON válido con esta estructura:
                 "years_experience": "años de experiencia total como número o null",
                 "skills": ["lista de habilidades clave"],
                 "languages": ["lista de idiomas"],
+                "cv_language": "idioma principal del CV: 'es', 'en' u 'otro'",
                 "previous_companies": [
                     {
                         "company_name": "nombre empresa",
@@ -189,6 +190,17 @@ Siempre responde en formato JSON válido con esta estructura:
                     }
                 ]
             }
+
+REGLAS DE IDIOMA (el CV puede estar en español o inglés):
+1. "skills": SIEMPRE en español estándar de reclutamiento, sin importar el idioma del CV.
+   Ejemplos: "Treasury" → "Tesorería", "Cash flow management" → "Gestión de flujo de efectivo",
+   "Supply chain" → "Cadena de suministro", "Budgeting" → "Presupuestos", "Forecasting" → "Pronósticos",
+   "Leadership" → "Liderazgo", "Negotiation" → "Negociación", "Talent acquisition" → "Adquisición de talento".
+   EXCEPCIÓN: nombres propios de herramientas/sistemas/metodologías se conservan tal cual
+   (SAP, Excel, Salesforce, Power BI, Six Sigma, Lean Manufacturing, Scrum, AWS, NIIF/IFRS).
+2. Títulos de puestos ("current_title" y "title" en previous_companies) y nombres de empresas:
+   se CONSERVAN en su idioma original — son datos históricos del candidato.
+3. "cv_language": detecta el idioma principal del texto del CV ('es', 'en' u 'otro').
 
 Para "company_caliber", clasifica el calibre de cada empresa en UNO de estos 5 valores exactos:
 - "multinacional_global": presencia en múltiples países, marca global reconocida

@@ -945,3 +945,11 @@ HMS = round(100 * K * core * HEC^0.15)
 **Tiempos por etapa (1 CV solo, sin contención)**: extracción 7ms · parse LLM (incl. calibre) 5.9s · dedup 242ms · clasificación+resumen (paralelo) 10.0s · storage 226ms · embedding 213ms · db_save 105ms · TOTAL 16.7s
 **Prueba real 20 CVs (5 workers)**: 398s wall (~20s/CV efectivo) vs secuencial estimado ~8.2min → mejora ~20%. BOTTLENECK REAL: throttling del gateway LLM — bajo 5 workers (hasta 15 llamadas LLM simultáneas) la latencia por llamada se triplica (clasificación 10s→30s, dedup y db_save inflados por saturación del event loop). Más workers NO ayudan; el techo es el rate limit del proveedor.
 **Nota de test**: curl envía DOCX como application/octet-stream (rechazado por pipeline) — usar -F "files=@f;type=<mime docx>". Candidatos sintéticos (@pruebacarga.mx) hard-deleted tras la prueba (22).
+
+### Soporte completo CVs en inglés (06-Jul-2026) — COMPLETADO
+1. parse_resume (atlas_service.py): skills SIEMPRE en español estándar de reclutamiento (herramientas/metodologías se conservan: SAP, Excel, Six Sigma...); títulos y empresas en idioma original; campo aditivo cv_language (es/en/otro) agregado a Candidate (models.py) y seteado en ambos flujos de upload (server.py individual + batch)
+2. _infer_area_from_title (scoring/components.py): YA era bilingüe para todas las áreas principales — sin cambios
+3. Knockout de idioma: YA flexible — verificado 6/6 ("English advanced"="inglés", niveles en paréntesis, etc.)
+4. Base actual: 67/118 activos tenían skills en inglés → batch normalize_skills_spanish.py (backup previo backup_..._044136_pre_skills_es): 55 candidatos modificados, 621 skills traducidos, 0 errores. Anglicismos estándar (Marketing, Retail, Compliance, BI) conservados
+5. E2E PASS: CV real en inglés (Finance Director) → parse: skills en español, cv_language=en, título original conservado, clasificación finance/director conf 0.95 → match v3 contra scorecard en español: SK raw=1.0 (5/5 matched, incl. match flexible "Planeación financiera"↔"Planeación y análisis financiero"), knockout idioma cumple, HMS 85 advance_to_screening. Candidato de prueba eliminado
+**Aprendizaje técnico**: SK del motor v3 lee job.required_skills/preferred_skills (campos planos del job) y el knockout de idioma lee job.required_languages — el job_scorecard aporta process_type/target_caliber/pesos, NO los skills

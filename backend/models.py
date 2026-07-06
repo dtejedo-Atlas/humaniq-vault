@@ -266,6 +266,7 @@ class Candidate(BaseModel):
     seniority: Optional[SeniorityLevel] = None
     skills: List[str] = []
     languages: List[str] = []
+    cv_language: Optional[str] = None  # 'es' | 'en' | 'otro' (idioma del CV original)
     previous_companies: List[PreviousCompany] = []
     resume_files: List[ResumeFile] = []
     salary_data: Optional[str] = None
