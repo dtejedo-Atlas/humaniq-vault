@@ -971,3 +971,9 @@ HMS = round(100 * K * core * HEC^0.15)
 **Prueba preview**: lote de 20 CVs → 20/20 completed con candidate_id, 0 polls con 404 (13 polls), ~2 min total (más rápido que 5 workers por menos contención LLM: dedup 11s vs 29s, db_save 4.3s vs 18s). git diff scoring/ y job_matching_service.py = 0. Datos de prueba limpiados (candidatos + docs upload_*)
 **Bug colateral corregido**: línea corrupta 'rocessor = BackgroundProcessor(max_concurrent=3)' al final del archivo (recurrencia #5 del patrón de cola corrupta)
 **PENDIENTE: usuario debe hacer REDEPLOY a producción**
+
+### Post-deploy producción (06-Jul-2026): análisis lote 10 CVs
+- Usuario redeployó el fix. Su lote 1 (18:17) procesó 10/10 OK — TODOS los candidatos existen (incl. Tobón, Cuellar, A. Martínez que "fallaron"). El "fallo" fue en el RE-UPLOAD (lote 2, 18:34) que coincidió con el rollout del deploy: el pod murió ~18:36 → 3 jobs marcados failed por staleness (funcionó como diseñado) + 4 pending huérfanos (marcados failed manualmente por el agente con mensaje explicativo)
+- Validación en vivo post-deploy: 1 CV a producción → completed en 15s, 0 polls 404 → sistema estable
+- STALE_PENDING_MINUTES 30→12 (huérfanos se resuelven más rápido)
+- DUPLICADOS creados por re-uploads del usuario (pendiente decisión): Espinosa Valdivieso ×4, Lagunas ×3, Cabrera ×2, Cuellar ×2 = 7 copias extra en prod DB

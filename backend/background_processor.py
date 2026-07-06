@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Umbrales de staleness (job sin heartbeat → se asume réplica muerta)
 STALE_PROCESSING_MINUTES = 10   # un job en proceso actualiza updated_at en cada etapa
-STALE_PENDING_MINUTES = 30      # un job en cola puede esperar legítimamente varios minutos
+STALE_PENDING_MINUTES = 12      # tras 12 min en cola sin arrancar, se asume réplica muerta
 
 
 class JobStatus(str, Enum):
