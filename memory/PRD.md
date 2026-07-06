@@ -977,3 +977,9 @@ HMS = round(100 * K * core * HEC^0.15)
 - Validación en vivo post-deploy: 1 CV a producción → completed en 15s, 0 polls 404 → sistema estable
 - STALE_PENDING_MINUTES 30→12 (huérfanos se resuelven más rápido)
 - DUPLICADOS creados por re-uploads del usuario (pendiente decisión): Espinosa Valdivieso ×4, Lagunas ×3, Cabrera ×2, Cuellar ×2 = 7 copias extra en prod DB
+
+### Decisión duplicados (07-Jul-2026): regla del usuario aplicada
+- Regla: copias idénticas → eliminar; no idénticas → opción de fusionar
+- Comparación normalizada (escalares + sets skills/tags/languages + firma de previous_companies) sobre los 8 grupos que detecta /api/duplicates/review: Espinosa ×4, Lagunas ×3, Cuellar ×2, Cabrera ×2, Mario Gutiérrez ×2, Langarica ×2, Paredes Borjón ×2, Amaro González ×2
+- Resultado: NINGUNA copia es idéntica (difieren por variación del parser LLM entre corridas: skills redactados distinto, tags, seniority junior/mid, área finance/accounting) → 0 eliminadas, los 8 grupos quedan en la página Duplicados para fusión manual
+- Ninguna copia tiene assignments/notas/restricciones → fusión segura en cualquier dirección
