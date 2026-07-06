@@ -930,3 +930,8 @@ HMS = round(100 * K * core * HEC^0.15)
 4. Bernardo Baader (aprobado previo) también normalizado en ai_classification
 5. FIX DE RAÍZ en atlas_service.py: (a) HABÍA DOS _normalize_to_key en la clase — la 2ª (flujo vacantes, con default silencioso a professional_services) pisaba la 1ª; renombrada a _normalize_to_key_with_default y call sites del wizard actualizados. (b) _normalize_to_key (candidatos) ahora también mapea espacios→guión bajo. (c) classify_candidate: si tras normalizar el valor sigue fuera del catálogo → confidence penalizada a min(conf, 0.5) + nota en reasoning → cae a bandeja
 6. Verificado: filtros industry=financial_services y functional_area=quality incluyen a los normalizados; 0 valores no canónicos restantes en activos
+
+### Fix sidebar en Dashboard (06-Jul-2026) — COMPLETADO
+- DashboardPage.js (Centro de Control) no usaba el componente Layout → sin sidebar ni header. Envuelto en <Layout title="Centro de Control"> (los 3 returns: loading/error/main); h1 interno duplicado eliminado, indicador "Base universal" conservado alineado a la derecha
+- Verificado por screenshot: sidebar completo con badge "Por Revisar" + dashboard 4 zonas ajustado
+- NOTA: app desplegada en producción (https://atlas-recruiting-ai.emergent.host) — los fixes en preview requieren redeploy del usuario

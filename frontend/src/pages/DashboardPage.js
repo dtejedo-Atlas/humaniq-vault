@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { dashboardAPI } from '../api';
 import { toast } from 'sonner';
+import Layout from '../components/Layout';
 
 const TURQUOISE = '#06B6D4';
 const ORANGE = '#F97316';
@@ -72,13 +73,19 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center bg-slate-950 rounded-2xl">
-        <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
-      </div>
+      <Layout title="Centro de Control" subtitle="Operación del equipo en tiempo real">
+        <div className="min-h-[60vh] flex items-center justify-center bg-slate-950 rounded-2xl">
+          <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
+        </div>
+      </Layout>
     );
   }
   if (!data) {
-    return <div className="p-8 text-center text-slate-500">No se pudo cargar el dashboard</div>;
+    return (
+      <Layout title="Centro de Control" subtitle="Operación del equipo en tiempo real">
+        <div className="p-8 text-center text-slate-500">No se pudo cargar el dashboard</div>
+      </Layout>
+    );
   }
 
   const { kpis, jobs_board, recent_activity, action_inbox, charts } = data;
@@ -86,13 +93,10 @@ export default function DashboardPage() {
   const areaData = charts.by_functional_area.map((a) => ({ ...a, name: formatArea(a.area) }));
 
   return (
-    <div className="bg-slate-950 rounded-2xl p-4 md:p-6 space-y-5 -m-2" data-testid="operational-dashboard">
+    <Layout title="Centro de Control" subtitle="Operación del equipo en tiempo real">
+    <div className="bg-slate-950 rounded-2xl p-4 md:p-6 space-y-5" data-testid="operational-dashboard">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Centro de Control</h1>
-          <p className="text-sm text-slate-400">Operación del equipo en tiempo real</p>
-        </div>
+      <div className="flex items-center justify-end">
         <div className="hidden md:flex items-center gap-2 text-xs text-slate-500">
           <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
           Base universal · todas las vacantes visibles
@@ -262,5 +266,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    </Layout>
   );
 }
