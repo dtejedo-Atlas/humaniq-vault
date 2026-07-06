@@ -953,3 +953,10 @@ HMS = round(100 * K * core * HEC^0.15)
 4. Base actual: 67/118 activos tenían skills en inglés → batch normalize_skills_spanish.py (backup previo backup_..._044136_pre_skills_es): 55 candidatos modificados, 621 skills traducidos, 0 errores. Anglicismos estándar (Marketing, Retail, Compliance, BI) conservados
 5. E2E PASS: CV real en inglés (Finance Director) → parse: skills en español, cv_language=en, título original conservado, clasificación finance/director conf 0.95 → match v3 contra scorecard en español: SK raw=1.0 (5/5 matched, incl. match flexible "Planeación financiera"↔"Planeación y análisis financiero"), knockout idioma cumple, HMS 85 advance_to_screening. Candidato de prueba eliminado
 **Aprendizaje técnico**: SK del motor v3 lee job.required_skills/preferred_skills (campos planos del job) y el knockout de idioma lee job.required_languages — el job_scorecard aporta process_type/target_caliber/pesos, NO los skills
+
+### Vista por rol en detalle de vacante (06-Jul-2026) — COMPLETADO Y TESTEADO (iteration_23: 100%)
+- Solo JobDetailPage.js modificado (motores/endpoints intactos, MATCHING_ENGINE_VERSION=compare sin cambios; verificado por pytest que /matches devuelve la misma estructura a ambos roles)
+- isTechnical = admin|super_admin → vista completa como antes (% v2 + badge doble + MatchV3Results + desglose dimensiones + skills faltantes)
+- recruiter/researcher → lista ordenada por v3_hms desc (client-side), UN badge "Match {HMS}" (recruiter-match-badge) + acción simple (recruiter-action-badge): Entrevistar/Revisar/Backup/Prioridad baja/No avanza (SIMPLE_ACTION map); desglose expandido muestra SOLO Fortalezas y Riesgos; MatchV3Results oculto; JobScorecardConfig visible/editable para todos; badges COLOCADO y asignaciones visibles para todos
+- Fallback documentado: si v3_hms es null, recruiter ve % v2 (edge case no ejercitado en E2E)
+- Test nuevo: /app/backend/tests/test_job_matches_role_view.py (4/4)
