@@ -983,3 +983,10 @@ HMS = round(100 * K * core * HEC^0.15)
 - Comparación normalizada (escalares + sets skills/tags/languages + firma de previous_companies) sobre los 8 grupos que detecta /api/duplicates/review: Espinosa ×4, Lagunas ×3, Cuellar ×2, Cabrera ×2, Mario Gutiérrez ×2, Langarica ×2, Paredes Borjón ×2, Amaro González ×2
 - Resultado: NINGUNA copia es idéntica (difieren por variación del parser LLM entre corridas: skills redactados distinto, tags, seniority junior/mid, área finance/accounting) → 0 eliminadas, los 8 grupos quedan en la página Duplicados para fusión manual
 - Ninguna copia tiene assignments/notas/restricciones → fusión segura en cualquier dirección
+
+### FIX P0: event loop bloqueado por llamadas LLM síncronas (07-Jul-2026) — COMPLETADO Y TESTEADO (iteration_24: 8/8 PASS)
+**Causa raíz**: emergentintegrations.LlmChat.send_message invoca litellm.completion (síncrono) → bloqueaba el event loop de FastAPI ~5-6s por llamada. Bajo carga concurrente (3 workers × 3 llamadas LLM/CV) el servidor dejaba de responder (timeouts al iniciar lotes).
+**Fix**: atlas_service.py helper `_send` (líneas 154-160): `asyncio.to_thread(lambda: asyncio.run(chat.send_message(msg)))` — ejecuta el LLM en thread pool, liberando el event loop. Aplicado a las 5 llamadas LLM. embedding_service.py: llamadas OpenAI vía asyncio.to_thread (líneas 119, 161) + fix sorted_data (línea 168) + import OpenAI.
+**Verificación (testing_agent, iteration_24)**: lote de 4 PDFs → endpoint respondió en 0.47s, 4/4 completed en ~24s, 0 polls 404, endpoints paralelos durante el procesamiento respondieron en 0.14-0.28s (event loop libre), 0 errores de nested event loop en logs, embeddings OK, regresión login/candidates/jobs OK. Test reutilizable: /app/backend/tests/test_batch_upload_concurrency.py
+**Deuda técnica anotada (no bloqueante)**: asyncio.run crea un loop nuevo por llamada (aceptable); max_concurrent=3 hardcoded (considerar env var BATCH_MAX_WORKERS); total_files cuenta archivos antes de filtrar por extensión (edge case UI).
+**PENDIENTE: usuario debe hacer REDEPLOY a producción para aplicar el fix.**
