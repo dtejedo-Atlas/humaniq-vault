@@ -1546,10 +1546,12 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     await background_processor.persist_job(job)
     _t = time.time()
     
-    # 1. Extracción de texto
+    # 1. Extracción de texto (CPU-bound → thread aparte para no bloquear el event loop)
     extracted_text = ""
     try:
-        extracted_text = DocumentParser.extract_text_from_bytes(file_data, content_type)
+        extracted_text = await asyncio.to_thread(
+            DocumentParser.extract_text_from_bytes, file_data, content_type
+        )
         
         if not extracted_text or len(extracted_text.strip()) < 50:
             result["warnings"].append("Poco texto extraído - posible PDF escaneado")
@@ -1718,9 +1720,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.current_stage = "storage"
     _t = time.time()
     
-    # 6. Almacenar archivo
+    # 6. Almacenar archivo (I/O síncrono → thread aparte para no bloquear el event loop)
     try:
-        storage_result = storage_service.upload_resume(
+        storage_result = await asyncio.to_thread(
+            storage_service.upload_resume,
             file_data,
             candidate_id,
             file_name,

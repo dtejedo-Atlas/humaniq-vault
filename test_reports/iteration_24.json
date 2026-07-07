@@ -1,0 +1,32 @@
+{
+  "summary": "VALIDACIÓN COMPLETA del fix P0 de batch upload concurrente (asyncio.to_thread en atlas_service._send y embedding_service). Suite pytest test_batch_upload_concurrency.py: 8/8 PASS en 33.46s subiendo 4 CVs PDF únicos en un solo POST /api/candidates/upload-batch. (1) El endpoint respondió en 0.47s con batch_id (NO se cuelga). (2) GET /api/candidates/batch/{batch_id} devolvió 200 con estructura {batch_id,total_files,stats,is_complete,jobs,avg_stage_timings_ms} — nunca 404. (3) Los 4 jobs terminaron en 'completed' (0 failed, 0 duplicate) en ~24s con 3 workers concurrentes; stage timings promedio: text_extraction=20ms, ai_parsing=5360ms, duplicate_detection=461ms, ai_classification_y_resumen=5867ms, storage=267ms, embedding_generation=291ms, database_save=61ms. (4) Event loop NO bloqueado: durante el procesamiento GET /api/candidates=0.28s, GET /api/jobs=0.23s, GET /api/auth/me=0.14s — todos <5s. (5) Los 4 candidatos persistidos correctamente en BD, recuperables por GET /api/candidates/{id} con full_name y skills parseados por LLM (Ana Batch31e815fc Ramírez, Bruno Batch31e815fc Salazar, Carla Batch31e815fc Gómez, Daniel Batch31e815fc Núñez). (6) Logs backend SIN ningún error 'asyncio.run() cannot be called from a running event loop' ni 'event loop is already running' en las últimas 2000 líneas. (7) Regresión OK: login admin, /candidates, /jobs, /auth/me responden 200.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/candidates/queue-stats", "issue": "El endpoint existe como '/queue-stats' (con guión) — no es un bug, solo aclaración: en el review dijiste '/queue/stats' pero el actual usa dash. Ambos comportamientos son intencionales."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_batch_upload_concurrency.py",
+    "/app/test_reports/pytest/batch_upload_p0.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "atlas_service.py:154-160 el patrón `asyncio.to_thread(lambda: asyncio.run(chat.send_message(message)))` FUNCIONA porque asyncio.run se ejecuta en un thread nuevo (sin event loop), pero es un anti-patrón sutil: crea un event loop nuevo por cada llamada LLM. Alternativa más limpia sería usar litellm.acompletion (async nativo) o `asyncio.get_event_loop().run_in_executor`. Sin embargo, dado que emergentintegrations.LlmChat expone solo send_message síncrono, el fix actual es aceptable y verificado sin errores en logs. Considerar como deuda técnica.",
+    "background_processor.py: max_concurrent=3 hardcoded en __init__. Para producción con carga real de reclutadores subiendo lotes de 20-50 CVs simultáneos, considerar hacerlo configurable por env var (ej. BATCH_MAX_WORKERS) para escalar sin re-deploy.",
+    "server.py:1861 create_batch se llama con len(files) ANTES de filtrar por extensión y tamaño, por lo que el campo total_files del batch incluye archivos que serán inmediatamente rechazados. En este test los 4 PDFs eran válidos así que no se ejercitó, pero es un edge case que puede confundir el UI de progreso.",
+    "embedding_service.py:119,161 el uso de asyncio.to_thread para el cliente OpenAI síncrono es correcto. La corrección sorted_data (línea 168) preserva el orden de embeddings — verificado que 4 candidatos generaron embeddings sin errores en logs.",
+    "El endpoint POST /api/candidates/upload-batch hace `await file.read()` secuencialmente en un for-loop (server.py:1880). Para lotes muy grandes (>20 archivos) esto podría acumular todo en RAM antes de encolar. Bajo carga actual (≤50 archivos, ≤10MB c/u = ≤500MB) es aceptable pero vale monitorear."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch_upload_concurrency.py (nuevo test — 8 casos cubriendo el fix P0)"
+  ],
+  "success_rate": {"backend": "100% (8/8 pytest en 33.46s)", "frontend": "N/A (skip solicitado por E1)"},
+  "test_credentials": "Admin: test_utf8@atlas.com / Humaniq123 (login validado, JWT emitido)",
+  "seed_data_creation": "4 candidatos creados por el test con RUN_TAG único hex[:8] para evitar duplicados. IDs de ejemplo del último run: effc94ff-4e52-40c2-bc9c-bc575eb518d9 (Ana), ddbdbb35-1860-4644-9ec7-9ef3900452f8 (Bruno), 43b3cf7f-8b82-4f0c-abe3-b2170e6031d7 (Carla), aea41e89-1105-4775-b664-8f6ac4a96476 (Daniel). Cada rerun genera un nuevo RUN_TAG así que crea nuevos candidatos — considera limpiar con un script periódico si el volumen molesta.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fix P0 del batch upload verificado end-to-end. Test suite reutilizable en /app/backend/tests/test_batch_upload_concurrency.py — genera 4 PDFs únicos con reportlab en memoria (no requiere fixtures externas). El batch completa en ~30s con 3 workers, cada CV toma ~12-14s (parsing 5.4s + clasificación 5.9s + embedding 0.3s + duplicate check 0.5s). Si el LLM está lento, aumentar el timeout de test_04 (actualmente 300s = 5min). Para stress-testing, cambiar profiles a 20+ perfiles únicos y bumping max_concurrent. NO se tocó nada de /app/backend/scoring/ ni job_matching_service.py.",
+  "rca of the issue": "RCA original (reportado por E1): las llamadas LLM en atlas_service.py usaban emergentintegrations.LlmChat.send_message que internamente invoca litellm.completion (síncrono). Al ser awaitables 'fake' bloqueaban el event loop durante ~5-6s por llamada. Bajo carga concurrente (3 workers × 3 llamadas LLM por CV) el event loop quedaba saturado y peticiones REST paralelas hacían timeout. FIX aplicado: envolver send_message en `asyncio.to_thread(lambda: asyncio.run(chat.send_message(message)))` que ejecuta la llamada en un thread pool, liberando el event loop de FastAPI. VERIFICACIÓN: durante el procesamiento de 4 CVs (11 llamadas LLM totales) las peticiones a /candidates, /jobs, /auth/me respondieron en 0.14-0.28s consistentemente. Sin errores 'asyncio.run() cannot be called from a running event loop' en logs. Fix efectivo y estable."
+}

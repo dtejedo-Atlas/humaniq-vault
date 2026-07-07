@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 from typing import List, Optional
@@ -114,8 +115,9 @@ class EmbeddingService:
             # Clean text
             cleaned_text = text.replace("\n", " ").strip()
             
-            # Generate embedding
-            response = self.client.embeddings.create(
+            # Generate embedding (cliente síncrono → thread aparte para no bloquear el event loop)
+            response = await asyncio.to_thread(
+                self.client.embeddings.create,
                 model=self.model,
                 input=cleaned_text
             )
@@ -155,8 +157,9 @@ class EmbeddingService:
             if not cleaned_texts:
                 return [None] * len(texts)
             
-            # Generate embeddings in batch
-            response = self.client.embeddings.create(
+            # Generate embeddings in batch (cliente síncrono → thread aparte)
+            response = await asyncio.to_thread(
+                self.client.embeddings.create,
                 model=self.model,
                 input=cleaned_texts
             )

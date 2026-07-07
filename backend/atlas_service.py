@@ -149,6 +149,15 @@ def smart_truncate_cv(text: str, max_chars: int = CV_MAX_CHARS) -> str:
 class AtlasAIService:
     def __init__(self):
         self.api_key = EMERGENT_LLM_KEY
+
+    @staticmethod
+    async def _send(chat, message):
+        """Ejecuta la llamada LLM en un thread aparte.
+
+        emergentintegrations usa litellm.completion (síncrono) internamente,
+        lo que bloquearía el event loop de FastAPI durante toda la llamada.
+        """
+        return await asyncio.to_thread(lambda: asyncio.run(chat.send_message(message)))
     
     async def parse_resume(self, resume_text: str) -> dict:
         """Extract structured data from resume text using intelligent truncation"""
@@ -221,7 +230,7 @@ Responde SOLO con JSON válido, sin texto adicional:
             """
         )
         
-        response = await chat.send_message(message)
+        response = await self._send(chat, message)
         
         try:
             # Clean response and parse JSON
@@ -296,7 +305,7 @@ Responde SOLO con JSON válido.
 """
         )
         
-        response = await chat.send_message(message)
+        response = await self._send(chat, message)
         
         try:
             response_text = response.strip()
@@ -391,7 +400,7 @@ Resumen profesional (3-4 oraciones):
             """
         )
         
-        response = await chat.send_message(message)
+        response = await self._send(chat, message)
         return response.strip()
     
     async def match_candidate_to_job(self, candidate_data: dict, job_description: str) -> dict:
@@ -442,7 +451,7 @@ Responde SOLO con JSON válido.
             """
         )
         
-        response = await chat.send_message(message)
+        response = await self._send(chat, message)
         
         try:
             response_text = response.strip()
@@ -556,7 +565,7 @@ Responde SOLO con JSON válido.
 """
         )
         
-        response = await chat.send_message(message)
+        response = await self._send(chat, message)
         
         try:
             response_text = response.strip()
