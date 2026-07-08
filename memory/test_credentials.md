@@ -28,3 +28,8 @@
 ## Last Updated
 - Date: 2026-06-03
 - Updated by: E1 Agent
+
+## Google OAuth (Emergent-managed)
+- Solo emails YA registrados en la colección `users` pueden entrar con Google (403 si no existen).
+- Cuentas vinculables para prueba manual: dtejedo@gmail.com (rol existente en users).
+- No hay contraseñas para el flujo Google (OAuth). El endpoint emite el mismo JWT que el login normal.

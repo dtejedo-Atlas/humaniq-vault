@@ -990,3 +990,10 @@ HMS = round(100 * K * core * HEC^0.15)
 **Verificación (testing_agent, iteration_24)**: lote de 4 PDFs → endpoint respondió en 0.47s, 4/4 completed en ~24s, 0 polls 404, endpoints paralelos durante el procesamiento respondieron en 0.14-0.28s (event loop libre), 0 errores de nested event loop en logs, embeddings OK, regresión login/candidates/jobs OK. Test reutilizable: /app/backend/tests/test_batch_upload_concurrency.py
 **Deuda técnica anotada (no bloqueante)**: asyncio.run crea un loop nuevo por llamada (aceptable); max_concurrent=3 hardcoded (considerar env var BATCH_MAX_WORKERS); total_files cuenta archivos antes de filtrar por extensión (edge case UI).
 **PENDIENTE: usuario debe hacer REDEPLOY a producción para aplicar el fix.**
+
+### Sign in with Google — Emergent-managed Auth (08-Jul-2026) — COMPLETADO Y TESTEADO (iteration_25: 12/12 PASS)
+- Coexiste con el login JWT email/password. Reglas del usuario: (1) ambos métodos, (2) emails NO registrados → 403 denegado, (3) emails existentes → auto-vinculación (google_linked=true + picture)
+- Backend: POST /api/auth/google/session (server.py, tras /auth/me) — intercambia session_id con demobackend.emergentagent.com (header X-Session-ID), busca usuario por email case-insensitive, emite el JWT PROPIO de la app (mismo shape Token que /auth/login) → toda la infra existente (localStorage atlas_token, axios headers, guards) funciona sin cambios. NO usa cookies de sesión (decisión de diseño para reutilizar JWT existente)
+- Frontend: botón Google en LoginPage (google-login-button) con redirect dinámico window.location.origin+'/dashboard' (NUNCA hardcodear); App.js detecta hash session_id= sincrónicamente y renderiza AuthCallback (useRef guard StrictMode); AuthContext.loginWithGoogleSession
+- Tests: /app/backend/tests/test_google_auth.py (8 backend) + 4 flujos frontend E2E. El flujo OAuth real con cuenta Google no es automatizable — el usuario debe probarlo manualmente
+- Playbook de testing guardado en /app/auth_testing.md
