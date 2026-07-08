@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import re
 import json
+import httpx
 import logging
 import asyncio
 from pathlib import Path
@@ -363,6 +365,78 @@ async def login(credentials: UserLogin):
 async def get_me(current_user: User = Depends(get_current_user)):
     """Get current user info"""
     return current_user
+
+
+# ============= GOOGLE OAUTH (Emergent-managed) =============
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+
+from pydantic import BaseModel as _AuthBaseModel
+
+class GoogleSessionRequest(_AuthBaseModel):
+    session_id: str
+
+EMERGENT_SESSION_DATA_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
+
+
+@api_router.post("/auth/google/session", response_model=Token)
+async def google_session(payload: GoogleSessionRequest):
+    """Intercambia el session_id de Google (Emergent Auth) por un JWT propio.
+
+    Solo emails ya registrados pueden entrar. Cuentas existentes se vinculan automáticamente.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                EMERGENT_SESSION_DATA_URL,
+                headers={"X-Session-ID": payload.session_id}
+            )
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="No se pudo verificar la sesión de Google. Intenta de nuevo."
+        )
+
+    if resp.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sesión de Google inválida o expirada"
+        )
+
+    data = resp.json()
+    google_email = (data.get("email") or "").strip()
+    if not google_email:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google no devolvió un email válido"
+        )
+
+    user_doc = await db.users.find_one(
+        {"email": {"$regex": f"^{re.escape(google_email)}$", "$options": "i"}},
+        {"_id": 0}
+    )
+    if not user_doc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado: tu cuenta de Google no está registrada en Humaniq. Contacta a un administrador."
+        )
+
+    # Auto-vinculación: guardar datos de Google en la cuenta existente
+    update_fields = {
+        "last_login": datetime.now(timezone.utc).isoformat(),
+        "google_linked": True
+    }
+    if data.get("picture"):
+        update_fields["picture"] = data["picture"]
+    await db.users.update_one({"id": user_doc["id"]}, {"$set": update_fields})
+
+    access_token = create_access_token({"sub": user_doc["email"]})
+
+    if isinstance(user_doc.get('created_at'), str):
+        user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
+    if user_doc.get('last_login') and isinstance(user_doc['last_login'], str):
+        user_doc['last_login'] = datetime.fromisoformat(user_doc['last_login'])
+
+    return Token(access_token=access_token, user=User(**user_doc))
 
 
 # ============= CANDIDATE ROUTES =============

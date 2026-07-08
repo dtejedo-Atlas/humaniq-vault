@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaxonomyProvider } from './contexts/TaxonomyContext';
 import { Toaster } from './components/ui/sonner';
@@ -22,6 +22,7 @@ import ValidationPage from './pages/ValidationPage';
 import UsersPage from './pages/UsersPage';
 import DuplicatesPage from './pages/DuplicatesPage';
 import ClassificationReviewPage from './pages/ClassificationReviewPage';
+import AuthCallback from './pages/AuthCallback';
 
 // Configure axios defaults
 axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
@@ -65,6 +66,13 @@ const PublicRoute = ({ children }) => {
 };
 
 function AppRoutes() {
+  const location = useLocation();
+
+  // Detección síncrona del retorno de Google OAuth (antes de que corran las rutas protegidas)
+  if (location.hash?.includes('session_id=')) {
+    return <AuthCallback />;
+  }
+
   return (
     <Routes>
       {/* Public Routes */}

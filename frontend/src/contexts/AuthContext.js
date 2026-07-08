@@ -54,6 +54,21 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  const loginWithGoogleSession = async (sessionId) => {
+    const response = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/google/session`, {
+      session_id: sessionId
+    });
+
+    const { access_token, user: userData } = response.data;
+
+    setToken(access_token);
+    setUser(userData);
+    localStorage.setItem('atlas_token', access_token);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+
+    return userData;
+  };
+
   const register = async (email, password, name, role = 'recruiter') => {
     await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/register`, {
       email,
@@ -74,7 +89,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogleSession, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
