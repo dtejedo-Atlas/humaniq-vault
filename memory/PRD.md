@@ -1014,3 +1014,6 @@ NO hay "olvidé mi contraseña" público (rechazado explícitamente por el usuar
 - LoginPage: eliminado toggle Regístrate/isRegister/campo nombre; nota "El acceso es solo por invitación" (invite-only-note). AuthContext: función register eliminada
 - Vías únicas de alta confirmadas: (1) Admin invita desde página Usuarios, (2) Google login solo para emails ya registrados
 - Verificado: curl register → 403, login normal → 200, screenshot login sin enlace de registro
+
+### Backlog (14-Jul-2026)
+- **P3 (rechazado por ahora)**: Pestaña "Auditoría / Actividad" en la página Usuarios. Decisión del usuario: el log de actividad ya existe en la colección `activity_logs` (user_invited, password_changed, login, etc.); no es necesario exponerlo como pestaña dedicada. Postergado indefinidamente.
