@@ -24,7 +24,8 @@ import {
   PlusCircle,
   FolderPlus,
   GitMerge,
-  AlertCircle
+  AlertCircle,
+  KeyRound
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from './ui/button';
@@ -119,6 +120,7 @@ const Sidebar = () => {
     { path: '/jobs', icon: Briefcase, label: 'Vacantes' },
     { path: '/duplicates', icon: GitMerge, label: 'Duplicados', roles: ['super_admin', 'admin', 'recruiter'] },
     { path: '/users', icon: UserCog, label: 'Usuarios', roles: ['super_admin', 'admin'] },
+    { path: '/change-password', icon: KeyRound, label: 'Cambiar contraseña' },
     { path: '/admin', icon: Settings, label: 'Admin', roles: ['super_admin'] }
   ];
 

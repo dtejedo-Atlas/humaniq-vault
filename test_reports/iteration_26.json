@@ -1,0 +1,58 @@
+{
+  "summary": "E2E testing of invitation + set-password + change-password feature. Backend: 20/21 pytest tests passing. Frontend: all critical UI flows (set-password valid/invalid, mismatched pw error, redirect to login, users page create/badge/resend, change-password wrong+correct flows) PASS. Two real bugs found: (1) user_invited activity log is skipped when Resend fails, (2) Cloudflare intercepts 502 responses from /resend-invitation & /send-password-reset and returns a generic HTML error page — the admin will NOT see the clear backend error message on that path (only the create-user 200-with-email_error path shows the Resend detail in UI, which we visually confirmed works well).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/users",
+        "issue": "activity_logs entry 'user_invited' is skipped when the invitation email fails. log_activity is placed INSIDE the try-block after send_invitation_email, so any Resend failure (very common with fake emails and expected per PRD) means the invitation is NEVER logged. Requirement said 'Cada envío se registra en activity_logs'. Move log_activity out of the try (or log both success + failure explicitly).",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/users/{id}/resend-invitation and POST /api/users/{id}/send-password-reset",
+        "issue": "When Resend fails, backend raises HTTPException 502 with a clear JSON detail. However, in this preview environment Cloudflare intercepts any 5xx response from the origin and replaces the body with its own generic HTML 'Bad Gateway' page. Result: the admin toast will show something like 'Error 502' with no useful detail. In contrast, POST /api/users handles the Resend failure by returning 200 with {email_sent:false, email_error:'...'}, and the UsersPage shows the full Resend error message in a nice toast (confirmed visually). Recommendation: apply the same pattern to /resend-invitation and /send-password-reset — return 200 (or 4xx with a non-5xx code such as 424/409) with a JSON body {sent:false, error:'<Resend detail>'} instead of raising HTTPException(502). This is the only way admins will see the clear error text as required by decision (4).",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Resend invitation / password reset error surface",
+        "issue": "Because of the Cloudflare 502 hijack above, the toast after clicking the resend/reset button in UsersPage will not contain the Resend error detail. During our test we saw an error-looking toast but the full text ('You can only send testing emails to your own email address...') was NOT preserved — unlike the 'Crear y Enviar Invitación' flow which DID surface the full Resend text (great UX in that path).",
+        "affected_selectors": ["[data-testid^='resend-invitation-']", "[data-testid^='send-password-reset-']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_invitation_password_flow.py",
+    "/app/test_reports/pytest/iteration_26_invitation.xml"
+  ],
+  "action_items": [
+    "Move log_activity('user_invited', ...) OUTSIDE the try-block in POST /api/users (server.py ~line 4856) so the invitation is recorded even when Resend rejects.",
+    "Change POST /api/users/{id}/resend-invitation and POST /api/users/{id}/send-password-reset to return a non-5xx JSON with {sent:false, error:<detail>} (or use 424/409) instead of raising HTTPException(502). Cloudflare hijacks 5xx and prevents the clear error message from reaching the admin. Update the frontend toast to render error from that field.",
+    "(Optional polish) After the above fix, mirror UsersPage's 'Usuario creado, pero el email de invitación NO se pudo enviar…' toast pattern for the resend/reset actions."
+  ],
+  "critical_code_review_comments": [
+    "invitation_service.create_token invalidates prior unused tokens by setting used_at + superseded (line 17-20). Good — but validate_token treats any doc with used_at set as invalid. This is correct but subtle; ok as-is.",
+    "email_service._send raises RuntimeError if RESEND_API_KEY or SENDER_EMAIL are missing, and Resend SDK raises resend.exceptions.ResendError which propagates cleanly with the useful detail — this is why the create-user path can surface a friendly message.",
+    "server.py :4857-4859 catches Exception but skips log_activity — see HIGH bug above.",
+    "server.py resend-invitation / send-password-reset raise 502 on Resend failure — see HIGH bug above (Cloudflare interception).",
+    "user_service.list_users pops password_hash into a truthiness check to derive invitation_pending: this correctly hides password_hash and provides the flag."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_invitation_password_flow.py"
+  ],
+  "success_rate": {"backend": "95% (20/21)", "frontend": "100% of critical flows"},
+  "test_credentials": "Admin: test_utf8@atlas.com / Humaniq123. invitado.prueba@example.com password is now 'CambiadaPass777' (was 'NuevaPass123' briefly during set-password test, then changed via /change-password). If main agent needs it in a specific state, reset it via invitation_service. dtejedo@gmail.com password NOT touched.",
+  "seed_data_creation": "Test users created during pytest and browser tests (test_invite_*, uitest_*, resend_test_*, quick_check_*) were all DELETED at the end along with their password_tokens.  Admin/dtejedo users untouched. Only invitado.prueba@example.com was consumed (activated with a real password — see test_credentials above).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite lives at /app/backend/tests/test_invitation_password_flow.py — 21 tests, currently 20 pass, 1 fails (activity_logs user_invited). It uses ATLAS_URI/ATLAS_DB_NAME with fallback to MONGO_URL/DB_NAME. It creates users with @testing-fake-domain.com (pydantic EmailStr rejects .local TLD). Cleanup fixture deletes anything matching ^(test_invite_|uitest_|resend_test_|quick_check_). Note that Cloudflare masks all 5xx backend responses in this preview env — do not assert on the JSON body of 502 responses, only on the status code.",
+  "rca of the issue": {
+    "user_invited_missing": "In server.py the block at ~4854-4859 puts both send_invitation_email(...) AND await log_activity(current_user,'user_invited',...) inside the same try. Any exception from Resend jumps to the except branch, so the log line is never reached. Fix: move log_activity out (either before the try, or in a finally / after email_sent computation).",
+    "cloudflare_502_hijack": "The resend/reset endpoints raise fastapi HTTPException(status_code=502, detail='...'). The upstream Cloudflare edge that fronts the preview domain has 5xx interception enabled — it replaces the origin body with its own HTML error page. Consequence: r.json() at the client raises JSONDecodeError, and the admin toast can't render backend detail. Fix suggestion: keep endpoint 2xx and return {sent:false, error:<detail>} following the same pattern already implemented in POST /api/users (which was observed to display the full 'You can only send testing emails to your own email address...' string beautifully in the UI)."
+  }
+}

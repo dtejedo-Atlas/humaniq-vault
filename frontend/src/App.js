@@ -23,6 +23,8 @@ import UsersPage from './pages/UsersPage';
 import DuplicatesPage from './pages/DuplicatesPage';
 import ClassificationReviewPage from './pages/ClassificationReviewPage';
 import AuthCallback from './pages/AuthCallback';
+import SetPasswordPage from './pages/SetPasswordPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 
 // Configure axios defaults
 axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
@@ -201,6 +203,19 @@ function AppRoutes() {
 
       {/* Redirect root to dashboard */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+      {/* Set password (público, vía token de email) */}
+      <Route path="/set-password" element={<SetPasswordPage />} />
+
+      {/* Cambiar contraseña (usuarios autenticados) */}
+      <Route
+        path="/change-password"
+        element={
+          <ProtectedRoute>
+            <ChangePasswordPage />
+          </ProtectedRoute>
+        }
+      />
 
       {/* 404 */}
       <Route

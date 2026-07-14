@@ -30,6 +30,9 @@ from models import (
 )
 from validation_models import ValidationRecord, ValidationSummary
 from auth import verify_password, get_password_hash, create_access_token, verify_token
+from types import SimpleNamespace
+import invitation_service
+from email_service import send_invitation_email, send_password_reset_email
 from atlas_service import atlas_service, classify_seniority
 from document_parser import DocumentParser
 from storage_service import storage_service, init_storage
@@ -335,7 +338,19 @@ async def login(credentials: UserLogin):
     """Login user"""
     user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     
-    if not user_doc or not verify_password(credentials.password, user_doc['password_hash']):
+    if not user_doc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas"
+        )
+    
+    if not user_doc.get('password_hash'):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu cuenta aún no tiene contraseña. Usa el enlace de invitación de tu email o pide a un administrador que lo reenvíe."
+        )
+    
+    if not verify_password(credentials.password, user_doc['password_hash']):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas"
@@ -370,7 +385,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 # ============= GOOGLE OAUTH (Emergent-managed) =============
 # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
 
-from pydantic import BaseModel as _AuthBaseModel
+from pydantic import BaseModel as _AuthBaseModel, EmailStr as _EmailStr
 
 class GoogleSessionRequest(_AuthBaseModel):
     session_id: str
@@ -437,6 +452,89 @@ async def google_session(payload: GoogleSessionRequest):
         user_doc['last_login'] = datetime.fromisoformat(user_doc['last_login'])
 
     return Token(access_token=access_token, user=User(**user_doc))
+
+
+# ============= PASSWORD SETUP / CHANGE =============
+
+class ValidateTokenRequest(_AuthBaseModel):
+    token: str
+
+class SetPasswordRequest(_AuthBaseModel):
+    token: str
+    password: str
+
+class ChangePasswordRequest(_AuthBaseModel):
+    current_password: str
+    new_password: str
+
+
+@api_router.post("/auth/validate-setup-token")
+async def validate_setup_token(payload: ValidateTokenRequest):
+    """Valida un token de invitación/reset (público, para la página set-password)"""
+    token_doc = await invitation_service.validate_token(db, payload.token)
+    if not token_doc:
+        return {"valid": False}
+    user_doc = await db.users.find_one({"id": token_doc["user_id"]}, {"_id": 0})
+    if not user_doc or user_doc.get("is_active") is False:
+        return {"valid": False}
+    return {"valid": True, "email": user_doc["email"], "name": user_doc.get("name"), "purpose": token_doc["purpose"]}
+
+
+@api_router.post("/auth/set-password")
+async def set_password(payload: SetPasswordRequest):
+    """Establece la contraseña con un token de un solo uso (invitación o reset)"""
+    if len(payload.password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña debe tener al menos 8 caracteres"
+        )
+    token_doc = await invitation_service.validate_token(db, payload.token)
+    if not token_doc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El enlace es inválido, ya fue usado o ha expirado. Pide a un administrador que lo reenvíe."
+        )
+    user_doc = await db.users.find_one({"id": token_doc["user_id"]}, {"_id": 0})
+    if not user_doc or user_doc.get("is_active") is False:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Usuario no encontrado o inactivo"
+        )
+    await db.users.update_one(
+        {"id": user_doc["id"]},
+        {"$set": {"password_hash": get_password_hash(payload.password)}}
+    )
+    await invitation_service.consume_token(db, payload.token)
+    actor = SimpleNamespace(id=user_doc["id"], name=user_doc.get("name"), email=user_doc["email"])
+    await log_activity(actor, "password_set", "user", user_doc["id"], user_doc["email"], {"purpose": token_doc["purpose"]})
+    return {"message": "Contraseña establecida correctamente. Ya puedes iniciar sesión."}
+
+
+@api_router.post("/auth/change-password")
+async def change_password(payload: ChangePasswordRequest, current_user: User = Depends(get_current_user)):
+    """Cambio de contraseña para usuarios autenticados"""
+    if len(payload.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña debe tener al menos 8 caracteres"
+        )
+    user_doc = await db.users.find_one({"email": current_user.email}, {"_id": 0})
+    if not user_doc.get("password_hash"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tu cuenta aún no tiene contraseña establecida. Usa el enlace de invitación de tu email."
+        )
+    if not verify_password(payload.current_password, user_doc["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña actual es incorrecta"
+        )
+    await db.users.update_one(
+        {"email": current_user.email},
+        {"$set": {"password_hash": get_password_hash(payload.new_password)}}
+    )
+    await log_activity(current_user, "password_changed", "user", current_user.id, current_user.email)
+    return {"message": "Contraseña actualizada correctamente"}
 
 
 # ============= CANDIDATE ROUTES =============
@@ -4721,21 +4819,110 @@ async def list_users(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
 
 
+class UserInviteRequest(_AuthBaseModel):
+    email: _EmailStr
+    name: str
+    role: UserRole = UserRole.RECRUITER
+    origin: str
+
+class EmailActionRequest(_AuthBaseModel):
+    origin: str
+
+
 @api_router.post("/users")
 async def create_user(
-    user_data: UserCreate,
+    user_data: UserInviteRequest,
     current_user: User = Depends(get_current_user)
 ):
     """
-    Crear nuevo usuario (solo Admin/Super Admin).
+    Crear nuevo usuario por invitación (solo Admin/Super Admin).
+    Envía email con enlace de un solo uso para establecer contraseña (48h).
     """
     try:
-        new_user = await user_service.create_user(user_data, current_user)
-        return new_user
+        new_user = await user_service.create_invited_user(
+            user_data.email, user_data.name, user_data.role, current_user
+        )
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    token = await invitation_service.create_token(db, new_user["id"], "invitation", current_user.id)
+    setup_link = f"{user_data.origin.rstrip('/')}/set-password?token={token}"
+
+    email_sent, email_error = True, None
+    try:
+        await send_invitation_email(new_user["email"], new_user["name"], setup_link)
+        await log_activity(current_user, "user_invited", "user", new_user["id"], new_user["email"], {"role": new_user["role"]})
+    except Exception as e:
+        logger.error(f"Fallo al enviar invitación a {new_user['email']}: {e}")
+        email_sent, email_error = False, str(e)
+
+    return {**new_user, "email_sent": email_sent, "email_error": email_error}
+
+
+@api_router.post("/users/{user_id}/resend-invitation")
+async def resend_invitation(
+    user_id: str,
+    payload: EmailActionRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Reenvía la invitación (solo si el usuario aún no estableció contraseña)"""
+    if not user_service.can_manage_users(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para esta acción")
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    if target.get("password_hash"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario ya estableció su contraseña. Usa 'Restablecer contraseña' en su lugar."
+        )
+
+    token = await invitation_service.create_token(db, user_id, "invitation", current_user.id)
+    setup_link = f"{payload.origin.rstrip('/')}/set-password?token={token}"
+    try:
+        await send_invitation_email(target["email"], target.get("name", ""), setup_link)
+    except Exception as e:
+        logger.error(f"Fallo al reenviar invitación a {target['email']}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"No se pudo enviar el email: {e}"
+        )
+    await log_activity(current_user, "invitation_resent", "user", user_id, target["email"])
+    return {"message": f"Invitación reenviada a {target['email']}"}
+
+
+@api_router.post("/users/{user_id}/send-password-reset")
+async def send_password_reset(
+    user_id: str,
+    payload: EmailActionRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Envía email de restablecimiento de contraseña (disparado manualmente por un Admin)"""
+    if not user_service.can_manage_users(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes permisos para esta acción")
+    target = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
+    if not target.get("password_hash"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario aún no ha establecido contraseña. Usa 'Reenviar invitación' en su lugar."
+        )
+
+    token = await invitation_service.create_token(db, user_id, "reset", current_user.id)
+    reset_link = f"{payload.origin.rstrip('/')}/set-password?token={token}"
+    try:
+        await send_password_reset_email(target["email"], target.get("name", ""), reset_link)
+    except Exception as e:
+        logger.error(f"Fallo al enviar reset a {target['email']}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"No se pudo enviar el email: {e}"
+        )
+    await log_activity(current_user, "password_reset_sent", "user", user_id, target["email"])
+    return {"message": f"Email de restablecimiento enviado a {target['email']}"}
 
 
 @api_router.get("/users/me")

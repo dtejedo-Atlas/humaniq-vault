@@ -97,6 +97,41 @@ class UserService:
         
         return user_doc
     
+    async def create_invited_user(
+        self,
+        email: str,
+        name: str,
+        role: UserRole,
+        created_by: User
+    ) -> Dict[str, Any]:
+        """Crea un usuario invitado (sin contraseña; la establece vía enlace de email)"""
+        if not self.can_manage_users(created_by):
+            raise PermissionError("No tienes permisos para crear usuarios")
+        if not self.can_create_role(created_by, role):
+            raise PermissionError(f"No puedes crear usuarios con rol {role}")
+
+        existing = await self.db.users.find_one({"email": email.lower()})
+        if existing:
+            raise ValueError("Ya existe un usuario con ese email")
+
+        user_id = str(uuid.uuid4())
+        user_doc = {
+            "id": user_id,
+            "email": email.lower(),
+            "name": name,
+            "role": role.value,
+            "is_active": True,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_by": created_by.id,
+            "last_login": None
+        }
+        await self.db.users.insert_one(user_doc)
+        logger.info(f"User {email} invited by {created_by.email}")
+
+        user_doc.pop("_id", None)
+        user_doc["invitation_pending"] = True
+        return user_doc
+
     async def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Obtiene un usuario por ID"""
         user = await self.db.users.find_one({"id": user_id}, {"_id": 0, "hashed_password": 0, "password_hash": 0})
@@ -130,13 +165,14 @@ class UserService:
         
         users = await self.db.users.find(
             query, 
-            {"_id": 0, "hashed_password": 0, "password_hash": 0}
+            {"_id": 0, "hashed_password": 0}
         ).sort("created_at", -1).to_list(100)
         
-        # Asegurar campo is_active
+        # Asegurar campo is_active + flag de invitación pendiente
         for user in users:
             if "is_active" not in user:
                 user["is_active"] = True
+            user["invitation_pending"] = not bool(user.pop("password_hash", None))
         
         return users
     

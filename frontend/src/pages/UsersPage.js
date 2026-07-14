@@ -39,7 +39,9 @@ import {
   Calendar,
   Loader2,
   AlertCircle,
-  UserCheck
+  UserCheck,
+  Send,
+  KeyRound
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -60,11 +62,11 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [includeInactive, setIncludeInactive] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sendingEmailFor, setSendingEmailFor] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
     name: '',
     role: 'recruiter'
   });
@@ -95,23 +97,63 @@ export default function UsersPage() {
   };
 
   const handleCreateUser = async () => {
-    if (!formData.email || !formData.password || !formData.name) {
-      toast.error('Todos los campos son obligatorios');
+    if (!formData.email || !formData.name) {
+      toast.error('Email y nombre son obligatorios');
       return;
     }
 
     try {
       setSaving(true);
-      await usersAPI.create(formData);
-      toast.success('Usuario creado correctamente');
+      const response = await usersAPI.create({
+        email: formData.email,
+        name: formData.name,
+        role: formData.role,
+        origin: window.location.origin
+      });
+      if (response.data.email_sent === false) {
+        toast.warning(
+          `Usuario creado, pero el email de invitación NO se pudo enviar: ${response.data.email_error || 'error desconocido'}. Usa el botón "Reenviar invitación" para intentar de nuevo.`,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success(`Usuario creado. Invitación enviada a ${formData.email}`);
+      }
       setShowCreateDialog(false);
-      setFormData({ email: '', password: '', name: '', role: 'recruiter' });
+      setFormData({ email: '', name: '', role: 'recruiter' });
       loadUsers();
     } catch (err) {
       console.error('Error creating user:', err);
       toast.error(err.response?.data?.detail || 'Error al crear usuario');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleResendInvitation = async (user) => {
+    if (!window.confirm(`¿Reenviar la invitación a ${user.email}? Se generará un enlace nuevo (el anterior quedará invalidado).`)) return;
+    try {
+      setSendingEmailFor(user.id);
+      await usersAPI.resendInvitation(user.id, window.location.origin);
+      toast.success(`Invitación reenviada a ${user.email}`);
+    } catch (err) {
+      console.error('Error resending invitation:', err);
+      toast.error(err.response?.data?.detail || 'No se pudo enviar el email. Intenta de nuevo.');
+    } finally {
+      setSendingEmailFor(null);
+    }
+  };
+
+  const handleSendPasswordReset = async (user) => {
+    if (!window.confirm(`¿Enviar email de restablecimiento de contraseña a ${user.email}?`)) return;
+    try {
+      setSendingEmailFor(user.id);
+      await usersAPI.sendPasswordReset(user.id, window.location.origin);
+      toast.success(`Email de restablecimiento enviado a ${user.email}`);
+    } catch (err) {
+      console.error('Error sending password reset:', err);
+      toast.error(err.response?.data?.detail || 'No se pudo enviar el email. Intenta de nuevo.');
+    } finally {
+      setSendingEmailFor(null);
     }
   };
 
@@ -281,14 +323,19 @@ export default function UsersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {user.is_active !== false ? (
+                    {user.is_active === false ? (
+                      <Badge variant="outline" className="bg-gray-100 text-gray-600">
+                        Inactivo
+                      </Badge>
+                    ) : user.invitation_pending ? (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200" data-testid={`invitation-pending-badge-${user.id}`}>
+                        <Send className="w-3 h-3 mr-1" />
+                        Invitación pendiente
+                      </Badge>
+                    ) : (
                       <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                         <UserCheck className="w-3 h-3 mr-1" />
                         Activo
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-gray-100 text-gray-600">
-                        Inactivo
                       </Badge>
                     )}
                   </TableCell>
@@ -310,6 +357,41 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
+                      {user.is_active !== false && (
+                        user.invitation_pending ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Reenviar invitación"
+                            data-testid={`resend-invitation-${user.id}`}
+                            onClick={() => handleResendInvitation(user)}
+                            disabled={sendingEmailFor === user.id}
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                          >
+                            {sendingEmailFor === user.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Send className="w-4 h-4" />
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Restablecer contraseña"
+                            data-testid={`send-password-reset-${user.id}`}
+                            onClick={() => handleSendPasswordReset(user)}
+                            disabled={sendingEmailFor === user.id}
+                            className="text-cyan-600 hover:text-cyan-700 hover:bg-cyan-50"
+                          >
+                            {sendingEmailFor === user.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <KeyRound className="w-4 h-4" />
+                            )}
+                          </Button>
+                        )
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -354,13 +436,14 @@ export default function UsersPage() {
               Nuevo Usuario
             </DialogTitle>
             <DialogDescription>
-              Crea una cuenta para un nuevo miembro del equipo
+              Se le enviará un email con un enlace para establecer su contraseña (expira en 48h)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nombre completo</Label>
               <Input
+                data-testid="create-user-name-input"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="Juan Pérez"
@@ -369,19 +452,11 @@ export default function UsersPage() {
             <div className="space-y-2">
               <Label>Email</Label>
               <Input
+                data-testid="create-user-email-input"
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="juan@empresa.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Contraseña</Label>
-              <Input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="Mínimo 8 caracteres"
               />
             </div>
             <div className="space-y-2">
@@ -425,10 +500,11 @@ export default function UsersPage() {
             <Button 
               onClick={handleCreateUser} 
               disabled={saving}
+              data-testid="create-user-submit"
               className="bg-indigo-600 hover:bg-indigo-700"
             >
               {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Crear Usuario
+              Crear y Enviar Invitación
             </Button>
           </DialogFooter>
         </DialogContent>
