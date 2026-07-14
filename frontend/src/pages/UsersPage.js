@@ -133,8 +133,12 @@ export default function UsersPage() {
     if (!window.confirm(`¿Reenviar la invitación a ${user.email}? Se generará un enlace nuevo (el anterior quedará invalidado).`)) return;
     try {
       setSendingEmailFor(user.id);
-      await usersAPI.resendInvitation(user.id, window.location.origin);
-      toast.success(`Invitación reenviada a ${user.email}`);
+      const res = await usersAPI.resendInvitation(user.id, window.location.origin);
+      if (res.data.sent === false) {
+        toast.error(`No se pudo enviar el email: ${res.data.error}`, { duration: 10000 });
+      } else {
+        toast.success(`Invitación reenviada a ${user.email}`);
+      }
     } catch (err) {
       console.error('Error resending invitation:', err);
       toast.error(err.response?.data?.detail || 'No se pudo enviar el email. Intenta de nuevo.');
@@ -147,8 +151,12 @@ export default function UsersPage() {
     if (!window.confirm(`¿Enviar email de restablecimiento de contraseña a ${user.email}?`)) return;
     try {
       setSendingEmailFor(user.id);
-      await usersAPI.sendPasswordReset(user.id, window.location.origin);
-      toast.success(`Email de restablecimiento enviado a ${user.email}`);
+      const res = await usersAPI.sendPasswordReset(user.id, window.location.origin);
+      if (res.data.sent === false) {
+        toast.error(`No se pudo enviar el email: ${res.data.error}`, { duration: 10000 });
+      } else {
+        toast.success(`Email de restablecimiento enviado a ${user.email}`);
+      }
     } catch (err) {
       console.error('Error sending password reset:', err);
       toast.error(err.response?.data?.detail || 'No se pudo enviar el email. Intenta de nuevo.');

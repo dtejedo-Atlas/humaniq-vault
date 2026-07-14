@@ -4853,10 +4853,10 @@ async def create_user(
     email_sent, email_error = True, None
     try:
         await send_invitation_email(new_user["email"], new_user["name"], setup_link)
-        await log_activity(current_user, "user_invited", "user", new_user["id"], new_user["email"], {"role": new_user["role"]})
     except Exception as e:
         logger.error(f"Fallo al enviar invitación a {new_user['email']}: {e}")
         email_sent, email_error = False, str(e)
+    await log_activity(current_user, "user_invited", "user", new_user["id"], new_user["email"], {"role": new_user["role"], "email_sent": email_sent})
 
     return {**new_user, "email_sent": email_sent, "email_error": email_error}
 
@@ -4885,12 +4885,9 @@ async def resend_invitation(
         await send_invitation_email(target["email"], target.get("name", ""), setup_link)
     except Exception as e:
         logger.error(f"Fallo al reenviar invitación a {target['email']}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"No se pudo enviar el email: {e}"
-        )
+        return {"sent": False, "error": str(e)}
     await log_activity(current_user, "invitation_resent", "user", user_id, target["email"])
-    return {"message": f"Invitación reenviada a {target['email']}"}
+    return {"sent": True, "message": f"Invitación reenviada a {target['email']}"}
 
 
 @api_router.post("/users/{user_id}/send-password-reset")
@@ -4917,12 +4914,9 @@ async def send_password_reset(
         await send_password_reset_email(target["email"], target.get("name", ""), reset_link)
     except Exception as e:
         logger.error(f"Fallo al enviar reset a {target['email']}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"No se pudo enviar el email: {e}"
-        )
+        return {"sent": False, "error": str(e)}
     await log_activity(current_user, "password_reset_sent", "user", user_id, target["email"])
-    return {"message": f"Email de restablecimiento enviado a {target['email']}"}
+    return {"sent": True, "message": f"Email de restablecimiento enviado a {target['email']}"}
 
 
 @api_router.get("/users/me")

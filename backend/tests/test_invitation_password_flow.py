@@ -270,19 +270,19 @@ def test_08_login_invited_user_no_password_yet(admin_headers):
 
 
 # =========================================================
-# 9. Resend invitation: pending → 502 (Resend fails); with password → 400
+# 9. Resend invitation: pending → 200 {sent:false, error}; with password → 400
 # =========================================================
-def test_09_resend_invitation_pending_user_returns_502(admin_headers):
+def test_09_resend_invitation_pending_user_returns_sent_false(admin_headers):
     r = requests.post(
         f"{API}/users/{STATE['user2_id']}/resend-invitation",
         headers=admin_headers,
         json={"origin": BASE_URL},
         timeout=30,
     )
-    assert r.status_code == 502, f"expected 502 (Resend rejects fake email), got {r.status_code} {r.text[:200]}"
-    # NOTE: In this env Cloudflare intercepts 502 and returns HTML error page instead of the JSON detail
-    # from the backend. Status code is preserved so we assert on that only.
-    # Bug reported to main agent: admin will NOT see the clear backend error message.
+    assert r.status_code == 200, f"expected 200, got {r.status_code} {r.text[:200]}"
+    body = r.json()
+    assert body["sent"] is False
+    assert "testing emails" in body["error"] or len(body["error"]) > 0
 
 
 def test_10_resend_invitation_user_with_password_returns_400(admin_headers):
@@ -297,17 +297,20 @@ def test_10_resend_invitation_user_with_password_returns_400(admin_headers):
 
 
 # =========================================================
-# 10. send-password-reset: user with password → 502 (fake email); pending → 400
+# 10. send-password-reset: user with password → 200 {sent:false} (fake email); pending → 400
 # =========================================================
-def test_11_send_password_reset_user_with_password_502(admin_headers):
+def test_11_send_password_reset_user_with_password_sent_false(admin_headers):
     r = requests.post(
         f"{API}/users/{STATE['user1_id']}/send-password-reset",
         headers=admin_headers,
         json={"origin": BASE_URL},
         timeout=30,
     )
-    # Email will fail (fake domain) → 502; token is created regardless (endpoint creates before send)
-    assert r.status_code == 502, f"expected 502, got {r.status_code} {r.text}"
+    # Email fails (fake domain) → 200 {sent:false, error}; token is created regardless
+    assert r.status_code == 200, f"expected 200, got {r.status_code} {r.text}"
+    body = r.json()
+    assert body["sent"] is False
+    assert len(body["error"]) > 0
 
 
 def test_12_send_password_reset_pending_user_400(admin_headers):

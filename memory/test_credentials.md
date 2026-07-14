@@ -33,3 +33,9 @@
 - Solo emails YA registrados en la colección `users` pueden entrar con Google (403 si no existen).
 - Cuentas vinculables para prueba manual: dtejedo@gmail.com (rol existente en users).
 - No hay contraseñas para el flujo Google (OAuth). El endpoint emite el mismo JWT que el login normal.
+
+## Invitaciones y contraseñas (Resend)
+- RESEND_API_KEY en backend/.env (modo prueba: solo envía a diego@humaniq.com.mx hasta verificar dominio humaniq.com.mx)
+- SENDER_EMAIL=onboarding@resend.dev (cambiar a diego@humaniq.com.mx tras verificar dominio)
+- Tokens de invitación/reset: colección password_tokens (sha256, un solo uso, 48h). Para generar uno en claro en tests: invitation_service.create_token(db, user_id, purpose, admin_id)
+- Suite: /app/backend/tests/test_invitation_password_flow.py

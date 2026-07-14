@@ -997,3 +997,14 @@ HMS = round(100 * K * core * HEC^0.15)
 - Frontend: botón Google en LoginPage (google-login-button) con redirect dinámico window.location.origin+'/dashboard' (NUNCA hardcodear); App.js detecta hash session_id= sincrónicamente y renderiza AuthCallback (useRef guard StrictMode); AuthContext.loginWithGoogleSession
 - Tests: /app/backend/tests/test_google_auth.py (8 backend) + 4 flujos frontend E2E. El flujo OAuth real con cuenta Google no es automatizable — el usuario debe probarlo manualmente
 - Playbook de testing guardado en /app/auth_testing.md
+
+### Altas de usuarios por invitación + emails Resend + cambio de contraseña (14-Jul-2026) — COMPLETADO Y TESTEADO (iteration_26 + 21/21 pytest)
+**Alcance aprobado por el usuario — SOLO 3 emails, todos con disparador manual de un Admin:**
+1. Invitación al crear usuario (POST /api/users con {email,name,role,origin}) — enlace "Establece tu contraseña"
+2. Reenvío de invitación (POST /api/users/{id}/resend-invitation) — solo usuarios sin contraseña
+3. Restablecimiento (POST /api/users/{id}/send-password-reset) — solo usuarios con contraseña
+NO hay "olvidé mi contraseña" público (rechazado explícitamente por el usuario). Cambio de contraseña logueado: POST /api/auth/change-password + página /change-password (link en Sidebar para todos los roles).
+**Arquitectura**: invitation_service.py (tokens sha256 en colección password_tokens, un solo uso, 48h, invalida previos), email_service.py (Resend, remitente = env SENDER_EMAIL, plantillas HTML español), endpoints públicos /api/auth/validate-setup-token y /api/auth/set-password, página pública /set-password?token=. Login guard: usuario sin password_hash → 401 con mensaje claro. GET /users expone flag invitation_pending (badge ámbar en UsersPage + botones reenviar/reset por fila).
+**Config**: RESEND_API_KEY (puesta por el usuario en backend/.env) + SENDER_EMAIL=onboarding@resend.dev (modo prueba: solo envía a diego@humaniq.com.mx). Cuando el usuario verifique el dominio humaniq.com.mx en resend.com/domains → SOLO cambiar SENDER_EMAIL=diego@humaniq.com.mx (sin tocar código).
+**Fixes post-testing**: (1) log_activity user_invited movido fuera del try (se registra aunque falle el email, con flag email_sent). (2) resend/reset devuelven 200 {sent:false, error} en vez de 502 porque Cloudflare intercepta los 5xx y ocultaba el error al admin — patrón espejo del create.
+**Tests**: /app/backend/tests/test_invitation_password_flow.py (21/21). PENDIENTE: usuario debe verificar dominio en Resend, probar el flujo real con su email y hacer REDEPLOY.
