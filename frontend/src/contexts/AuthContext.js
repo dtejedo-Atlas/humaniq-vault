@@ -69,18 +69,6 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
-  const register = async (email, password, name, role = 'recruiter') => {
-    await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/auth/register`, {
-      email,
-      password,
-      name,
-      role
-    });
-    
-    // Auto login after registration
-    return await login(email, password);
-  };
-
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -89,7 +77,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogleSession, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, loginWithGoogleSession, logout }}>
       {children}
     </AuthContext.Provider>
   );

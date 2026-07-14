@@ -1008,3 +1008,9 @@ NO hay "olvidé mi contraseña" público (rechazado explícitamente por el usuar
 **Config**: RESEND_API_KEY (puesta por el usuario en backend/.env) + SENDER_EMAIL=onboarding@resend.dev (modo prueba: solo envía a diego@humaniq.com.mx). Cuando el usuario verifique el dominio humaniq.com.mx en resend.com/domains → SOLO cambiar SENDER_EMAIL=diego@humaniq.com.mx (sin tocar código).
 **Fixes post-testing**: (1) log_activity user_invited movido fuera del try (se registra aunque falle el email, con flag email_sent). (2) resend/reset devuelven 200 {sent:false, error} en vez de 502 porque Cloudflare intercepta los 5xx y ocultaba el error al admin — patrón espejo del create.
 **Tests**: /app/backend/tests/test_invitation_password_flow.py (21/21). PENDIENTE: usuario debe verificar dominio en Resend, probar el flujo real con su email y hacer REDEPLOY.
+
+### Registro público deshabilitado (14-Jul-2026) — COMPLETADO Y VERIFICADO
+- POST /api/auth/register → 403 fijo "El registro público está deshabilitado..." (endpoint desactivado en backend, no solo UI)
+- LoginPage: eliminado toggle Regístrate/isRegister/campo nombre; nota "El acceso es solo por invitación" (invite-only-note). AuthContext: función register eliminada
+- Vías únicas de alta confirmadas: (1) Admin invita desde página Usuarios, (2) Google login solo para emails ya registrados
+- Verificado: curl register → 403, login normal → 200, screenshot login sin enlace de registro

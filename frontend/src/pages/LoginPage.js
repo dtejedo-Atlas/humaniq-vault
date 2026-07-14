@@ -10,14 +10,12 @@ import { toast } from 'sonner';
 
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, register } = useAuth();
+  const { login } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [isRegister, setIsRegister] = useState(false);
   
   const [formData, setFormData] = useState({
     email: '',
-    password: '',
-    name: ''
+    password: ''
   });
 
   const handleGoogleLogin = () => {
@@ -31,13 +29,8 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      if (isRegister) {
-        await register(formData.email, formData.password, formData.name);
-        toast.success('¡Cuenta creada exitosamente!');
-      } else {
-        await login(formData.email, formData.password);
-        toast.success('¡Bienvenido a Humaniq!');
-      }
+      await login(formData.email, formData.password);
+      toast.success('¡Bienvenido a Humaniq!');
       navigate('/dashboard');
     } catch (error) {
       console.error('Auth error:', error);
@@ -60,30 +53,13 @@ const LoginPage = () => {
 
         <Card>
           <CardHeader>
-            <CardTitle>{isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'}</CardTitle>
+            <CardTitle>Iniciar Sesión</CardTitle>
             <CardDescription>
-              {isRegister 
-                ? 'Crea tu cuenta para comenzar a usar Humaniq' 
-                : 'Ingresa tus credenciales para acceder'}
+              Ingresa tus credenciales para acceder
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isRegister && (
-                <div>
-                  <Label htmlFor="name">Nombre Completo</Label>
-                  <Input
-                    id="name"
-                    data-testid="register-name-input"
-                    type="text"
-                    placeholder="Juan Pérez"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required={isRegister}
-                  />
-                </div>
-              )}
-              
               <div>
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -119,7 +95,7 @@ const LoginPage = () => {
                 {loading ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Procesando...</>
                 ) : (
-                  isRegister ? 'Crear Cuenta' : 'Iniciar Sesión'
+                  'Iniciar Sesión'
                 )}
               </Button>
             </form>
@@ -149,17 +125,9 @@ const LoginPage = () => {
               Iniciar sesión con Google
             </Button>
 
-            <div className="mt-4 text-center text-sm">
-              <button
-                type="button"
-                onClick={() => setIsRegister(!isRegister)}
-                className="text-cyan-600 hover:text-cyan-700 font-medium"
-              >
-                {isRegister 
-                  ? '¿Ya tienes cuenta? Inicia sesión' 
-                  : '¿No tienes cuenta? Regístrate'}
-              </button>
-            </div>
+            <p className="mt-4 text-center text-xs text-slate-500" data-testid="invite-only-note">
+              El acceso es solo por invitación. Contacta a un administrador para recibir la tuya.
+            </p>
           </CardContent>
         </Card>
 

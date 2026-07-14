@@ -302,35 +302,13 @@ async def verify_candidate_edit_permission(candidate_id: str, current_user: User
 
 # ============= AUTHENTICATION ROUTES =============
 
-@api_router.post("/auth/register", response_model=User)
-async def register(user_data: UserCreate):
-    """Register a new user"""
-    # Check if user exists
-    existing = await db.users.find_one({"email": user_data.email})
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El email ya está registrado"
-        )
-    
-    # Create user
-    user_id = str(uuid.uuid4())
-    hashed_password = get_password_hash(user_data.password)
-    
-    user = User(
-        id=user_id,
-        email=user_data.email,
-        name=user_data.name,
-        role=user_data.role
+@api_router.post("/auth/register")
+async def register():
+    """Registro público deshabilitado: las altas son solo por invitación de un Admin"""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="El registro público está deshabilitado. Pide a un administrador que te envíe una invitación."
     )
-    
-    user_doc = user.model_dump()
-    user_doc['password_hash'] = hashed_password
-    user_doc['created_at'] = user_doc['created_at'].isoformat()
-    
-    await db.users.insert_one(user_doc)
-    
-    return user
 
 
 @api_router.post("/auth/login", response_model=Token)
