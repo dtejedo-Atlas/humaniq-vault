@@ -253,6 +253,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             detail="Usuario no encontrado"
         )
     
+    if user_doc.get('is_active') is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cuenta desactivada"
+        )
+    
     if isinstance(user_doc.get('created_at'), str):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     if user_doc.get('last_login') and isinstance(user_doc['last_login'], str):
@@ -332,6 +338,12 @@ async def login(credentials: UserLogin):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas"
+        )
+    
+    if user_doc.get('is_active') is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cuenta desactivada. Contacta a un administrador."
         )
     
     # Update last login
