@@ -23,14 +23,13 @@
 - `list_all_users.py` — dump con rol/is_active/last_login
 - `deactivate_and_rotate.py` — desactiva por email + rota password (usa `db_connection.py`)
 
-### Estado final de cuentas activas (11)
+### Estado final de cuentas activas (10)
 | Email | Rol |
 |-------|-----|
 | dtejedo@gmail.com | super_admin |
 | superadmin@atlas.com | super_admin |
 | test_utf8@atlas.com | admin |
 | diego@humaniq.com.mx | admin |
-| admin@atlas.com | recruiter |
 | psaez@humaniq.com.mx | recruiter |
 | xsanchez@humaniq.com.mx | recruiter |
 | majo@humaniq.com.mx | recruiter |
@@ -38,4 +37,4 @@
 | brangel@hqts.com.mx | recruiter |
 | vguerrero@hqts.com.mx | recruiter |
 
-**Nota:** `admin@atlas.com` (recruiter, creado el 24-Mar-2026, last_login 24-Mar) no estaba en la lista de limpieza del usuario. Queda activo — confirmar si también se desactiva.
+**Adicional 2026-07-16:** `admin@atlas.com` también desactivada (cuenta huérfana de pruebas de marzo).

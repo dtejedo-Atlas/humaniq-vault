@@ -22,6 +22,7 @@
   test_user_a7068b0c@atlas.com, test_user_fa5b2128@atlas.com, recruiter_test@atlas.com
 - patricia@atlas.com, ximena@atlas.com, alejandra@atlas.com, viridiana@atlas.com
   (reemplazadas por invitaciones a humaniq.com.mx / hqts.com.mx)
+- admin@atlas.com (huérfana de pruebas de marzo 2026)
 
 ## API Base URL
 - **Preview:** https://atlas-recruiting-ai.preview.emergentagent.com
