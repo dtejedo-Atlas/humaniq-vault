@@ -24,8 +24,10 @@ async def regenerate_embeddings():
     print("=" * 60)
     
     # Conectar a MongoDB
-    client = AsyncIOMotorClient(os.environ['MONGO_URL'])
-    db = client[os.environ['DB_NAME']]
+    mongo_url = os.environ.get('ATLAS_URI') or os.environ.get('MONGO_URL')
+    db_name = os.environ.get('ATLAS_DB_NAME') if os.environ.get('ATLAS_URI') else os.environ.get('DB_NAME')
+    client = AsyncIOMotorClient(mongo_url)
+    db = client[db_name]
     
     # Inicializar servicio de embeddings
     embedding_service = EmbeddingService()

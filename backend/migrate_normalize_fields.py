@@ -17,9 +17,10 @@ async def migrate_candidates():
     """Agregar campos normalizados a todos los candidatos existentes"""
     
     # Connect to MongoDB
-    mongo_url = os.environ['MONGO_URL']
+    mongo_url = os.environ.get('ATLAS_URI') or os.environ.get('MONGO_URL')
+    db_name = os.environ.get('ATLAS_DB_NAME') if os.environ.get('ATLAS_URI') else os.environ.get('DB_NAME')
     client = AsyncIOMotorClient(mongo_url)
-    db = client[os.environ['DB_NAME']]
+    db = client[db_name]
     
     print("🔄 Iniciando migración de candidatos existentes...")
     

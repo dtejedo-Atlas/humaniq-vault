@@ -1017,3 +1017,9 @@ NO hay "olvidé mi contraseña" público (rechazado explícitamente por el usuar
 
 ### Backlog (14-Jul-2026)
 - **P3 (rechazado por ahora)**: Pestaña "Auditoría / Actividad" en la página Usuarios. Decisión del usuario: el log de actividad ya existe en la colección `activity_logs` (user_invited, password_changed, login, etc.); no es necesario exponerlo como pestaña dedicada. Postergado indefinidamente.
+
+### Fix rol super_admin en Atlas + saneamiento de scripts DB (15-Jul-2026) — COMPLETADO Y VERIFICADO
+- Root cause: scripts de utilidad previos actualizaron el rol de dtejedo@gmail.com en el Mongo LOCAL (MONGO_URL) en vez de Atlas (ATLAS_URI), que es la DB real del backend.
+- Fix aplicado con autorización del usuario: (1) listados los 14 usuarios reales de Atlas (0 invitaciones pendientes; no existe diego@humaniq.com.mx como usuario), (2) dtejedo@gmail.com → super_admin en Atlas (matched=1, modified=1, verificado leyendo de vuelta), (3) revertido el super_admin fantasma del Mongo local (→ recruiter).
+- Verificación E2E: POST /api/auth/login con dtejedo@gmail.com devuelve role=super_admin (HTTP 200) → la pestaña "Usuarios" del sidebar ya aparece.
+- Saneamiento: creado /app/backend/scripts/db_connection.py (get_db() con la MISMA lógica que server.py: ATLAS_URI > MONGO_URL, ATLAS_DB_NAME > DB_NAME) + /app/backend/scripts/list_users.py. Corregidos migrate_bilingual_taxonomy.py, migrate_normalize_fields.py y regenerate_embeddings.py que usaban MONGO_URL hardcodeado. REGLA: todo script nuevo debe usar scripts/db_connection.get_db().
