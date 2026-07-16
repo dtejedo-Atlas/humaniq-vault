@@ -550,9 +550,9 @@ Sistema de reclutamiento AI para firma de headhunting en México. Permite subir 
   - `tests/test_users_assignments.py`
 - **Variables de entorno añadidas:**
   - `TEST_ADMIN_EMAIL` (default: `test_utf8@atlas.com`)
-  - `TEST_ADMIN_PASSWORD` (default: `Humaniq123`)
+  - `TEST_ADMIN_PASSWORD` (sin default en documentación — leer de entorno)
   - `TEST_RECRUITER_EMAIL` (default: `recruiter_test@atlas.com`)
-  - `TEST_RECRUITER_PASSWORD` (default: `Humaniq123`)
+  - `TEST_RECRUITER_PASSWORD` (sin default en documentación — leer de entorno)
 - **Item 2 (is vs ==):** Revisado - no se encontraron instancias de `is` con literales que necesiten cambio. Los `== True` existentes son necesarios para distinguir `True` de `None`.
 - **Tests:** 135 passed, 7 failed (fallos preexistentes por datos desactualizados), 1 skipped
 
