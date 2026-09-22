@@ -1,5 +1,15 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-09-22 — CAPA 1 y CAPA 2 completadas en orden
+- Capa 1: DOCX tablas/cuadros/encabezados/pies, alternativa PDF y OCR por página (Poppler+Tesseract spa/eng instalados y preparación idempotente). 12 tests pasan tras corregir AlternateContent.
+- Reprocesados solo 34 IDs autorizados con clasificador original. **34 legibles, 34 autoclasificados con cuatro campos completos, 0 ilegibles y 0 pendientes**, confianzas 78%-95%. Sin aprobaciones humanas. Before-images en cv_reprocessing_runs e historial/archivos preservados.
+- Resultado de Capa 1 entregado antes de comenzar Capa 2.
+- Capa 2: wrapper condicional <75%/faltantes/no canónicos, prompt CV completo, industria por meses de última década, años con periodos unidos, seniority por responsabilidad; JSON/evidencia validados. Modelo/SDK originales preservados.
+- Caché por CV/proceso y empresas, deduplicación concurrente, sin web. Estados de captura manual y avisos visibles; botones individuales/masivos activos con jobs persistidos y progreso recuperable.
+- No se llamó a segunda pasada para los 34 ya resueltos. Una llamada real con CV sintético verificó modelo/cache; pruebas de UI MOCKED solo para proteger Atlas. 47 regresiones finales pasan; build y responsive correctos.
+- Scoring/, job_matching_service.py, pesos, hybrid_search_service.py y atlas_service.py con diff vacío contra35947513ee5c0cd6ab7fa7b96967919538e170e3.
+- Hallazgos globales antiguos fuera de alcance permanecen congelados; sin nuevas credenciales ni cambios de claves.
+
 ## 2026-09-22 — Diagnóstico de CVs, bandeja de revisión y continuidad de carga
 - Diagnóstico read-only de 34 registros reportado antes de cambios: omisiones de tablas/cuadros DOCX, OCR fallido por Poppler, PDFs mixtos, claves no canónicas y casos de clasificación nula con texto. Informe nominal privado en `/root/humaniq_cv_diagnosis/report.md`.
 - Selección global de pendientes, aprobación en lote, cuatro dropdowns con guardado inmediato sin autoaprobar ni elevar confianza. Validación de catálogo y protección contra aprobar fichas vacías.

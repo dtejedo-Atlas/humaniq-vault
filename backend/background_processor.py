@@ -55,6 +55,7 @@ class ProcessingJob(BaseModel):
     processing_time_ms: Optional[int] = None
     extracted_name: Optional[str] = None
     extracted_email: Optional[str] = None
+    review_status: Optional[str] = None
     retry_count: int = 0
     stage_timings: Dict[str, int] = {}
 
@@ -81,6 +82,7 @@ class ProcessingJob(BaseModel):
             "processing_time_ms": self.processing_time_ms,
             "extracted_name": self.extracted_name,
             "extracted_email": self.extracted_email,
+            "review_status": self.review_status,
             "retry_count": self.retry_count,
             "stage_timings": self.stage_timings
         }
@@ -239,6 +241,7 @@ class BackgroundProcessor:
                 job.candidate_id = result.get('candidate_id')
                 job.extracted_name = result.get('extracted_name')
                 job.extracted_email = result.get('extracted_email')
+                job.review_status = result.get('review_status')
                 job.errors = result.get('errors', [])
                 job.warnings = result.get('warnings', [])
 

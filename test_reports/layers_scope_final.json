@@ -1,0 +1,20 @@
+{
+  "verified_at": "2026-09-22T18:08:42.019759+00:00",
+  "baseline": "35947513ee5c0cd6ab7fa7b96967919538e170e3",
+  "protected_paths": [
+    "backend/scoring",
+    "backend/job_matching_service.py",
+    "backend/scoring_config.py",
+    "backend/hybrid_search_service.py",
+    "backend/atlas_service.py"
+  ],
+  "protected_diff_empty": true,
+  "cohort_size": 34,
+  "readable": 34,
+  "automatically_classified_complete": 34,
+  "unreadable": 0,
+  "pending_in_cohort": 0,
+  "second_passes_on_original_cohort": 0,
+  "original_history_preserved": true,
+  "no_web_integration": true
+}

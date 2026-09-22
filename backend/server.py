@@ -35,6 +35,10 @@ import invitation_service
 from email_service import send_invitation_email, send_password_reset_email
 from atlas_service import atlas_service, classify_seniority
 from document_parser import DocumentParser
+from ocr_runtime import ensure_ocr_runtime
+from classification_refinement import classify_with_refinement, MANUAL_MESSAGE
+from cv_recheck_routes import create_recheck_router
+from cv_recheck_service import launch_batch as launch_recheck_batch
 from storage_service import storage_service, init_storage
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
@@ -1360,22 +1364,23 @@ async def upload_resume(
             return result.to_response()
         
         # ===== ETAPA 6: CLASIFICACIÓN CON AI =====
+        if not extracted_text or len(extracted_text.strip()) < 50:
+            candidate.review_status = 'manual_capture'
+            candidate.review_message = MANUAL_MESSAGE
+            warnings.append(MANUAL_MESSAGE)
         try:
             if extracted_text and len(extracted_text.strip()) >= 50:
-                classification = await atlas_service.classify_candidate(parsed_data, extracted_text)
+                classification = await classify_with_refinement(db, parsed_data, extracted_text)
                 
                 candidate.industry = classification.get('industry')
                 candidate.functional_area = classification.get('functional_area')
                 candidate.seniority = classification.get('seniority')
                 candidate.tags = classification.get('suggested_tags', [])
                 
-                candidate.ai_classification = AIClassification(
-                    industry=classification.get('industry'),
-                    functional_area=classification.get('functional_area'),
-                    seniority=classification.get('seniority'),
-                    confidence_score=classification.get('confidence_score', 0.0),
-                    suggested_tags=classification.get('suggested_tags', [])
-                )
+                candidate.ai_classification = AIClassification.model_validate(classification)
+                candidate.years_experience = classification.get('years_experience', candidate.years_experience)
+                candidate.review_status = classification.get('review_status')
+                candidate.review_message = classification.get('review_message')
         except Exception as e:
             logger.error(f"Error classifying candidate: {str(e)}")
             result.add_error(
@@ -1606,6 +1611,9 @@ async def upload_resume(
     
     response = result.to_response()
     response["parsed_data"] = parsed_data
+    if result.candidate_id:
+        review_flags = await db.candidates.find_one({'id': result.candidate_id}, {'_id': 0, 'review_status': 1, 'review_message': 1})
+        response.update(review_flags or {})
     response["has_low_confidence_duplicates"] = len(soft_duplicates) > 0 and soft_duplicates[0]['confidence'] < 0.85 if soft_duplicates else False
     
     return response
@@ -1647,20 +1655,17 @@ async def retry_candidate_processing(
     # Reprocesar clasificación
     if reprocess_classification and resume_text:
         try:
-            classification = await atlas_service.classify_candidate(candidate_doc, resume_text)
+            classification = await classify_with_refinement(db, candidate_doc, resume_text)
             
             updates['industry'] = classification.get('industry')
             updates['functional_area'] = classification.get('functional_area')
             updates['seniority'] = classification.get('seniority')
             updates['tags'] = classification.get('suggested_tags', [])
             
-            ai_classification = AIClassification(
-                industry=classification.get('industry'),
-                functional_area=classification.get('functional_area'),
-                seniority=classification.get('seniority'),
-                confidence_score=classification.get('confidence_score', 0.0),
-                suggested_tags=classification.get('suggested_tags', [])
-            )
+            ai_classification = AIClassification.model_validate(classification)
+            updates['years_experience'] = classification.get('years_experience', candidate_doc.get('years_experience'))
+            updates['review_status'] = classification.get('review_status')
+            updates['review_message'] = classification.get('review_message')
             ai_class_dict = ai_classification.model_dump()
             ai_class_dict['classified_at'] = ai_class_dict['classified_at'].isoformat()
             updates['ai_classification'] = ai_class_dict
@@ -1724,13 +1729,15 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     
     # 1. Extracción de texto (CPU-bound → thread aparte para no bloquear el event loop)
     extracted_text = ""
+    extraction_details = {'readable': False, 'text_chars': 0, 'warnings': []}
     try:
-        extracted_text = await asyncio.to_thread(
-            DocumentParser.extract_text_from_bytes, file_data, content_type
+        extraction_details = await asyncio.to_thread(
+            DocumentParser.extract_with_details, file_data, content_type
         )
+        extracted_text = extraction_details['text'] if extraction_details['readable'] else ''
         
         if not extracted_text or len(extracted_text.strip()) < 50:
-            result["warnings"].append("Poco texto extraído - posible PDF escaneado")
+            result["warnings"].append(MANUAL_MESSAGE)
     except Exception as e:
         error_type = detect_error_type(e, ProcessingStage.TEXT_EXTRACTION)
         result["errors"].append({
@@ -1848,6 +1855,12 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         })
         return result
     
+    candidate.cv_extraction = {key: value for key, value in extraction_details.items() if key != 'text'}
+    if not extraction_details['readable']:
+        candidate.review_status = 'manual_capture'
+        candidate.review_message = MANUAL_MESSAGE
+        result['review_status'] = 'manual_capture'
+        result['warnings'].append(MANUAL_MESSAGE)
     job.progress = 60
     job.current_stage = "ai_classification"
     await background_processor.persist_job(job)
@@ -1857,7 +1870,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     classification_task = None
     summary_task = None
     if extracted_text and len(extracted_text.strip()) >= 50:
-        classification_task = asyncio.create_task(atlas_service.classify_candidate(parsed_data, extracted_text))
+        classification_task = asyncio.create_task(classify_with_refinement(db, parsed_data, extracted_text))
         summary_task = asyncio.create_task(atlas_service.generate_summary(parsed_data, extracted_text))
     
     try:
@@ -1869,13 +1882,11 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
             candidate.seniority = classification.get('seniority')
             candidate.tags = classification.get('suggested_tags', [])
             
-            candidate.ai_classification = AIClassification(
-                industry=classification.get('industry'),
-                functional_area=classification.get('functional_area'),
-                seniority=classification.get('seniority'),
-                confidence_score=classification.get('confidence_score', 0.0),
-                suggested_tags=classification.get('suggested_tags', [])
-            )
+            candidate.ai_classification = AIClassification.model_validate(classification)
+            candidate.years_experience = classification.get('years_experience', candidate.years_experience)
+            candidate.review_status = classification.get('review_status')
+            candidate.review_message = classification.get('review_message')
+            result['review_status'] = candidate.review_status
     except Exception as e:
         result["errors"].append({
             "type": "ai_classification_failed",
@@ -2099,6 +2110,12 @@ async def upload_batch(
 
 # ============= ATLAS AI ROUTES =============
 
+@app.on_event("startup")
+async def prepare_ocr_dependencies():
+    await asyncio.to_thread(ensure_ocr_runtime)
+    async for batch in db.cv_recheck_batches.find({'status': {'$in': ['queued', 'processing']}}, {'_id': 0, 'batch_id': 1}):
+        launch_recheck_batch(db, batch['batch_id'])
+
 @api_router.post("/atlas/classify/{candidate_id}")
 async def classify_candidate_by_atlas(
     candidate_id: str,
@@ -2202,11 +2219,12 @@ async def approve_atlas_classification(
             "updated_at": now
         }
     
+    update_data.update({'review_status': 'approved', 'review_message': ''})
     await db.candidates.update_one(
         {"id": candidate_id},
         {"$set": update_data}
     )
-    
+
     full_name_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "full_name": 1})
     await log_activity(current_user, "classification_approved", "candidate", candidate_id, (full_name_doc or {}).get("full_name"))
     
@@ -2293,6 +2311,9 @@ async def get_pending_classifications(
             },
             "confidence_score": ai_class.get("confidence_score", 0),
             "manually_edited": bool(ai_class.get("manual_fields")),
+            "review_status": c.get("review_status"),
+            "review_message": c.get("review_message"),
+            "second_pass": ai_class.get("second_pass"),
             "classified_at": ai_class.get("classified_at"),
             "created_at": c.get("created_at")
         })
@@ -2432,6 +2453,7 @@ async def bulk_approve_classifications(
                     "updated_at": now
                 }
             
+            update_data.update({'review_status': 'approved', 'review_message': ''})
             await db.candidates.update_one(
                 {"id": candidate_id},
                 {"$set": update_data}
@@ -5739,6 +5761,7 @@ async def root():
 
 
 # Include the router in the main app
+app.include_router(create_recheck_router(get_current_user, lambda: db))
 app.include_router(api_router)
 
 app.add_middleware(

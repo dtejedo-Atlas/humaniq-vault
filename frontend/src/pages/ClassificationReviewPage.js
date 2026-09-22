@@ -7,9 +7,14 @@ import { toast } from 'sonner';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { reviewAPI } from '../api';
 import { ReviewCandidateCard } from '../components/review/ReviewCandidateCard';
+import { ReviewRecheckProgress } from '../components/review/ReviewRecheckProgress';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function ClassificationReviewPage() {
   const taxonomy = useTaxonomy();
+  const { user } = useAuth();
+  const [recheckBatch, setRecheckBatch] = useState(null);
+  const [rechecking, setRechecking] = useState(false);
   const { refetch: refetchTaxonomy } = taxonomy;
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
@@ -38,7 +43,29 @@ export default function ClassificationReviewPage() {
   useEffect(() => { load(); return () => { requestSequence.current += 1; }; }, [load]);
   // The existing taxonomy provider may still be loading when this route is opened.
   useEffect(() => { refetchTaxonomy(); }, [refetchTaxonomy]);
-  const blocked = busy || loading || savingIds.length > 0;
+  const blocked = busy || loading || rechecking || savingIds.length > 0;
+  useEffect(() => {
+    let live = true;
+    reviewAPI.latestRecheck().then(({ data }) => {
+      if (live && data.batch_id && localStorage.getItem(`review-dismissed-${user?.id}`) !== data.batch_id) setRecheckBatch(data.batch_id);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [user?.id]);
+  const recheck = async ids => {
+    setBusy(true);
+    try { const { data } = await reviewAPI.recheck(ids); setRecheckBatch(data.batch_id); setRechecking(true); }
+    catch (e) { toast.error('No se pudo iniciar la revisión. Tu selección se conserva.'); }
+    finally { setBusy(false); }
+  };
+  const recheckComplete = response => {
+    const resolved = new Set(response.jobs.filter(job => job.review_status === 'classified').map(job => job.candidate_id));
+    setSelected(previous => previous.filter(id => !resolved.has(id)));
+    window.dispatchEvent(new Event('classification-review-updated')); load();
+  };
+  const dismissRecheck = () => {
+    try { localStorage.setItem(`review-dismissed-${user?.id}`, recheckBatch); } catch { /* Dismiss still works when browser storage is unavailable. */ }
+    setRecheckBatch(null); setRechecking(false);
+  };
   const onSaving = useCallback((id, value) => setSavingIds(prev => value ? [...new Set([...prev, id])] : prev.filter(x => x !== id)), []);
   const onSaved = (id, fields) => setCandidates(prev => prev.map(c => c.id !== id ? c : {
     ...c, manually_edited: true,
@@ -82,13 +109,13 @@ export default function ClassificationReviewPage() {
           <Button data-testid="review-select-all" variant="outline" onClick={selectAll} disabled={blocked || !total}><ListChecks className="mr-2 h-4 w-4" />Seleccionar todos ({total})</Button>
           {!!selected.length && <Button data-testid="review-clear-selection" variant="ghost" onClick={() => setSelected([])} disabled={blocked}>Deseleccionar todos</Button>}
           <Button data-testid="review-bulk-approve" className="bg-green-700 hover:bg-green-800" onClick={() => approve(selected)} disabled={blocked || !selected.length}><CheckCircle2 className="mr-2 h-4 w-4" />Aprobar seleccionados ({selected.length})</Button>
-          <Button data-testid="review-bulk-recheck" variant="outline" disabled title="Segunda pasada pendiente de aprobación e implementación"><RefreshCw className="mr-2 h-4 w-4" />Volver a revisar seleccionados</Button>
+          <Button data-testid="review-bulk-recheck" variant="outline" disabled={blocked || !selected.length} onClick={() => recheck(selected)}><RefreshCw className="mr-2 h-4 w-4" />Volver a revisar seleccionados</Button>
         </div>
-        <p data-testid="review-second-pass-pending" className="text-xs text-slate-500">Segunda pasada: pendiente de aprobación e implementación.</p>
+        {recheckBatch && <ReviewRecheckProgress batchId={recheckBatch} onComplete={recheckComplete} onBusy={setRechecking} onClose={dismissRecheck} />}
         {error && <Alert data-testid="review-load-error" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {bulkErrors.length > 0 && <Alert data-testid="review-bulk-errors" variant="destructive"><AlertDescription><p>{bulkErrors.length} fichas no se aprobaron:</p><ul className="mt-2 space-y-1">{bulkErrors.map(e => <li data-testid={`review-bulk-error-${e.id}`} key={e.id} className="break-words">{candidates.find(c => c.id === e.id)?.full_name || e.id}: {e.error}</li>)}</ul></AlertDescription></Alert>}
         {loading && !candidates.length ? <div data-testid="review-loading" role="status" className="py-16 text-center"><Loader2 className="mx-auto h-7 w-7 animate-spin text-cyan-600" /></div> : !error && !candidates.length ? <div data-testid="review-empty" className="py-16 text-center text-slate-500"><CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-green-600" />No hay clasificaciones pendientes.</div> : (
-          <div className="space-y-4">{candidates.map(c => <ReviewCandidateCard key={c.id} candidate={c} selected={selected.includes(c.id)} toggle={() => setSelected(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} taxonomy={taxonomy} onSaved={onSaved} onSaving={onSaving} onApprove={id => approve([id], true)} busy={busy || loading} />)}</div>
+          <div className="space-y-4">{candidates.map(c => <ReviewCandidateCard key={c.id} candidate={c} selected={selected.includes(c.id)} toggle={() => setSelected(prev => prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id])} taxonomy={taxonomy} onSaved={onSaved} onSaving={onSaving} onApprove={id => approve([id], true)} onRecheck={id => recheck([id])} busy={busy || loading || rechecking} />)}</div>
         )}
         {pages > 1 && <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><p data-testid="review-pagination-status" className="text-sm text-slate-500">Página {page} de {pages} · {total} pendientes</p><div className="flex gap-2"><Button data-testid="review-previous-page" variant="outline" disabled={blocked || page === 1} onClick={() => setPage(p => p - 1)}><ChevronLeft className="mr-1 h-4 w-4" />Anterior</Button><Button data-testid="review-next-page" variant="outline" disabled={blocked || page === pages} onClick={() => setPage(p => p + 1)}>Siguiente<ChevronRight className="ml-1 h-4 w-4" /></Button></div></div>}
       </div>

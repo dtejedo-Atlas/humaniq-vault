@@ -1,12 +1,16 @@
 # Humaniq Talent Vault — Pendientes
 
-## P0 — Segunda pasada pendiente de autorización (2026-09-22)
-- Diagnóstico de 34 CVs completado y entregado. Secciones 3/4 implementadas y probadas; scoring/pesos/matching intactos.
-- Esperar OK explícito antes de mejorar extracción/OCR o clasificación. NO ejecutar aún una segunda pasada ni reprocesar los 34.
-- Propuesta: umbral <0,75 o claves/campos ausentes; recuperar DOCX/PDF/OCR primero, CV completo, industria dominante de última década, seniority por evidencia y años sin doble conteo; una pasada adicional deduplicada por versión y caché de empresas.
-- Decidir integración web solo para empresas desconocidas: disponible para el agente, no actualmente para la app.
-- Implementar estados de captura manual y avisos de ilegibilidad junto con la segunda pasada; conectar entonces controles individuales/masivos ya visibles y deshabilitados.
-- Mejora relevante prioritaria: recuperar texto omitido antes de gastar llamadas LLM adicionales.
+## P0 — Capas 1 y 2 completadas (2026-09-22)
+- Capa 1: extracción DOCX/PDF/OCR corregida y 34 reprocesados con motor original. Resultado entregado antes de Capa 2: **34 legibles, 34 autoclasificados completos, cero ilegibles/pendientes**.
+- Capa 2: segunda pasada condicional implementada, caché/deduplicación, cronología/industria/seniority, captura manual y botones individual/lote activos.
+- Scoring/pesos/matching y primera pasada en atlas_service.py intactos. No se llamó a segunda pasada sobre los 34 ya resueltos.
+- Pruebas: 47 regresiones finales + prueba real sintética previa de Claude/cache; no fallos funcionales pendientes del alcance.
+- **NO integrar web**: el usuario lo pospuso expresamente. Reevaluar únicamente si aparecen suficientes casos reales no resueltos.
+
+## P1 — Validación y medición
+- Usuario valida una muestra de los 34 y nuevas cargas, especialmente identidad, industria y cronología; confianza IA no equivale a aprobación humana.
+- Conservar los tests aislados como puerta de regresión. Prueba LLM real requiere opt-in explícito para no consumir saldo automáticamente.
+- No repetir reprocesamientos ni introducir dashboards/features adicionales sin autorización.
 
 ## Operación anterior
 - Baja de Patricia Sáez aplicada y cuenta conservada; acceso con sesión comprobado con HTTP 403.

@@ -247,6 +247,11 @@ class AIClassification(BaseModel):
     suggested_tags: List[str] = []
     classified_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     approved_by_recruiter: bool = False
+    reasoning: Optional[str] = None
+    field_confidence: Optional[Dict] = None
+    second_pass: Optional[Dict] = None
+    first_pass: Optional[Dict] = None
+    source: Optional[str] = None
 
 class Candidate(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -278,6 +283,9 @@ class Candidate(BaseModel):
     source: Optional[str] = None
     ai_summary: Optional[str] = None
     ai_classification: Optional[AIClassification] = None
+    review_status: Optional[str] = None
+    review_message: Optional[str] = None
+    cv_extraction: Optional[Dict] = None
     embedding: Optional[List[float]] = None
     embedding_updated_at: Optional[datetime] = None
     

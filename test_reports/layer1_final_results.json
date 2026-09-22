@@ -1,0 +1,19 @@
+{
+  "layer": 1,
+  "total": 34,
+  "readable": 34,
+  "auto_classified": 34,
+  "all_key_fields_complete": 34,
+  "unreadable": 0,
+  "still_in_review": 0,
+  "ocr_failed_pages": 0,
+  "confidence_range": [
+    0.78,
+    0.95
+  ],
+  "history_and_original_files_preserved": true,
+  "human_approvals_added": 0,
+  "protected_diff_empty": true,
+  "second_pass_calls": 0,
+  "parser_tests_passed": 12
+}

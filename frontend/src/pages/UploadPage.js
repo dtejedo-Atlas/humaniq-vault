@@ -72,6 +72,8 @@ const UploadPage = () => {
             stageReached: data.stage_reached,
             errors: data.errors || [],
             warnings: data.warnings || [],
+            reviewStatus: data.review_status,
+            reviewMessage: data.review_message,
             processingTime: data.processing_time_ms,
             duplicates: data.duplicates,
             isDuplicate
@@ -356,6 +358,7 @@ const UploadPage = () => {
                         </Button>
                       </div>
                     </div>
+                    {job.review_status === 'manual_capture' && <p data-testid={`batch-job-manual-capture-${job.job_id}`} role="alert" className="mt-2 text-sm font-medium text-amber-800">No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».</p>}
                     
                     {/* Barra de progreso individual */}
                     {job.status === 'processing' && (
@@ -495,10 +498,10 @@ const UploadPage = () => {
                       'border-red-200 bg-red-50/50'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <FileText className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium">{result.fileName}</span>
+                        <span data-testid={`upload-result-name-${index}`} className="text-sm font-medium break-all">{result.fileName}</span>
                         {result.candidateName && (
                           <span className="text-xs text-slate-500">→ {result.candidateName}</span>
                         )}
@@ -520,6 +523,8 @@ const UploadPage = () => {
                         Ver Perfil
                       </Button>
                     )}
+                    {result.reviewStatus === 'manual_capture' && <p data-testid={`upload-result-manual-capture-${index}`} role="alert" className="mt-3 text-sm font-medium text-amber-800">No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».</p>}
+                    {!!result.errors?.length && <p data-testid={`upload-result-errors-${index}`} role="alert" className="mt-2 text-xs text-red-700 break-words">{result.errors.map(error => error.message).join(' · ')}</p>}
                   </div>
                 ))}
               </div>

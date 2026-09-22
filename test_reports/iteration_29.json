@@ -1,0 +1,46 @@
+{
+  "summary": "Completed CAPA2 backend + frontend verification. Backend isolated suite passed including chronology math, conditional second-pass wrapper, cache/idempotency, recheck service/routes, upload worker manual_capture flow, and ONE live Claude synthetic smoke with cache hit on second call. Frontend review/upload flows were validated with route interception because real /review queue is empty.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/app/backend/tests/test_layer2_capa2_isolated.py",
+        "issue": "Pytest emits PytestUnknownMarkWarning for custom marker integration_live (marker not registered)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_layer2_capa2_isolated.py",
+    "/app/backend/tests/test_classification_review_isolated_v2.py",
+    "/app/backend/tests/test_background_processor_isolated.py",
+    "/app/test_reports/pytest/iteration_29_layer2.xml",
+    "/app/test_reports/pytest/iteration_29_regression.xml"
+  ],
+  "action_items": [
+    "Optional hygiene: register custom pytest marker integration_live to remove warning noise.",
+    "Main agent can run same isolated test file as regression for future CAPA2 changes."
+  ],
+  "critical_code_review_comments": [
+    "Protected baseline check passed: git diff is empty for backend/scoring, backend/job_matching_service.py, backend/scoring_config.py, backend/hybrid_search_service.py, backend/atlas_service.py.",
+    "CAPA2 guardrails behaved as expected in isolated DB: duplicate concurrent second-pass calls share one model execution, failed automatic passes are not auto-retried, and explicit retry is capped.",
+    "server.py remains very large/monolithic (preexisting maintainability risk), but no CAPA2 functional regression was found in tested scope."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_layer2_capa2_isolated.py",
+    "/app/test_reports/iteration_29.json"
+  ],
+  "success_rate": {
+    "backend": "100% (23/23): layer2 isolated 17/17 + regression isolated suites 6/6",
+    "frontend": "100% for requested MOCKED interception checks executed"
+  },
+  "seed_data_creation": "None on shared preview/Atlas data. All backend persistence tests used isolated LOCAL MongoDB temporary databases and were dropped.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend mutation flows in this iteration were MOCKED/INTERCEPTED intentionally (real /review queue currently empty). Real auth login to preview worked. Backend CAPA2 live smoke used synthetic CV text only and validated second call cache_hit behavior with existing SDK/_send path.",
+  "rca of the issue": "No new product defect reproduced in CAPA2 scope during this run. Initial Playwright failure was test-script-level (post_data_json invocation), corrected in rerun."
+}

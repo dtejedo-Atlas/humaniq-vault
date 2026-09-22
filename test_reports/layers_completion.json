@@ -1,0 +1,26 @@
+{
+  "layer1": {
+    "readable": 34,
+    "auto_classified_complete": 34,
+    "unreadable": 0,
+    "pending": 0,
+    "confidence_range": [0.78, 0.95],
+    "human_approvals": 0,
+    "reported_before_layer2_implementation": true,
+    "parser_tests": "12 passed after AlternateContent fix"
+  },
+  "layer2": {
+    "implemented": true,
+    "web_integrated": false,
+    "second_pass_calls_on_original_34": 0,
+    "reason": "All 34 already met threshold and all key fields after Layer1",
+    "live_synthetic_model_test": "Passed; repeated identical call cache_hit without another LLM call",
+    "specific_suite": "17 passed in iteration_29",
+    "ui_mutations_mocked_only_in_tests": true,
+    "responsive_widths_passed": [320, 768, 1024, 1440]
+  },
+  "final_regression": {"passed": 47, "failed": 0, "live_repeat_deselected": 1, "junit": "pytest/layers_final_regression.xml"},
+  "iteration_29_minor_issue": "Resolved: integration_live marker registered; real model test now opt-in",
+  "protected_scope": "layers_scope_final.json",
+  "known_preexisting_global_findings": "Nine existing lint/storage/model-redefinition findings outside scope remain frozen. Global precompletion check not claimed clean."
+}

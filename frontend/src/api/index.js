@@ -64,6 +64,9 @@ export const candidatesAPI = {
 
 // Atlas AI
 export const reviewAPI = {
+  recheck: (ids) => axios.post(`${API_BASE}/atlas/classifications/recheck`, { candidate_ids: ids }),
+  recheckStatus: (batchId) => axios.get(`${API_BASE}/atlas/classifications/rechecks/${batchId}`),
+  latestRecheck: () => axios.get(`${API_BASE}/atlas/classifications/rechecks/latest`),
   getPending: (page = 1) => axios.get(`${API_BASE}/atlas/classifications/pending`, { params: { page, limit: 20 } }),
   getPendingIds: () => axios.get(`${API_BASE}/atlas/classifications/pending/ids`),
   saveField: (id, fields) => axios.patch(`${API_BASE}/atlas/classifications/manual/${id}`, fields),

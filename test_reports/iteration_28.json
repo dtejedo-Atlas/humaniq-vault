@@ -1,0 +1,52 @@
+{
+  "summary": "Backend-only Layer1 validation completed (DOCX/PDF/OCR/reprocess guardrails). 11/12 pytest tests passed. Read-only extraction over all 34 originals succeeded with 29 readable, 5 unreadable, 0 OCR-failed pages.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "DOCX extraction path (/app/backend/docx_extraction.py::_story_text)",
+        "issue": "OOXML mc:AlternateContent text is dropped instead of selecting Choice/Fallback branch. Repro: synthetic DOCX with mc:Choice text ALT_CHOICE returns only VISIBLE_TEXT. This can hide real CV content inside AlternateContent blocks.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "/app/backend/docx_extraction.py:20",
+        "issue": "FutureWarning raised repeatedly: truth-testing lxml elements inside any(child.iter(...)) is ambiguous and will change behavior in future lxml versions."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_layer1_parser_readonly.py",
+    "/app/test_reports/pytest/iteration_28_layer1.xml",
+    "/root/humaniq_cv_diagnosis/layer1_extraction.log",
+    "/root/humaniq_cv_diagnosis/layer1_extraction.json"
+  ],
+  "action_items": [
+    "Fix AlternateContent selection in docx_extraction._story_text so one valid branch is actually traversed (without dropping content or duplicating Choice/Fallback).",
+    "Replace ambiguous truth-testing in lxml iterator check to remove FutureWarning and prevent future regressions.",
+    "Re-run /app/backend/tests/test_layer1_parser_readonly.py and confirm 12/12 pass before moving to CAPA2."
+  ],
+  "critical_code_review_comments": [
+    "Protected diff check passed: backend/scoring, backend/job_matching_service.py, backend/scoring_config.py, backend/hybrid_search_service.py, backend/atlas_service.py had empty git diff.",
+    "OCR runtime wiring is present and invoked on startup via prepare_ocr_dependencies -> ensure_ocr_runtime (to_thread).",
+    "Reprocess script includes expected guardrails: --apply opt-in, source resume reference checks, optimistic updated_at condition, and run_id-based dedupe for completed runs."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_layer1_parser_readonly.py",
+    "/app/test_reports/iteration_28.json"
+  ],
+  "success_rate": {
+    "backend": "91.7% (11/12)",
+    "frontend": "N/A (backend-only request)"
+  },
+  "seed_data_creation": "None. No candidate writes, no --apply run, no LLM calls.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Layer1 dry-run evidence confirms summary: readable=29, unreadable=5, auto_classified=0, errors=0. Main failing regression is DOCX AlternateContent text loss. Existing upload/review suites were not run in this pass because request scope is Layer1 parser and those suites may mutate candidate data.",
+  "rca of the issue": "Root cause: in docx_extraction._story_text, AlternateContent branch selection uses any(child.iter(W + 't')). lxml Element truthiness is based on child count, so leaf <w:t> elements evaluate falsy; any(...) returns False and selected becomes None. Result: AlternateContent subtree is skipped entirely. Reproduction: run pytest test_docx_alternatecontent_choice_only_and_deleted_text_ignored; observed output excludes ALT_CHOICE. Mitigation: select branch via explicit existence check (e.g., next(child.iter(W+'t'), None) is not None) and keep single-branch traversal to avoid duplication."
+}

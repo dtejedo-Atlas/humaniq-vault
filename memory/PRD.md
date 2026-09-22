@@ -33,7 +33,50 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
-## Último trabajo — 2026-09-22: revisión y seguimiento de carga
+## Último trabajo — 2026-09-22: CAPA 1 y CAPA 2 completadas
+**Autorización del usuario:** ejecutar en orden dos capas, informar números de Capa 1 antes de avanzar a Capa 2, NO integrar web, NO tocar scoring/pesos/matching. El usuario confirmó además que recargó créditos durante la ejecución.
+
+### Capa 1 — extracción corregida y 34 reprocesados
+- DOCX: extracción OOXML de párrafos, tablas anidadas, cuadros de texto, encabezados y pies; una sola rama AlternateContent, sin duplicados ni texto eliminado por control de cambios.
+- PDF: conserva extractor multicolumna y añade lector alternativo pypdfium2; OCR por página en PDFs imagen/contornos y mixtos, incluso si otras páginas tienen texto.
+- Poppler y Tesseract instalados con idiomas español/inglés. `scripts/install_ocr.sh` + `ocr_runtime.py` realizan preparación idempotente al arrancar si faltan dependencias; si falla la instalación se informa OCR no disponible, sin fingir lectura exitosa.
+- **Resultado real: 34/34 legibles, 34/34 clasificados automáticamente con los cuatro campos completos, 0 ilegibles, 0 pendientes del grupo. Confianza 78%-95%.** No son aprobaciones humanas.
+- Se entregó ese resultado al usuario ANTES de implementar Capa 2.
+- Reprocesamiento ejecutado mediante `scripts/reprocess_diagnostic_cohort.py --apply`, limitado a los IDs/archivos diagnosticados. Usa parse_resume y classify_candidate ORIGINALES: 68 llamadas de primera pasada, cero de segunda.
+- IDs, CVs originales, notas, asignaciones, tags, fechas de creación e historial ajeno a campos derivados preservados y comparados. Audit/before-images y resultados en Mongo `cv_reprocessing_runs`; datos nominales privados en `/root/humaniq_cv_diagnosis/layer1_results.json`.
+- 12 pruebas Capa 1 aprobadas; el fallo detectado en truthiness de elementos OOXML fue corregido antes de reprocesar.
+
+### Capa 2 — implementada, sin web
+- Wrapper separado mantiene la primera pasada existente; solo ejecuta segunda si confianza <0,75, clasificación no canónica/campo faltante o años desconocidos. Cero años válidos no dispara por sí solo.
+- Se relee texto completo recuperado, sin recortar a 3.000 caracteres. Documento excesivo se rechaza explícitamente en vez de truncarlo silenciosamente.
+- Modelo conservado: `claude-sonnet-4-5-20250929`, SDK existente y `_send` no streaming (el instalado NO exporta TextDelta). No se cambiaron proveedor, clave o dependencias Python.
+- JSON validado con Pydantic; fechas/citas verificadas contra CV. Industria dominante por meses en últimos 120 meses, prorrateando empleos simultáneos entre sectores; seniority por responsabilidades; años por unión de meses sin contar educación ni duplicar simultáneos. Incertidumbre/ties/fechas faltantes reducen confianza.
+- Caché por contenido/versión de proceso/modelo/catálogo/país, con deduplicación concurrente en Mongo. Caché de industria/tamaño de empresas a partir de modelo/contexto; solo se envían entradas de empresas citadas en el CV. **NO web scraping ni búsqueda web en la aplicación.**
+- Una ejecución adicional automática; fallos no se reintentan automáticamente. Un reintento explícito de fallo está permitido hasta máximo dos intentos; resultados exitosos se reutilizan sin otra llamada.
+- Archivos ilegibles: `review_status=manual_capture`, mensaje «Requiere captura manual» y avisos visibles en carga individual, carga en lote y Por Revisar. No LLM sobre texto ilegible; no aprobación ficticia.
+- Botones individuales y de lote habilitados. Jobs/resultado persistidos, recuperación del último lote por usuario, progreso y errores. Protección contra cambios concurrentes, CV activo cambiado y sobrescritura de aprobación o campos manuales.
+- **No se ejecutó Capa 2 sobre los 34:** ya cumplían umbral y campos completos. Permanecen cero pendientes, sin llamadas redundantes.
+
+### Arquitectura nueva y verificación final
+- `docx_extraction.py`, `pdf_extraction.py`, `ocr_runtime.py`: extracción, OCR y preparación nativa.
+- `classification_evidence.py`: cronología exclusiva de clasificación, NO importada por scoring/matching.
+- `classification_refinement.py`: condiciones, prompt completo, conocimiento empresarial, evidencia/caché de segunda pasada.
+- `cv_recheck_service.py` y `cv_recheck_routes.py`: re-revisión in-place y jobs asíncronos. Rutas: `POST /api/atlas/classifications/recheck`, `GET /api/atlas/classifications/rechecks/latest`, `GET /api/atlas/classifications/rechecks/{batch_id}`.
+- Colecciones nuevas: `cv_reprocessing_runs`, `cv_text_extractions`, `cv_classification_passes`, `company_classification_cache`, `cv_recheck_batches`, `cv_recheck_jobs`.
+- UI: `ReviewRecheckProgress.js`; botones y estados en revisión/carga. No hubo cambios visuales ajenos al flujo.
+- Verificación final: **47 pruebas de regresión aprobadas**, excluyendo repetición de prueba real; previamente **una llamada real Claude con CV sintético** validó integración y cache_hit en la segunda consulta. Suite específica Capa 2: 17/17; interfaz con respuestas **MOCKED solo durante pruebas** para proteger producción; APIs/persistencia probadas en Mongo local aislado. Responsive 320/768/1024/1440 aprobado; build correcto.
+- Prueba real ahora opt-in: `RUN_LIVE_CLASSIFICATION_TEST=1`, marcador `integration_live` registrado en pytest.ini para evitar ejecuciones/costos accidentales.
+- Informe final: `test_reports/layer1_final_results.json`, `layers_scope_final.json`, `iteration_28.json`, `iteration_29.json`, `pytest/layers_final_regression.xml`.
+- **Diff vacío** contra `35947513ee5c0cd6ab7fa7b96967919538e170e3` en `backend/scoring/`, `job_matching_service.py`, `scoring_config.py`, `hybrid_search_service.py` y `atlas_service.py`. No se reconstruyó la primera pasada.
+- Los nueve hallazgos globales preexistentes fuera de alcance y warnings históricos siguen congelados. No afirmar que el chequeo global está limpio, aunque las pruebas funcionales de ambas capas pasan.
+
+### Próximo paso
+- Validación del usuario sobre una muestra de las 34 fichas y nuevas cargas reales. No reprocesar masivamente otra vez sin solicitud.
+- Web permanece NO integrada; reevaluarla solo con casos nuevos realmente sin resolver y autorización del usuario.
+- Limitación previa de cargas: bytes pendientes del upload original aún en memoria; navegar/minimizar no interrumpe el servidor, pero no se añadió reanudación del upload ante reinicio. Los rechecks sí conservan referencias a CVs ya almacenados y recuperan jobs persistidos.
+
+## Histórico — diagnóstico y mejoras iniciales de revisión/carga
+El estado pendiente descrito a continuación fue supersedido por las dos capas completadas arriba.
 **Solicitud actual:** afinar clasificación/parsing, diagnosticar primero, proponer segunda pasada sin implementarla hasta recibir OK, mejorar bandeja Por Revisar y continuidad de carga. Restricción dura: NO tocar scoring/, v2/v3, pesos ni matching.
 
 ### Diagnóstico completado antes de implementar

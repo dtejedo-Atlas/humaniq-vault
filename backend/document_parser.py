@@ -31,6 +31,8 @@ import io
 import logging
 from text_utils import clean_text_encoding
 from collections import defaultdict
+from docx_extraction import extract_docx
+from pdf_extraction import extract_pdf, EXTRACTION_VERSION
 
 # Configurar logger
 logger = logging.getLogger(__name__)
@@ -267,19 +269,7 @@ class DocumentParser:
     def extract_text_from_pdf(file_path: str) -> str:
         """Extract text from PDF file with multi-column support"""
         try:
-            with pdfplumber.open(file_path) as pdf:
-                text_parts = []
-                for page in pdf.pages:
-                    # Usar extracción multi-columna
-                    page_text = _extract_text_multi_column(page)
-                    if page_text:
-                        text_parts.append(page_text)
-                
-                text = '\n\n'.join(text_parts)
-                
-                # Limpiar encoding solo si hay corrupción evidente
-                text = clean_text_encoding(text)
-                return text.strip()
+            return DocumentParser.extract_text_from_pdf_bytes(Path(file_path).read_bytes())
         except Exception as e:
             raise Exception(f"Error extrayendo texto de PDF: {str(e)}")
     
@@ -287,8 +277,7 @@ class DocumentParser:
     def extract_text_from_docx(file_path: str) -> str:
         """Extract text from DOCX file"""
         try:
-            doc = Document(file_path)
-            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            text = extract_docx(Path(file_path).read_bytes())
             
             # Limpiar encoding solo si hay corrupción evidente
             text = clean_text_encoding(text)
@@ -300,19 +289,7 @@ class DocumentParser:
     def extract_text_from_pdf_bytes(file_bytes: bytes) -> str:
         """Extract text from PDF bytes with multi-column support"""
         try:
-            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                text_parts = []
-                for page in pdf.pages:
-                    # Usar extracción multi-columna
-                    page_text = _extract_text_multi_column(page)
-                    if page_text:
-                        text_parts.append(page_text)
-                
-                text = '\n\n'.join(text_parts)
-                
-                # Limpiar encoding solo si hay corrupción evidente
-                text = clean_text_encoding(text)
-                return text.strip()
+            return extract_pdf(file_bytes, _extract_text_multi_column)['text']
         except Exception as e:
             raise Exception(f"Error extrayendo texto de PDF: {str(e)}")
     
@@ -320,8 +297,7 @@ class DocumentParser:
     def extract_text_from_docx_bytes(file_bytes: bytes) -> str:
         """Extract text from DOCX bytes"""
         try:
-            doc = Document(io.BytesIO(file_bytes))
-            text = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+            text = extract_docx(file_bytes)
             
             # Limpiar encoding solo si hay corrupción evidente
             text = clean_text_encoding(text)
@@ -356,40 +332,17 @@ class DocumentParser:
             text = DocumentParser.extract_text_from_pdf_bytes(file_bytes)
             
             # Verificar si el PDF tiene texto extraíble
-            if not text or len(text.strip()) < MIN_TEXT_THRESHOLD:
-                logger.warning(
-                    f"[DocumentParser] PDF sin texto extraíble (solo {len(text.strip()) if text else 0} chars). "
-                    "Intentando OCR como fallback..."
-                )
-                
-                try:
-                    # Intentar OCR como fallback
-                    ocr_text = _extract_text_with_ocr(file_bytes)
-                    
-                    if ocr_text and len(ocr_text.strip()) >= MIN_TEXT_THRESHOLD:
-                        logger.info(
-                            f"[DocumentParser] OCR exitoso: {len(ocr_text)} caracteres extraídos. "
-                            "CV procesado como PDF escaneado."
-                        )
-                        return ocr_text
-                    else:
-                        raise Exception(
-                            "PDF escaneado: OCR no pudo extraer texto suficiente. "
-                            "El archivo puede estar dañado o ser de muy baja calidad."
-                        )
-                        
-                except Exception as ocr_error:
-                    logger.error(f"[DocumentParser] OCR falló: {str(ocr_error)}")
-                    raise Exception(
-                        f"PDF sin texto extraíble y OCR falló: {str(ocr_error)}. "
-                        "Intente convertir el documento a DOCX o a un PDF con texto seleccionable."
-                    )
+            if sum(char.isalpha() for char in text) < 80 or len(text.split()) < 15:
+                raise ValueError('No se pudo leer suficiente texto del PDF después de la extracción y OCR por página. Requiere captura manual.')
             
             return text
         
         # DOCX (Word moderno)
         elif file_type_lower in ['docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']:
-            return DocumentParser.extract_text_from_docx_bytes(file_bytes)
+            text = DocumentParser.extract_text_from_docx_bytes(file_bytes)
+            if sum(char.isalpha() for char in text) < 80 or len(text.split()) < 15:
+                raise ValueError('No se pudo leer suficiente texto del DOCX. Requiere captura manual.')
+            return text
         
         # DOC (Word antiguo 97-2003) - RECHAZAR con mensaje claro
         elif file_type_lower in ['doc', 'application/msword']:
@@ -400,3 +353,16 @@ class DocumentParser:
         
         else:
             raise Exception(f"Formato de archivo no soportado: {file_type}. Solo se permiten PDF y DOCX.")
+
+    @staticmethod
+    def extract_with_details(file_bytes: bytes, file_type: str) -> dict:
+        if file_type.lower() in ('pdf', 'application/pdf', '.pdf'):
+            result = extract_pdf(file_bytes, _extract_text_multi_column)
+        elif 'docx' in file_type.lower() or 'wordprocessingml' in file_type.lower():
+            result = {'text': extract_docx(file_bytes), 'pages': [], 'warnings': [], 'version': EXTRACTION_VERSION}
+        else:
+            raise ValueError('Formato no soportado para extracción: PDF o DOCX.')
+        text = result['text']
+        result['readable'] = sum(char.isalpha() for char in text) >= 80 and len(text.split()) >= 15
+        result['text_chars'] = len(text)
+        return result
