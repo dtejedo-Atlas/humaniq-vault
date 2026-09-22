@@ -1,0 +1,41 @@
+{
+  "type": "operational_account_deactivation",
+  "verified_at_utc": "2026-09-22T01:33:28.283746+00:00",
+  "target_user_id": "bb8ac7a2-ba5b-4312-9baa-f2bbf973f4bc",
+  "target_email": "psaez@humaniq.com.mx",
+  "application_code_changes": false,
+  "password_changed": false,
+  "deactivation": {
+    "method": "PUT",
+    "endpoint": "/api/users/bb8ac7a2-ba5b-4312-9baa-f2bbf973f4bc",
+    "payload": {"is_active": false},
+    "http_status": 200,
+    "read_back_is_active": false,
+    "account_preserved": true,
+    "excluded_from_active_users": true,
+    "changed_fields_in_user_api_document": ["is_active", "updated_at"]
+  },
+  "session_access_test": {
+    "endpoint": "GET /api/auth/me",
+    "method": "Short-lived signed JWT (60 seconds), kept only in process memory",
+    "http_status": 403,
+    "detail": "Cuenta desactivada",
+    "passed": true
+  },
+  "login_test": {
+    "endpoint": "POST /api/auth/login",
+    "password_used": "Random unknown probe value; not the actual password",
+    "http_status": 401,
+    "detail": "Credenciales incorrectas",
+    "correct_password_403_verified": false,
+    "limitation": "Actual password unavailable. Existing handler verifies password before checking is_active. No password reset or authentication code changes performed."
+  },
+  "history": {
+    "candidate_note_assignment_writes_performed": false,
+    "initial_literal_snapshot_comparison": "inconclusive",
+    "read_only_follow_up": "Eight ai_classification.classified_at fields vary between consecutive API reads due to Pydantic default_factory; assignment responses identical.",
+    "visible_candidates_after": 828
+  },
+  "mocked_apis": false,
+  "test_credentials_updated": true
+}
