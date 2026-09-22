@@ -86,6 +86,10 @@ class ProcessingJob(BaseModel):
         }
 
 
+class LatestBatchResponse(BaseModel):
+    batch_id: Optional[str] = None
+
+
 class BatchUpload(BaseModel):
     """Representa un lote de uploads"""
     batch_id: str
@@ -93,6 +97,7 @@ class BatchUpload(BaseModel):
     total_files: int
     jobs: List[str] = []          # Lista de job_ids
     created_at: datetime = None
+    submission_complete: bool = False
 
     def __init__(self, **data):
         if data.get('created_at') is None:
@@ -105,6 +110,7 @@ class BatchUpload(BaseModel):
             "user_id": self.user_id,
             "total_files": self.total_files,
             "jobs": self.jobs,
+            "submission_complete": self.submission_complete,
             "created_at": self.created_at.isoformat() if self.created_at else None
         }
 
@@ -289,6 +295,14 @@ class BackgroundProcessor:
         logger.info(f"Job {job_id} added to queue: {file_name}")
         return job
 
+    async def finalize_batch(self, batch_id: str, submitted_files: List[Dict]):
+        """Persist upload acknowledgement, including files rejected before queueing."""
+        rejected = [file for file in submitted_files if file.get("status") == "rejected"]
+        await self.db.upload_batches.update_one(
+            {"batch_id": batch_id},
+            {"$set": {"submission_complete": True, "rejected_files": rejected}},
+        )
+
     async def get_job(self, job_id: str) -> Optional[Dict]:
         """Obtener estado de un job desde MongoDB (funciona en cualquier réplica)"""
         return await self.db.upload_jobs.find_one({"job_id": job_id}, {"_id": 0})
@@ -348,6 +362,7 @@ class BackgroundProcessor:
         job_docs = await self._mark_stale_jobs(job_docs)
 
         stats = {
+            "rejected": len(batch.get("rejected_files", [])),
             "pending": sum(1 for j in job_docs if j.get("status") == JobStatus.PENDING.value),
             "processing": sum(1 for j in job_docs if j.get("status") == JobStatus.PROCESSING.value),
             "completed": sum(1 for j in job_docs if j.get("status") == JobStatus.COMPLETED.value),
@@ -359,7 +374,8 @@ class BackgroundProcessor:
             "batch_id": batch_id,
             "total_files": batch.get("total_files"),
             "stats": stats,
-            "is_complete": stats["pending"] == 0 and stats["processing"] == 0,
+            "is_complete": batch.get("submission_complete", True) and stats["pending"] == 0 and stats["processing"] == 0,
+            "rejected_files": batch.get("rejected_files", []),
             "jobs": job_docs,
             "avg_stage_timings_ms": self._avg_stage_timings(job_docs),
             "created_at": batch.get("created_at")

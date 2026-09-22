@@ -1,5 +1,14 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-09-22 — Diagnóstico de CVs, bandeja de revisión y continuidad de carga
+- Diagnóstico read-only de 34 registros reportado antes de cambios: omisiones de tablas/cuadros DOCX, OCR fallido por Poppler, PDFs mixtos, claves no canónicas y casos de clasificación nula con texto. Informe nominal privado en `/root/humaniq_cv_diagnosis/report.md`.
+- Selección global de pendientes, aprobación en lote, cuatro dropdowns con guardado inmediato sin autoaprobar ni elevar confianza. Validación de catálogo y protección contra aprobar fichas vacías.
+- Segunda pasada SOLO propuesta; controles deshabilitados esperando aprobación. Clasificador y parser sin cambios.
+- Proveedor de seguimiento de lotes entre rutas, referencia local por usuario y recuperación del backend; resincronización por foco/visibilidad/conexión. Recepción/finalización y archivos rechazados persistidos.
+- Responsive de revisión/carga corregido y menú lateral adaptado a móvil.
+- Testing: 19 backend aislados, pruebas UI con mutaciones MOCKED solo para proteger producción, selección real de 34 y 8 validaciones responsive. Test incompatible migrado a AnyIO sin cambiar dependencias de aplicación.
+- Documentos originales de los 34 candidatos sin cambios. Diff de scoring/pesos/matching vacío contra baseline `4b06061333ac105ad5704ca4baa92c217993000d`. Sin integración IA adicional ni costos de reclasificación.
+
 ## 2026-09-22 — Baja de Patricia Sáez
 - Cuenta `psaez@humaniq.com.mx` (`bb8ac7a2-ba5b-4312-9baa-f2bbf973f4bc`) desactivada mediante la API existente: `is_active: false`, HTTP 200; cuenta conservada y excluida de usuarios activos.
 - Sin cambios en código, contraseña, candidatos, notas o asignaciones. En el documento de usuario expuesto por API solo cambiaron `is_active` y `updated_at`.

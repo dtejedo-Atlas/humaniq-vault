@@ -1,0 +1,16 @@
+{
+  "baseline_commit": "4b06061333ac105ad5704ca4baa92c217993000d",
+  "protected_paths": [
+    "backend/scoring",
+    "backend/job_matching_service.py",
+    "backend/scoring_config.py",
+    "backend/hybrid_search_service.py",
+    "backend/atlas_service.py",
+    "backend/document_parser.py"
+  ],
+  "protected_diff_empty": true,
+  "candidate_count": 34,
+  "candidate_snapshot_before": "7e1f332121d59fae9823eefd8a2a6130c4dc1f29dae0c75fc83846761bf5eeff",
+  "candidate_snapshot_after": "7e1f332121d59fae9823eefd8a2a6130c4dc1f29dae0c75fc83846761bf5eeff",
+  "candidate_documents_unchanged": true
+}

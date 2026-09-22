@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TaxonomyProvider } from './contexts/TaxonomyContext';
+import { UploadBatchProvider } from './contexts/UploadBatchContext';
 import { Toaster } from './components/ui/sonner';
 import axios from 'axios';
 import './App.css';
@@ -240,12 +241,14 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <TaxonomyProvider>
+          <TaxonomyProvider>
+            <UploadBatchProvider>
           <div className="App">
             <AppRoutes />
             <Toaster position="top-right" />
           </div>
-        </TaxonomyProvider>
+            </UploadBatchProvider>
+          </TaxonomyProvider>
       </AuthProvider>
     </BrowserRouter>
   );

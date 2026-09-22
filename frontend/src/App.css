@@ -28,6 +28,7 @@
 
 .atlas-main {
   flex: 1;
+  min-width: 0;
   margin-left: 260px;
   background: hsl(var(--background));
 }
@@ -35,6 +36,21 @@
 .atlas-content {
   padding: 2rem;
   max-width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .atlas-main { margin-left: 0; width: 100%; }
+  .atlas-sidebar {
+    max-width: calc(100vw - 48px);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 180ms ease, visibility 180ms ease;
+  }
+  .atlas-sidebar[data-mobile-open="true"] { transform: translateX(0); visibility: visible; }
+}
+
+@media (max-width: 639px) {
+  .atlas-content { padding: 1rem; }
 }
 
 /* Custom button transitions */

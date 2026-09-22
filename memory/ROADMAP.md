@@ -1,6 +1,14 @@
 # Humaniq Talent Vault — Pendientes
 
-## P0 — Operación solicitada (2026-09-22)
+## P0 — Segunda pasada pendiente de autorización (2026-09-22)
+- Diagnóstico de 34 CVs completado y entregado. Secciones 3/4 implementadas y probadas; scoring/pesos/matching intactos.
+- Esperar OK explícito antes de mejorar extracción/OCR o clasificación. NO ejecutar aún una segunda pasada ni reprocesar los 34.
+- Propuesta: umbral <0,75 o claves/campos ausentes; recuperar DOCX/PDF/OCR primero, CV completo, industria dominante de última década, seniority por evidencia y años sin doble conteo; una pasada adicional deduplicada por versión y caché de empresas.
+- Decidir integración web solo para empresas desconocidas: disponible para el agente, no actualmente para la app.
+- Implementar estados de captura manual y avisos de ilegibilidad junto con la segunda pasada; conectar entonces controles individuales/masivos ya visibles y deshabilitados.
+- Mejora relevante prioritaria: recuperar texto omitido antes de gastar llamadas LLM adicionales.
+
+## Operación anterior
 - Baja de Patricia Sáez aplicada y cuenta conservada; acceso con sesión comprobado con HTTP 403.
 - Verificación específica de login con contraseña correcta: pendiente porque no se dispone de esa contraseña. No restablecerla ni modificar el flujo de autenticación para fabricar un resultado 403.
 

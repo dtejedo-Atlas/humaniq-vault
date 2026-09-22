@@ -45,6 +45,7 @@ export const candidatesAPI = {
     });
   },
   getBatchStatus: (batchId) => axios.get(`${API_BASE}/candidates/batch/${batchId}`),
+  getLatestBatch: () => axios.get(`${API_BASE}/candidates/upload-batches/latest`),
   getJobStatus: (jobId) => axios.get(`${API_BASE}/candidates/job/${jobId}`),
   retryJob: (jobId) => axios.post(`${API_BASE}/candidates/job/${jobId}/retry`),
   getQueueStats: () => axios.get(`${API_BASE}/candidates/queue-stats`),
@@ -62,6 +63,14 @@ export const candidatesAPI = {
 };
 
 // Atlas AI
+export const reviewAPI = {
+  getPending: (page = 1) => axios.get(`${API_BASE}/atlas/classifications/pending`, { params: { page, limit: 20 } }),
+  getPendingIds: () => axios.get(`${API_BASE}/atlas/classifications/pending/ids`),
+  saveField: (id, fields) => axios.patch(`${API_BASE}/atlas/classifications/manual/${id}`, fields),
+  approve: (id) => axios.post(`${API_BASE}/atlas/approve-classification/${id}`),
+  bulkApprove: (ids) => axios.post(`${API_BASE}/atlas/classifications/bulk-approve`, { candidate_ids: ids }),
+};
+
 export const atlasAPI = {
   classify: (candidateId) => axios.post(`${API_BASE}/atlas/classify/${candidateId}`),
   approveClassification: (candidateId) => axios.post(`${API_BASE}/atlas/approve-classification/${candidateId}`)

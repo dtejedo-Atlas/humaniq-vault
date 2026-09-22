@@ -33,7 +33,7 @@ import { Badge } from './ui/badge';
 import { foldersAPI } from '../api';
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
+const API_BASE = process.env.REACT_APP_BACKEND_URL;
 
 // Mapeo de iconos
 const ICON_MAP = {
@@ -69,7 +69,7 @@ const COLOR_MAP = {
   'teal': 'text-teal-400'
 };
 
-const Sidebar = () => {
+const Sidebar = ({ mobileOpen = false }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -85,6 +85,8 @@ const Sidebar = () => {
   useEffect(() => {
     loadFolders();
     loadPendingClassificationsCount();
+    window.addEventListener('classification-review-updated', loadPendingClassificationsCount);
+    return () => window.removeEventListener('classification-review-updated', loadPendingClassificationsCount);
   }, []);
 
   const loadFolders = async () => {
@@ -159,7 +161,7 @@ const Sidebar = () => {
             <span>{item.label}</span>
           </div>
           {item.badge > 0 && (
-            <Badge className="bg-amber-500 text-white text-xs px-1.5 py-0 min-w-[20px] h-5 flex items-center justify-center">
+            <Badge data-testid={`nav-badge-${item.label.toLowerCase().replace(' ', '-')}`} className="bg-amber-500 text-white text-xs px-1.5 py-0 min-w-[20px] h-5 flex items-center justify-center">
               {item.badge > 99 ? '99+' : item.badge}
             </Badge>
           )}
@@ -236,7 +238,7 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="atlas-sidebar flex flex-col h-screen">
+    <div id="workspace-navigation" data-testid="workspace-navigation" data-mobile-open={mobileOpen} className="atlas-sidebar flex flex-col h-screen">
       {/* Logo - Fixed */}
       <div className="flex-shrink-0 p-4 border-b border-slate-700">
         <div className="flex items-center gap-3">

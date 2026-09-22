@@ -1,0 +1,70 @@
+{
+  "summary": "Completed backend isolated verification for classification review + batch processor, preview read-only queue smoke, and frontend live/mocked checks for /review and /upload without mutating production candidates.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/app/backend/tests/test_classification_review_isolated.py",
+        "issue": "Legacy isolated test file is currently not runnable under pytest-9 in this environment (uses async fixtures + @pytest.mark.asyncio but pytest-asyncio plugin is not active). It throws PytestRemovedIn9Warning setup errors for all tests."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ClassificationReviewPage responsive layout",
+        "issue": "Horizontal overflow on /review at 320px and 768px widths (content wider than viewport).",
+        "selector": "[data-testid='classification-review-page']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "UploadPage responsive layout",
+        "issue": "Horizontal overflow on /upload at 320px width (content wider than viewport).",
+        "selector": "[data-testid='upload-dropzone']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/review (mobile widths)",
+        "issues": [
+          "Controls and content require horizontal scroll at 320px",
+          "Layout does not fully adapt to narrow viewport constraints"
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_classification_review_isolated_v2.py",
+    "/app/backend/tests/test_background_processor_isolated.py",
+    "/app/backend/tests/test_classification_review_preview_readonly.py",
+    "/app/test_reports/pytest/iteration_27_class_review_v2.xml",
+    "/app/test_reports/pytest/iteration_27_bg_processor.xml",
+    "/app/test_reports/pytest/iteration_27_preview_readonly.xml"
+  ],
+  "action_items": [
+    "Fix responsive overflow on /review for 320px and 768px widths.",
+    "Fix responsive overflow on /upload for 320px width.",
+    "If retaining /app/backend/tests/test_classification_review_isolated.py, migrate it to anyio-compatible fixtures/marks or enable pytest-asyncio plugin explicitly in test environment."
+  ],
+  "critical_code_review_comments": [
+    "Protected baseline check PASSED: git diff against 4b06061333ac105ad5704ca4baa92c217993000d is empty for backend/scoring, backend/job_matching_service.py, backend/scoring_config.py, backend/hybrid_search_service.py, backend/atlas_service.py, backend/document_parser.py.",
+    "ReviewCandidateCard approval button validity depends only on first 3 fields being present in taxonomy options; mocked tests confirmed row removal behavior is tightly coupled to these values (invalid/non-canonical keys keep approval disabled).",
+    "Sidebar.js defines API_BASE with fallback empty string (`process.env.REACT_APP_BACKEND_URL || ''`), which is less strict than project env-fail-fast guidance."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_classification_review_isolated_v2.py",
+    "/app/backend/tests/test_background_processor_isolated.py",
+    "/app/test_reports/iteration_27.json"
+  ],
+  "success_rate": {
+    "backend": "100% on new isolated suites (6/6 total across two files) + 100% preview read-only test (1/1)",
+    "frontend": "Core requested checks PASS with MOCKED mutation/upload routes; responsive checks failed at small widths"
+  },
+  "seed_data_creation": "None in shared preview DB. Backend tests used temporary LOCAL MongoDB databases and dropped them after execution.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend live /review smoke verified real pending total 34, global select-all returns 34 IDs, and selection persisted across page navigation without any approve/edit action. Frontend mutation and upload resilience were tested with MOCKED/INTERCEPTED routes only to avoid production writes. Mocked upload context checks validated navigation persistence, focus/online-triggered polling, completion polling stop (no overlap growth after complete), full reload recovery via latest batch fallback, and dismissal persistence.",
+  "rca of the issue": "Small-width overflow is likely caused by desktop-first sidebar + content container constraints (fixed sidebar and minimum-width utility classes) resulting in body/document scrollWidth > viewport width on 320/768."
+}

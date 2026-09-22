@@ -1,0 +1,18 @@
+{
+  "report_resolved": "iteration_27.json",
+  "backend_isolated_tests": {"passed": 19, "failed": 0, "report": "pytest/review_upload_final.xml"},
+  "responsive": {"routes": ["/review", "/upload"], "widths": [320, 768, 1024, 1440], "all_passed": true, "horizontal_overflow": false, "mobile_menu_open_close_passed": true, "report": "responsive_review_upload_verified.json"},
+  "resolved_issues": ["Review overflow at 320/768", "Upload overflow at 320, including completed batch action buttons", "Async pytest compatibility of isolated test suite", "Missing dependency warning introduced in review page", "Empty environment fallback in touched Sidebar module"],
+  "production_candidates_modified": false,
+  "scope_report": "classification_scope_verification.json",
+  "application_integrations_mocked": false,
+  "frontend_mutations_mocked_only_in_tests": true,
+  "second_pass_implemented": false,
+  "existing_pipeline_limitations_not_changed": ["OCR Poppler missing", "DOCX tables/textboxes omitted", "Classification first-3000-character limit", "Pending file bytes held in server memory, not restart-durable"],
+  "remaining_unrelated_warnings": "Preexisting React hooks warnings outside authorized scope remain frozen.",
+  "global_precompletion_check": {
+    "passed": false,
+    "preexisting_findings": 9,
+    "details": "Two pod-local upload fallback references; four duplicate model class definitions; existing bare except and status shadowing in server.py; duplicate taxonomy prompt function. Same findings were present before this task. Not changed because parsing/classification changes require user approval and unrelated refactoring is frozen."
+  }
+}

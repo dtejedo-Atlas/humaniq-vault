@@ -41,13 +41,17 @@ from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
-from background_processor import background_processor, JobStatus
+from background_processor import background_processor, JobStatus, LatestBatchResponse
 from job_matching_service import JobMatchingService
 from user_service import UserService
 from assignment_service import AssignmentService
 from export_service import ExportService
 from smart_folder_service import SmartFolderService
 from cv_version_service import CVVersionService
+from classification_review_service import (
+    ManualClassificationPatch, ManualClassificationResult, PendingReviewIds,
+    save_manual_classification, approval_problem,
+)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -657,6 +661,16 @@ async def get_queue_stats(
     Obtener estadísticas de la cola de procesamiento.
     """
     return background_processor.get_queue_stats()
+
+
+@api_router.get("/candidates/upload-batches/latest", response_model=LatestBatchResponse)
+async def latest_user_upload_batch(current_user: User = Depends(get_current_user)):
+    """Recover the last submitted batch for this user; no processing is started here."""
+    batch = await db.upload_batches.find_one(
+        {"user_id": current_user.id}, {"_id": 0, "batch_id": 1},
+        sort=[("created_at", -1), ("batch_id", -1)],
+    )
+    return {"batch_id": batch["batch_id"] if batch else None}
 
 
 @api_router.get("/candidates/batch/{batch_id}")
@@ -2071,6 +2085,8 @@ async def upload_batch(
             "status": "queued"
         })
     
+    await background_processor.finalize_batch(batch.batch_id, jobs_added)
+
     return {
         "batch_id": batch.batch_id,
         "total_files": len(files),
@@ -2144,7 +2160,7 @@ async def approve_atlas_classification(
     For unclassified candidates (ai_classification=null), creates a manual approval record.
     """
     candidate_doc = await db.candidates.find_one(
-        {"id": candidate_id}, 
+        {"id": candidate_id, "is_deleted": {"$ne": True}}, 
         {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1}
     )
     
@@ -2154,6 +2170,10 @@ async def approve_atlas_classification(
             detail="Candidato no encontrado"
         )
     
+    problem = await approval_problem(db, candidate_doc)
+    if problem:
+        raise HTTPException(status_code=422, detail=problem)
+
     now = datetime.now(timezone.utc).isoformat()
     ai_class = candidate_doc.get('ai_classification') or {}
     
@@ -2261,15 +2281,18 @@ async def get_pending_classifications(
                 "industry": c.get("industry"),
                 "functional_area": c.get("functional_area"),
                 "seniority": c.get("seniority"),
+                "years_experience": c.get("years_experience"),
                 "tags": c.get("tags", [])
             },
             "proposed_classification": {
                 "industry": ai_class.get("industry"),
                 "functional_area": ai_class.get("functional_area"),
                 "seniority": ai_class.get("seniority"),
+                "years_experience": c.get("years_experience"),
                 "suggested_tags": ai_class.get("suggested_tags", [])
             },
             "confidence_score": ai_class.get("confidence_score", 0),
+            "manually_edited": bool(ai_class.get("manual_fields")),
             "classified_at": ai_class.get("classified_at"),
             "created_at": c.get("created_at")
         })
@@ -2281,6 +2304,33 @@ async def get_pending_classifications(
         "limit": limit,
         "pages": (total + limit - 1) // limit if total > 0 else 0
     }
+
+
+@api_router.get("/atlas/classifications/pending/ids", response_model=PendingReviewIds)
+async def get_pending_classification_ids(current_user: User = Depends(get_current_user)):
+    """All queue IDs, independent of the visible page; uses the queue's exact predicate."""
+    pipeline = [
+        {"$match": {"is_deleted": {"$ne": True}}},
+        {"$match": {"$expr": {"$or": [
+            {"$eq": [{"$ifNull": ["$ai_classification", None]}, None]},
+            {"$and": [
+                {"$lt": [{"$ifNull": ["$ai_classification.confidence_score", 0]}, 0.75]},
+                {"$eq": [{"$ifNull": ["$ai_classification.approved_by_recruiter", False]}, False]},
+            ]},
+        ]}}},
+        {"$project": {"_id": 0, "id": 1}},
+    ]
+    ids = [row["id"] async for row in db.candidates.aggregate(pipeline)]
+    return PendingReviewIds(candidate_ids=ids, total=len(ids))
+
+
+@api_router.patch("/atlas/classifications/manual/{candidate_id}", response_model=ManualClassificationResult)
+async def save_review_field(
+    candidate_id: str, patch: ManualClassificationPatch,
+    current_user: User = Depends(get_current_user),
+):
+    """Save human edits immediately, without approving or invoking any model."""
+    return await save_manual_classification(db, candidate_id, patch, current_user.id)
 
 
 @api_router.get("/atlas/classifications/pending/count")
@@ -2351,7 +2401,11 @@ async def bulk_approve_classifications(
                 continue
             
             ai_class = candidate_doc.get("ai_classification") or {}
-            
+            problem = await approval_problem(db, candidate_doc)
+            if problem:
+                errors.append({"id": candidate_id, "error": problem})
+                continue
+
             # Handle both classified and unclassified candidates
             if ai_class:
                 # Has AI classification - apply it

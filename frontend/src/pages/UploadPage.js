@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -9,12 +9,13 @@ import { Label } from '../components/ui/label';
 import { useDropzone } from 'react-dropzone';
 import { 
   Upload, FileText, CheckCircle, AlertCircle, Loader2, 
-  AlertTriangle, Clock, RefreshCw, X, Play, Pause,
+  AlertTriangle, Clock, RefreshCw, X,
   ChevronDown, ChevronUp
 } from 'lucide-react';
 import { candidatesAPI } from '../api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useUploadBatch } from '../contexts/UploadBatchContext';
 
 // Mapeo de etapas a nombres legibles
 const STAGE_LABELS = {
@@ -33,72 +34,21 @@ const STAGE_LABELS = {
 
 const UploadPage = () => {
   const navigate = useNavigate();
-  const [uploading, setUploading] = useState(false);
+  const [individualUploading, setIndividualUploading] = useState(false);
   const [useBatchMode, setUseBatchMode] = useState(true);
-  const [currentBatchId, setCurrentBatchId] = useState(null);
-  const [batchStatus, setBatchStatus] = useState(null);
+  const { currentBatchId, batchStatus, uploading: batchUploading, uploadBatch, resetBatch, refreshBatch, syncError, unavailable, transferring, recovering } = useUploadBatch();
+  const uploading = individualUploading || batchUploading;
   const [uploadResults, setUploadResults] = useState([]);
   const [expandedJobs, setExpandedJobs] = useState({});
-  const pollIntervalRef = useRef(null);
-
-  // Polling para actualizar estado del batch
-  useEffect(() => {
-    if (currentBatchId && useBatchMode) {
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const response = await candidatesAPI.getBatchStatus(currentBatchId);
-          setBatchStatus(response.data);
-          
-          // Detener polling si el batch está completo
-          if (response.data.is_complete) {
-            clearInterval(pollIntervalRef.current);
-            setUploading(false);
-            toast.success('Procesamiento de lote completado');
-          }
-        } catch (error) {
-          console.error('Error polling batch status:', error);
-        }
-      }, 1500); // Poll cada 1.5 segundos
-    }
-    
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [currentBatchId, useBatchMode]);
-
-  // Limpieza al desmontar
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
+  useEffect(() => { refreshBatch(); }, [refreshBatch]);
 
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
     
-    setUploading(true);
-    
-    if (useBatchMode && acceptedFiles.length > 1) {
-      // MODO BATCH: Subir todos y procesar en background
-      try {
-        const response = await candidatesAPI.uploadBatch(acceptedFiles);
-        setCurrentBatchId(response.data.batch_id);
-        setBatchStatus(null); // Reset status
-        
-        toast.info(`${response.data.queued} archivos en cola para procesamiento`);
-        
-        if (response.data.rejected > 0) {
-          toast.warning(`${response.data.rejected} archivos rechazados`);
-        }
-      } catch (error) {
-        toast.error('Error iniciando carga de lote');
-        setUploading(false);
-      }
+    if (useBatchMode) {
+      await uploadBatch(acceptedFiles);
     } else {
+      setIndividualUploading(true);
       // MODO INDIVIDUAL: Procesar uno por uno (comportamiento original)
       const results = [];
 
@@ -152,9 +102,9 @@ const UploadPage = () => {
       }
 
       setUploadResults(results);
-      setUploading(false);
+      setIndividualUploading(false);
     }
-  }, [useBatchMode]);
+  }, [useBatchMode, uploadBatch]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -169,6 +119,7 @@ const UploadPage = () => {
   const handleRetryJob = async (jobId) => {
     try {
       await candidatesAPI.retryJob(jobId);
+      refreshBatch();
       toast.success('Job re-encolado para reintento');
     } catch (error) {
       toast.error('Error al reintentar job');
@@ -222,13 +173,9 @@ const UploadPage = () => {
   };
 
   const resetUpload = () => {
-    setCurrentBatchId(null);
-    setBatchStatus(null);
+    resetBatch();
     setUploadResults([]);
     setExpandedJobs({});
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-    }
   };
 
   // Calcular estadísticas
@@ -240,17 +187,18 @@ const UploadPage = () => {
     failed: 0
   };
 
-  const totalProcessed = stats.completed + stats.partial + stats.failed;
+  const totalProcessed = stats.completed + stats.partial + stats.failed + (stats.rejected || 0);
   const totalJobs = batchStatus?.total_files || 0;
   const overallProgress = totalJobs > 0 ? Math.round((totalProcessed / totalJobs) * 100) : 0;
 
   return (
     <Layout title="Subir CVs" subtitle="Carga currículums para procesarlos con Humaniq IA">
       <div className="max-w-4xl mx-auto space-y-6">
+        {syncError && <div data-testid="batch-sync-error" role="alert" className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{syncError}<div className="mt-2 flex flex-wrap gap-2"><Button data-testid="batch-reconnect" size="sm" variant="outline" onClick={refreshBatch}>Actualizar seguimiento</Button>{unavailable && <Button data-testid="batch-dismiss-unavailable" size="sm" variant="outline" onClick={resetUpload}>Cerrar seguimiento</Button>}</div></div>}
         {/* Upload Zone */}
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-start">
+            <div className="flex flex-wrap justify-between items-start gap-4">
               <div>
                 <CardTitle>Cargar Currículums</CardTitle>
                 <CardDescription>
@@ -260,6 +208,7 @@ const UploadPage = () => {
               <div className="flex items-center space-x-2">
                 <Switch
                   id="batch-mode"
+                  data-testid="upload-batch-mode"
                   checked={useBatchMode}
                   onCheckedChange={setUseBatchMode}
                   disabled={uploading}
@@ -275,12 +224,12 @@ const UploadPage = () => {
               {...getRootProps()}
               data-testid="upload-dropzone"
               className={`
-                upload-zone border-2 border-dashed rounded-sm p-12 text-center cursor-pointer
+                upload-zone border-2 border-dashed rounded-sm p-5 sm:p-12 text-center cursor-pointer
                 ${isDragActive ? 'border-cyan-500 bg-cyan-50' : 'border-slate-300'}
                 ${uploading ? 'opacity-50 cursor-not-allowed' : 'hover:border-cyan-400'}
               `}
             >
-              <input {...getInputProps()} />
+              <input {...getInputProps()} data-testid="upload-file-input" />
               
               <div className="flex flex-col items-center gap-4">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center">
@@ -292,11 +241,11 @@ const UploadPage = () => {
                 </div>
                 
                 <div>
-                  <p className="text-lg font-medium text-slate-900">
+                  <p data-testid="upload-state-message" className="text-lg font-medium text-slate-900">
                     {isDragActive 
                       ? 'Suelta los archivos aquí' 
                       : uploading
-                      ? 'Procesando archivos...'
+                      ? transferring ? 'Enviando archivos al servidor…' : recovering ? 'Recuperando último lote…' : 'Procesando archivos en el servidor…'
                       : 'Arrastra archivos o haz clic para seleccionar'}
                   </p>
                   <p className="text-sm text-slate-500 mt-1">
@@ -313,7 +262,7 @@ const UploadPage = () => {
                 </div>
                 
                 {!uploading && (
-                  <Button variant="outline" className="mt-2">
+                  <Button data-testid="upload-select-files" variant="outline" className="mt-2">
                     Seleccionar Archivos
                   </Button>
                 )}
@@ -323,19 +272,20 @@ const UploadPage = () => {
         </Card>
 
         {/* Batch Progress (Modo Lote) */}
-        {useBatchMode && currentBatchId && (
-          <Card>
+        {currentBatchId && (
+          <Card data-testid="batch-progress-panel">
             <CardHeader>
-              <div className="flex justify-between items-center">
+              <div className="flex flex-wrap justify-between items-center gap-3">
                 <div>
                   <CardTitle>Progreso del Lote</CardTitle>
-                  <CardDescription>
+                  <CardDescription data-testid="batch-processed-count">
                     {totalProcessed} de {totalJobs} archivos procesados
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
+                  <Button data-testid="batch-refresh" variant="outline" size="sm" onClick={refreshBatch}><RefreshCw className="mr-1 h-4 w-4" />Actualizar</Button>
                   {batchStatus?.is_complete && (
-                    <Button variant="outline" size="sm" onClick={resetUpload}>
+                    <Button data-testid="batch-close" variant="outline" size="sm" onClick={resetUpload}>
                       <X className="w-4 h-4 mr-1" />
                       Cerrar
                     </Button>
@@ -346,24 +296,27 @@ const UploadPage = () => {
             <CardContent>
               {/* Progress bar general */}
               <div className="mb-4">
-                <Progress value={overallProgress} className="h-2" />
-                <div className="flex justify-between text-xs text-slate-500 mt-1">
-                  <span>{overallProgress}% completado</span>
-                  <div className="flex gap-3">
-                    <span className="text-green-600">{stats.completed} exitosos</span>
-                    {stats.partial > 0 && <span className="text-yellow-600">{stats.partial} parciales</span>}
-                    {stats.failed > 0 && <span className="text-red-600">{stats.failed} fallidos</span>}
-                    {stats.processing > 0 && <span className="text-blue-600">{stats.processing} procesando</span>}
-                    {stats.pending > 0 && <span className="text-gray-500">{stats.pending} en cola</span>}
+                <Progress data-testid="batch-progress-bar" value={overallProgress} className="h-2" />
+                <div className="flex flex-wrap justify-between gap-2 text-xs text-slate-500 mt-1">
+                  <span data-testid="batch-progress-percent">{overallProgress}% completado</span>
+                  <div className="flex flex-wrap gap-3">
+                    <span data-testid="batch-completed-count" className="text-green-600">{stats.completed} exitosos</span>
+                    {stats.partial > 0 && <span data-testid="batch-partial-count" className="text-yellow-600">{stats.partial} parciales</span>}
+                    {stats.failed > 0 && <span data-testid="batch-failed-count" className="text-red-600">{stats.failed} fallidos</span>}
+                    {stats.rejected > 0 && <span data-testid="batch-rejected-count" className="text-red-600">{stats.rejected} rechazados</span>}
+                    {stats.processing > 0 && <span data-testid="batch-processing-count" className="text-blue-600">{stats.processing} procesando</span>}
+                    {stats.pending > 0 && <span data-testid="batch-pending-count" className="text-gray-500">{stats.pending} en cola</span>}
                   </div>
                 </div>
               </div>
 
               {/* Lista de jobs */}
               <div className="space-y-2 max-h-96 overflow-y-auto">
+                {batchStatus?.rejected_files?.map((file, index) => <div data-testid={`batch-rejected-file-${index}`} key={`${file.file_name}-${index}`} className="break-words rounded-sm border border-red-200 bg-red-50 p-3 text-sm text-red-800">{file.file_name}: {file.reason}</div>)}
                 {batchStatus?.jobs?.map((job) => (
                   <div
                     key={job.job_id}
+                    data-testid={`batch-job-${job.job_id}`}
                     className={`p-3 border rounded-sm ${
                       job.status === 'completed' ? 'border-green-200 bg-green-50/50' :
                       job.status === 'partial' ? 'border-yellow-200 bg-yellow-50/50' :
@@ -373,25 +326,27 @@ const UploadPage = () => {
                     }`}
                   >
                     {/* Header del job */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2 flex-1">
                         <FileText className="w-4 h-4 text-slate-400" />
-                        <span className="text-sm font-medium truncate">{job.file_name}</span>
+                        <span data-testid={`batch-job-name-${job.job_id}`} className="text-sm font-medium break-words min-w-0">{job.file_name}</span>
                         {job.extracted_name && job.extracted_name !== job.file_name && (
-                          <span className="text-xs text-slate-500">→ {job.extracted_name}</span>
+                          <span data-testid={`batch-job-candidate-${job.job_id}`} className="text-xs text-slate-500 break-words">→ {job.extracted_name}</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         {job.status === 'processing' && (
                           <span className="text-xs text-blue-600">{job.progress}%</span>
                         )}
-                        {getStatusBadge(job.status)}
+                        <span data-testid={`batch-job-status-${job.job_id}`}>{getStatusBadge(job.status)}</span>
                         {getStatusIcon(job.status)}
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 w-6 p-0"
                           onClick={() => toggleJobExpand(job.job_id)}
+                          data-testid={`batch-job-expand-${job.job_id}`}
+                          aria-label={`Detalles de ${job.file_name}`}
                         >
                           {expandedJobs[job.job_id] ? (
                             <ChevronUp className="w-4 h-4" />
@@ -405,8 +360,8 @@ const UploadPage = () => {
                     {/* Barra de progreso individual */}
                     {job.status === 'processing' && (
                       <div className="mt-2">
-                        <Progress value={job.progress} className="h-1" />
-                        <span className="text-xs text-slate-500">{STAGE_LABELS[job.current_stage] || job.current_stage}</span>
+                        <Progress data-testid={`batch-job-progress-${job.job_id}`} value={job.progress} className="h-1" />
+                        <span data-testid={`batch-job-stage-${job.job_id}`} className="text-xs text-slate-500">{STAGE_LABELS[job.current_stage] || job.current_stage}</span>
                       </div>
                     )}
                     
@@ -442,7 +397,7 @@ const UploadPage = () => {
                         {job.errors && job.errors.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {job.errors.map((error, idx) => (
-                              <div key={idx} className="text-xs p-2 bg-red-100 text-red-700 rounded">
+                              <div data-testid={`batch-job-error-${job.job_id}-${idx}`} key={idx} className="text-xs p-2 bg-red-100 text-red-700 rounded break-words">
                                 [{STAGE_LABELS[error.stage] || error.stage}] {error.message}
                               </div>
                             ))}
@@ -453,7 +408,7 @@ const UploadPage = () => {
                         {job.warnings && job.warnings.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {job.warnings.map((warning, idx) => (
-                              <div key={idx} className="text-xs p-2 bg-yellow-100 text-yellow-700 rounded">
+                              <div data-testid={`batch-job-warning-${job.job_id}-${idx}`} key={idx} className="text-xs p-2 bg-yellow-100 text-yellow-700 rounded break-words">
                                 {warning}
                               </div>
                             ))}
@@ -461,12 +416,13 @@ const UploadPage = () => {
                         )}
                         
                         {/* Acciones */}
-                        <div className="mt-2 flex gap-2">
+                        <div className="mt-2 flex flex-wrap gap-2">
                           {job.candidate_id && (
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => navigate(`/candidates/${job.candidate_id}`)}
+                              data-testid={`batch-job-profile-${job.job_id}`}
                             >
                               Ver Perfil
                             </Button>
@@ -476,6 +432,7 @@ const UploadPage = () => {
                               size="sm"
                               variant="ghost"
                               onClick={() => handleRetryJob(job.job_id)}
+                              data-testid={`batch-job-retry-${job.job_id}`}
                             >
                               <RefreshCw className="w-3 h-3 mr-1" />
                               Reintentar
@@ -489,9 +446,10 @@ const UploadPage = () => {
               </div>
               
               {batchStatus?.is_complete && (
-                <div className="mt-4 flex gap-3">
+                <div className="mt-4 flex flex-col sm:flex-row gap-3">
                   <Button
                     onClick={() => navigate('/candidates')}
+                    data-testid="batch-view-candidates"
                     className="flex-1"
                   >
                     Ver Todos los Candidatos
@@ -499,6 +457,7 @@ const UploadPage = () => {
                   <Button
                     variant="outline"
                     onClick={resetUpload}
+                    data-testid="batch-upload-more"
                   >
                     Cargar Más
                   </Button>
@@ -514,7 +473,7 @@ const UploadPage = () => {
             <CardHeader>
               <CardTitle>Resultados de Carga</CardTitle>
               <CardDescription>
-                <div className="flex gap-4 mt-2">
+                <div className="flex flex-wrap gap-4 mt-2">
                   <span className="text-green-600">{uploadResults.filter(r => r.status === 'success').length} exitosos</span>
                   {uploadResults.filter(r => r.status === 'partial_success').length > 0 && (
                     <span className="text-yellow-600">{uploadResults.filter(r => r.status === 'partial_success').length} parciales</span>
@@ -556,6 +515,7 @@ const UploadPage = () => {
                         variant="outline"
                         className="mt-2"
                         onClick={() => navigate(`/candidates/${result.candidateId}`)}
+                        data-testid={`upload-result-profile-${index}`}
                       >
                         Ver Perfil
                       </Button>
@@ -564,11 +524,11 @@ const UploadPage = () => {
                 ))}
               </div>
               
-              <div className="mt-6 flex gap-3">
-                <Button onClick={() => navigate('/candidates')} className="flex-1">
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <Button data-testid="upload-results-view-candidates" onClick={() => navigate('/candidates')} className="flex-1">
                   Ver Todos los Candidatos
                 </Button>
-                <Button variant="outline" onClick={() => setUploadResults([])}>
+                <Button data-testid="upload-results-more" variant="outline" onClick={() => setUploadResults([])}>
                   Cargar Más
                 </Button>
               </div>
