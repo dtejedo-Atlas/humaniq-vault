@@ -10,20 +10,14 @@ import { Loader2, ClipboardList, MessageSquare, ChevronDown, ChevronUp, Send } f
 import { toast } from 'sonner';
 import { jobsAPI, candidatesAPI } from '../api';
 import { PlacedBadge } from './CandidateBadges';
+import { useAuth } from '../contexts/AuthContext';
+import { CandidateNote } from './CandidateNote';
 
 export const STAGE_LABELS = {
   new: 'Asignado',
   interviewed: 'Entrevistado',
   placed: 'Colocado',
   discarded: 'Descartado',
-};
-
-const formatNoteDate = (iso) => {
-  try {
-    return new Date(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return '';
-  }
 };
 
 const AssignmentNotes = ({ candidateId, onNotesChanged }) => {
@@ -70,12 +64,7 @@ const AssignmentNotes = ({ candidateId, onNotesChanged }) => {
         <p className="text-xs text-slate-500">Sin comentarios aún</p>
       ) : (
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {notes.slice().reverse().map((n, i) => (
-            <div key={i} className="text-sm bg-white border rounded p-2" data-testid="assignment-note-item">
-              <p className="text-slate-800 whitespace-pre-wrap">{n.note}</p>
-              <p className="text-[11px] text-slate-400 mt-1">{n.created_by} · {formatNoteDate(n.created_at)}</p>
-            </div>
-          ))}
+          {notes.slice().reverse().map((note, index) => <CandidateNote key={note.id || index} context="assignment" note={note} candidateId={candidateId} onChanged={async () => { await load(); onNotesChanged?.(); }} />)}
         </div>
       )}
       <div className="flex gap-2 items-end">
@@ -96,6 +85,8 @@ const AssignmentNotes = ({ candidateId, onNotesChanged }) => {
 };
 
 const JobAssignmentsCard = ({ jobId }) => {
+  const { user } = useAuth();
+  const canMoveStage = ['recruiter', 'admin', 'super_admin'].includes(user?.role);
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState([]);
   const [openNotes, setOpenNotes] = useState({});
@@ -170,13 +161,13 @@ const JobAssignmentsCard = ({ jobId }) => {
                     {a.notes_count || 0}
                     {openNotes[a.candidate_id] ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
                   </Button>
-                  <Select value={STAGE_LABELS[a.stage] ? a.stage : 'new'} onValueChange={(v) => handleStageChange(a.candidate_id, a.candidate_name, v)}>
-                    <SelectTrigger className="md:w-44" data-testid="assignment-stage-select">
+                  <Select disabled={!canMoveStage} value={STAGE_LABELS[a.stage] ? a.stage : 'new'} onValueChange={(v) => handleStageChange(a.candidate_id, a.candidate_name, v)}>
+                    <SelectTrigger className="md:w-44" data-testid={`assignment-stage-select-${a.candidate_id}`}>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent data-testid={`assignment-stage-options-${a.candidate_id}`}>
                       {Object.entries(STAGE_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                        <SelectItem data-testid={`assignment-stage-${a.candidate_id}-${value}`} key={value} value={value}>{label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

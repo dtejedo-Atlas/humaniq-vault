@@ -10,6 +10,7 @@ from document_parser import DocumentParser
 from pdf_extraction import EXTRACTION_VERSION
 from storage_service import storage_service
 from classification_refinement import second_pass, SECOND_PASS_VERSION, MANUAL_MESSAGE
+from ai_workload_limits import reserve_batch, release_batch, wait_cv_slot, FILES_PER_BATCH
 
 _tasks = set()
 _parallel = asyncio.Semaphore(2)
@@ -17,7 +18,7 @@ ROOT = Path(__file__).parent
 
 
 class RecheckRequest(BaseModel):
-    candidate_ids: list[str] = Field(min_length=1, max_length=500)
+    candidate_ids: list[str] = Field(min_length=1, max_length=FILES_PER_BATCH)
 
 
 class RecheckJobResult(BaseModel):
@@ -110,12 +111,17 @@ async def _run_batch(db, batch_id):
     batch = await db.cv_recheck_batches.find_one({'batch_id': batch_id}, {'_id': 0})
     if not batch:
         return
+    if batch.get('quota_managed'):
+        await reserve_batch(db, batch['user_id'], batch_id, 'recheck', len(batch['candidate_ids']))
     await db.cv_recheck_batches.update_one({'batch_id': batch_id}, {'$set': {'status': 'processing'}})
 
     async def run(cid):
+        lease = await wait_cv_slot(db, batch['user_id'], batch_id) if batch.get('quota_managed') else None
         async with _parallel:
             existing = await db.cv_recheck_jobs.find_one({'batch_id': batch_id, 'candidate_id': cid}, {'_id': 0})
             if existing and existing['status'] in ('completed', 'failed'):
+                if lease:
+                    await lease.release()
                 return
             await db.cv_recheck_jobs.update_one({'batch_id': batch_id, 'candidate_id': cid}, {'$set': {'status': 'processing'}})
             try:
@@ -125,9 +131,13 @@ async def _run_batch(db, batch_id):
                 message = str(error) if isinstance(error, ValueError) else 'No se pudo completar la revisión. Los datos anteriores se conservan.'
                 result = {'candidate_id': cid, 'status': 'failed', 'message': message}
             await db.cv_recheck_jobs.update_one({'batch_id': batch_id, 'candidate_id': cid}, {'$set': result})
+            if lease:
+                await lease.release()
 
     await asyncio.gather(*(run(cid) for cid in batch['candidate_ids']))
     await db.cv_recheck_batches.update_one({'batch_id': batch_id}, {'$set': {'status': 'completed'}})
+    if batch.get('quota_managed'):
+        await release_batch(db, batch['user_id'], batch_id)
 
 
 def launch_batch(db, batch_id):
@@ -139,8 +149,13 @@ def launch_batch(db, batch_id):
 async def enqueue_rechecks(db, ids, user_id):
     ids = list(dict.fromkeys(ids))
     batch_id = str(uuid4())
-    await db.cv_recheck_batches.insert_one({'batch_id': batch_id, 'user_id': user_id, 'candidate_ids': ids, 'status': 'queued', 'created_at': datetime.now(timezone.utc).isoformat()})
-    await db.cv_recheck_jobs.insert_many([{'batch_id': batch_id, 'candidate_id': cid, 'status': 'queued'} for cid in ids])
+    await reserve_batch(db, user_id, batch_id, 'recheck', len(ids))
+    try:
+        await db.cv_recheck_batches.insert_one({'batch_id': batch_id, 'user_id': user_id, 'candidate_ids': ids, 'status': 'queued', 'quota_managed': True, 'created_at': datetime.now(timezone.utc).isoformat()})
+        await db.cv_recheck_jobs.insert_many([{'batch_id': batch_id, 'candidate_id': cid, 'status': 'queued'} for cid in ids])
+    except Exception:
+        await release_batch(db, user_id, batch_id)
+        raise
     launch_batch(db, batch_id)
     return {'batch_id': batch_id, 'total': len(ids)}
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import { useAuth } from '../contexts/AuthContext';
 import JobFormWizard from '../components/JobFormWizard';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -19,6 +20,8 @@ import { getSeniorityLabel, getWorkSchemeLabel, getStateLabel } from '../constan
 
 const JobsPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canDelete = ['admin', 'super_admin'].includes(user?.role);
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
   
   const [jobs, setJobs] = useState([]);
@@ -237,6 +240,8 @@ const JobsPage = () => {
                         variant="ghost" 
                         size="sm"
                         onClick={(e) => handleDeleteJob(job.id, e)}
+                        disabled={!canDelete}
+                        title={!canDelete ? 'Solo administradores pueden eliminar vacantes' : 'Eliminar vacante'}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                       >
                         <Trash2 className="w-4 h-4" />

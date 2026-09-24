@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
+import { CandidateNote } from '../components/CandidateNote';
+import { CandidateClassificationFields } from '../components/CandidateClassificationFields';
 import CVVersionHistory from '../components/CVVersionHistory';
 import AssignJobDialog from '../components/AssignJobDialog';
 import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
@@ -99,11 +101,14 @@ const CandidateDetailPage = () => {
   const [candidate, setCandidate] = useState(null);
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [savingClassification, setSavingClassification] = useState(false);
+  const classificationAction = useRef(false);
   const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
   
   // Permission & Assignment state
-  const [canEdit, setCanEdit] = useState(true);
+  const [editPermission, setEditPermission] = useState(null);
   const [editReason, setEditReason] = useState(null);
   const [assignments, setAssignments] = useState([]);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
@@ -128,6 +133,10 @@ const CandidateDetailPage = () => {
   const [restricting, setRestricting] = useState(false);
   
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const canEdit = editPermission?.candidateId === id && editPermission?.userId === currentUser?.id
+    && editPermission?.role === currentUser?.role && editPermission?.canEdit === true;
+  const classificationBusy = classifying || approving || savingClassification;
+  const canEditClassification = canEdit && !candidate?.ai_classification?.approved_by_recruiter;
 
   // Duplicates state
   const [duplicates, setDuplicates] = useState(null);
@@ -135,9 +144,12 @@ const CandidateDetailPage = () => {
 
   useEffect(() => {
     fetchCandidate();
-    checkEditPermission();
     loadStatusConfig();
   }, [id]);
+
+  useEffect(() => {
+    checkEditPermission();
+  }, [id, currentUser?.id, currentUser?.role]);
   
   useEffect(() => {
     if (candidate) {
@@ -205,12 +217,15 @@ const CandidateDetailPage = () => {
   };
 
   const checkEditPermission = async () => {
+    const permissionKey = { candidateId: id, userId: currentUser?.id, role: currentUser?.role };
     try {
       const response = await assignmentsAPI.checkCanEdit(id);
-      setCanEdit(response.data.can_edit);
+      setEditPermission({ ...permissionKey, canEdit: response.data.can_edit === true });
       setEditReason(response.data.reason);
       setAssignments(response.data.assignments || []);
     } catch (error) {
+      setEditPermission({ ...permissionKey, canEdit: false });
+      setEditReason('No se pudieron verificar los permisos de edición.');
       console.error('Error checking permissions:', error);
     }
   };
@@ -265,6 +280,8 @@ const CandidateDetailPage = () => {
   };
 
   const handleClassify = async () => {
+    if (!isAdmin || classificationBusy || classificationAction.current) return;
+    classificationAction.current = true;
     setClassifying(true);
     try {
       await atlasAPI.classify(id);
@@ -272,21 +289,40 @@ const CandidateDetailPage = () => {
       await fetchCandidate();
     } catch (error) {
       console.error('Error classifying:', error);
-      toast.error('Error clasificando candidato');
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Error clasificando candidato');
     } finally {
+      classificationAction.current = false;
       setClassifying(false);
     }
   };
 
   const handleApproveClassification = async () => {
+    if (!isAdmin || classificationBusy || classificationAction.current) return;
+    classificationAction.current = true;
+    setApproving(true);
     try {
       await atlasAPI.approveClassification(id);
       toast.success('Clasificación aprobada y aplicada');
       await fetchCandidate();
     } catch (error) {
       console.error('Error approving:', error);
-      toast.error('Error aprobando clasificación');
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Error aprobando clasificación');
+    } finally {
+      classificationAction.current = false;
+      setApproving(false);
     }
+  };
+
+  const handleClassificationSaved = (candidateId, fields) => {
+    setCandidate(previous => previous?.id !== candidateId ? previous : {
+      ...previous, ...fields,
+      ai_classification: {
+        confidence_score: 0, approved_by_recruiter: false,
+        ...previous.ai_classification, ...fields, was_corrected: true,
+      },
+    });
   };
 
   const handleAddNote = async () => {
@@ -380,10 +416,10 @@ const CandidateDetailPage = () => {
         onOpenChange={setShowAssignJobDialog}
         onAssigned={() => fetchCandidate()}
       />
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-6 [overflow-wrap:anywhere]" data-testid="candidate-detail-content">
         {/* Permission Warning Banner */}
         {!canEdit && editReason && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+          <div data-testid="candidate-readonly-notice" className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
             <Lock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-amber-800">Modo solo lectura</p>
@@ -393,12 +429,12 @@ const CandidateDetailPage = () => {
         )}
 
         {/* Header Actions */}
-        <div className="flex items-center justify-between">
-          <Button variant="outline" onClick={() => navigate('/candidates')}>
+        <div className="flex flex-col xl:flex-row items-start justify-between gap-4">
+          <Button data-testid="candidate-back-button" variant="outline" onClick={() => navigate('/candidates')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Volver
           </Button>
-          <div className="flex gap-2">
+          <div data-testid="candidate-header-actions" className="flex min-w-0 max-w-full flex-wrap gap-2 xl:justify-end">
             {/* Descargar CV Original */}
             {candidate?.resume_files?.length > 0 && (
               <Button 
@@ -455,7 +491,7 @@ const CandidateDetailPage = () => {
             </Button>
             
             {/* Eliminar candidato */}
-            <Button 
+            {isAdmin && <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(true)}
               className="text-red-600 border-red-300 hover:bg-red-50"
@@ -463,7 +499,7 @@ const CandidateDetailPage = () => {
             >
               <Trash2 className="w-4 h-4 mr-2" />
               Eliminar
-            </Button>
+            </Button>}
             
             {isAdmin && (
               <Button 
@@ -478,17 +514,18 @@ const CandidateDetailPage = () => {
             <Button 
               variant="outline" 
               data-testid="edit-candidate-button"
-              disabled={!canEdit}
-              className={!canEdit ? 'opacity-50 cursor-not-allowed' : ''}
+              onClick={() => document.getElementById(`review-industry-${id}`)?.focus()}
+              disabled={!canEditClassification || classificationBusy}
+              className={!canEditClassification ? 'opacity-50 cursor-not-allowed' : ''}
             >
               <Edit className="w-4 h-4 mr-2" />
               Editar
-              {!canEdit && <Lock className="w-3 h-3 ml-1" />}
+              {!canEditClassification && <Lock className="w-3 h-3 ml-1" />}
             </Button>
-            <Button onClick={handleClassify} disabled={classifying || !canEdit} data-testid="classify-button">
+            {isAdmin && <Button onClick={handleClassify} disabled={classificationBusy} data-testid="classify-button">
               <Sparkles className="w-4 h-4 mr-2" />
               {classifying ? 'Clasificando...' : 'Clasificar con Humaniq'}
-            </Button>
+            </Button>}
           </div>
         </div>
 
@@ -561,12 +598,12 @@ const CandidateDetailPage = () => {
         {/* Main Info Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Main Info */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="min-w-0 lg:col-span-2 space-y-6">
             {/* Basic Info */}
             <Card>
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
                     <CardTitle className="text-2xl flex items-center gap-3 flex-wrap">
                       {candidate.full_name}
                       {isPlacedCandidate(candidate) && <PlacedBadge />}
@@ -677,32 +714,9 @@ const CandidateDetailPage = () => {
                 <Separator />
 
                 {/* Professional Info */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {candidate.years_experience && (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Experiencia</p>
-                      <p className="text-sm font-medium">{candidate.years_experience} años</p>
-                    </div>
-                  )}
-                  {candidate.industry && (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Industria</p>
-                      <p className="text-sm font-medium">{getIndustryName(candidate.industry)}</p>
-                    </div>
-                  )}
-                  {candidate.functional_area && (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Área Funcional</p>
-                      <p className="text-sm font-medium">{getFunctionalAreaName(candidate.functional_area)}</p>
-                    </div>
-                  )}
-                  {candidate.seniority && (
-                    <div>
-                      <p className="text-xs text-slate-500 mb-1">Seniority</p>
-                      <p className="text-sm font-medium">{getSeniorityLabel(candidate.seniority)}</p>
-                    </div>
-                  )}
-                </div>
+                <CandidateClassificationFields key={`${id}-${currentUser?.id}`} candidate={candidate}
+                  canEdit={canEdit} busy={classifying || approving} onSaving={setSavingClassification}
+                  onSaved={handleClassificationSaved} />
               </CardContent>
             </Card>
 
@@ -725,23 +739,24 @@ const CandidateDetailPage = () => {
             {candidate.ai_classification && (
               <Card className="border-cyan-200">
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="w-5 h-5 text-cyan-500" />
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <CardTitle className="flex min-w-0 items-center gap-2">
+                      <Sparkles className="w-5 h-5 shrink-0 text-cyan-500" />
                       Clasificación de Humaniq
                     </CardTitle>
-                    {!candidate.ai_classification.approved_by_recruiter && (
+                    {isAdmin && !candidate.ai_classification.approved_by_recruiter && (
                       <Button
                         size="sm"
                         onClick={handleApproveClassification}
+                        disabled={classificationBusy}
                         data-testid="approve-classification-button"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" />
-                        Aprobar y Aplicar
+                        {approving ? 'Aprobando...' : 'Aprobar y Aplicar'}
                       </Button>
                     )}
                   </div>
-                  <CardDescription>
+                  <CardDescription data-testid="candidate-classification-confidence">
                     Confianza: {Math.round(candidate.ai_classification.confidence_score * 100)}%
                     {candidate.ai_classification.approved_by_recruiter && (
                       <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-200">
@@ -751,7 +766,7 @@ const CandidateDetailPage = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <p className="text-xs text-slate-500 mb-1">Industria</p>
                       <Badge variant="outline">{candidate.ai_classification.industry ? getIndustryName(candidate.ai_classification.industry) : 'N/A'}</Badge>
@@ -859,7 +874,7 @@ const CandidateDetailPage = () => {
           </div>
 
           {/* Right Column - Side Info */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {/* CV Version History - Destacado */}
             <div className="bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-1">
               <CVVersionHistory 
@@ -978,14 +993,7 @@ const CandidateDetailPage = () => {
 
                 {candidate.notes?.length > 0 && (
                   <div className="space-y-3 mt-4">
-                    {candidate.notes.map((note, index) => (
-                      <div key={index} className="p-3 bg-slate-50 rounded-sm">
-                        <p className="text-sm text-slate-700">{note.note}</p>
-                        <p className="text-xs text-slate-500 mt-2">
-                          {note.created_by} - {formatDateTime(note.created_at)}
-                        </p>
-                      </div>
-                    ))}
+                    {candidate.notes.map((note, index) => <CandidateNote key={note.id || index} note={note} candidateId={candidate.id} onChanged={fetchCandidate} />)}
                   </div>
                 )}
               </CardContent>

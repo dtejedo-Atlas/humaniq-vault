@@ -227,9 +227,13 @@ class ResumeFile(BaseModel):
     upload_date: datetime
 
 class RecruiterNote(BaseModel):
+    id: Optional[str] = None
     note: str
     created_by: str
+    created_by_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: Optional[datetime] = None
+    updated_by_id: Optional[str] = None
 
 class JobAssignment(BaseModel):
     """Vínculo candidato↔vacante. El stage vive en el vínculo, no en el candidato."""

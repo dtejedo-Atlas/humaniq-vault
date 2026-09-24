@@ -4,6 +4,8 @@ const API_BASE = process.env.REACT_APP_BACKEND_URL + '/api';
 
 // Candidates
 export const candidatesAPI = {
+  editNote: (candidateId, noteId, noteText) => axios.patch(`${API_BASE}/candidates/${candidateId}/notes/${noteId}`, { note_text: noteText }),
+  deleteNote: (candidateId, noteId) => axios.delete(`${API_BASE}/candidates/${candidateId}/notes/${noteId}`),
   getAll: (params = {}) => axios.get(`${API_BASE}/candidates`, { params }),
   getById: (id) => axios.get(`${API_BASE}/candidates/${id}`),
   create: (data) => axios.post(`${API_BASE}/candidates`, data),

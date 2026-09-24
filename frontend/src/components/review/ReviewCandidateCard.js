@@ -8,7 +8,7 @@ import { ReviewField } from './ReviewField';
 import { reviewAPI } from '../../api';
 
 const YEARS = Array.from({ length: 101 }, (_, key) => ({ key, label: `${key} ${key === 1 ? 'año' : 'años'}` }));
-export const ReviewCandidateCard = ({ candidate, selected, toggle, taxonomy, onSaved, onApprove, onRecheck, busy, onSaving }) => {
+export const ReviewCandidateCard = ({ candidate, selected, toggle, taxonomy, onSaved, onApprove, onRecheck, busy, onSaving, canManage, canEdit }) => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -32,7 +32,7 @@ export const ReviewCandidateCard = ({ candidate, selected, toggle, taxonomy, onS
   return (
     <article data-testid={`review-candidate-${candidate.id}`} className={`min-w-0 rounded-md border p-4 sm:p-5 transition-colors ${selected ? 'border-cyan-400 bg-cyan-50/30' : 'border-slate-200 bg-white'}`}>
       <div className="flex items-start gap-3">
-        <Checkbox data-testid={`review-select-${candidate.id}`} aria-label={`Seleccionar ${candidate.full_name}`} checked={selected} disabled={busy || saving} onCheckedChange={toggle} className="mt-1" />
+        {canManage && <Checkbox data-testid={`review-select-${candidate.id}`} aria-label={`Seleccionar ${candidate.full_name}`} checked={selected} disabled={busy || saving} onCheckedChange={toggle} className="mt-1" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <Link data-testid={`review-profile-${candidate.id}`} to={`/candidates/${candidate.id}`} className="font-semibold text-slate-900 hover:text-cyan-700 break-words">{candidate.full_name}<ExternalLink className="inline ml-1 h-3 w-3" /></Link>
@@ -42,16 +42,16 @@ export const ReviewCandidateCard = ({ candidate, selected, toggle, taxonomy, onS
         </div>
       </div>
       <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {fields.map(([field, label, options]) => <ReviewField key={field} candidateId={candidate.id} field={field} label={label} value={values[field]} options={options} disabled={saving || busy} onChange={save} />)}
+        {fields.map(([field, label, options]) => <ReviewField key={field} candidateId={candidate.id} field={field} label={label} value={values[field]} options={options} disabled={saving || busy || !canEdit} onChange={save} />)}
       </div>
       {candidate.review_status === 'manual_capture' && <p data-testid={`review-manual-capture-${candidate.id}`} role="alert" className="mt-3 text-sm font-medium text-amber-800">Requiere captura manual. {candidate.review_message}</p>}
       {candidate.review_status !== 'manual_capture' && candidate.review_message && <p data-testid={`review-inference-message-${candidate.id}`} className="mt-3 text-xs text-amber-800">{candidate.review_message}</p>}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <span data-testid={`review-save-status-${candidate.id}`} role="status" className="text-xs text-slate-500">{saving && <Loader2 className="mr-1 inline h-3 w-3 animate-spin" />}{message || (candidate.manually_edited ? 'Ajustado manualmente · pendiente de aprobación' : 'Pendiente de aprobación')}</span>
-        <div className="flex flex-wrap gap-2">
+        {canManage && <div className="flex flex-wrap gap-2">
           <Button data-testid={`review-again-${candidate.id}`} variant="outline" size="sm" disabled={busy || saving} onClick={() => onRecheck(candidate.id)}><RefreshCw className="mr-1 h-4 w-4" />Revisar de nuevo</Button>
           <Button data-testid={`approve-${candidate.id}`} size="sm" disabled={busy || saving || !valid} title={!valid ? 'Completa los tres campos de clasificación con valores válidos' : 'Aprobar clasificación'} onClick={() => onApprove(candidate.id)} className="bg-green-700 hover:bg-green-800"><Check className="mr-1 h-4 w-4" />Aprobar</Button>
-        </div>
+        </div>}
       </div>
       {error && <p data-testid={`review-save-error-${candidate.id}`} role="alert" className="mt-3 text-sm text-red-700">{typeof error === 'string' ? error : 'Valor no válido; el cambio no fue guardado.'}</p>}
     </article>

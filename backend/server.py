@@ -1,7 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header, Query, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import re
@@ -38,6 +37,9 @@ from document_parser import DocumentParser
 from ocr_runtime import ensure_ocr_runtime
 from classification_refinement import classify_with_refinement, MANUAL_MESSAGE
 from cv_recheck_routes import create_recheck_router
+from candidate_note_service import NoteEdit, NoteMutation, expose_note, mutate_note
+from cors_config import get_cors_origins, PreviewAwareCORSMiddleware
+from ai_workload_limits import immediate_cv_slot
 from cv_recheck_service import launch_batch as launch_recheck_batch
 from storage_service import storage_service, init_storage
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
@@ -298,7 +300,9 @@ async def verify_candidate_edit_permission(candidate_id: str, current_user: User
     # Admin y Super Admin tienen acceso completo
     if current_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
         return
-    
+    if current_user.role != UserRole.RECRUITER:
+        raise HTTPException(status_code=403, detail="No tienes permiso para editar este candidato")
+
     # Para Recruiters, verificar asignación activa
     assignments = await assignment_service.get_candidate_assignments(candidate_id)
     
@@ -312,6 +316,16 @@ async def verify_candidate_edit_permission(candidate_id: str, current_user: User
         status_code=status.HTTP_403_FORBIDDEN,
         detail="No tienes permiso para editar este candidato. Solo puedes editar candidatos asignados a ti."
     )
+
+
+async def enforce_upload_capacity(current_user: User = Depends(get_current_user)):
+    async with immediate_cv_slot(db, current_user.id):
+        yield
+
+
+async def enforce_admin_ai_capacity(current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))):
+    async with immediate_cv_slot(db, current_user.id):
+        yield
 
 
 # ============= AUTHENTICATION ROUTES =============
@@ -754,6 +768,7 @@ async def get_candidate(
     if isinstance(candidate_doc.get('updated_at'), str):
         candidate_doc['updated_at'] = datetime.fromisoformat(candidate_doc['updated_at'])
     
+    candidate_doc['notes'] = [expose_note(note, index) for index, note in enumerate(candidate_doc.get('notes', []))]
     for note in candidate_doc.get('notes', []):
         if isinstance(note.get('created_at'), str):
             note['created_at'] = datetime.fromisoformat(note['created_at'])
@@ -806,14 +821,16 @@ async def update_candidate(
     return Candidate(**updated_doc)
 
 
-@api_router.post("/candidates/{candidate_id}/notes")
+@api_router.post("/candidates/{candidate_id}/notes", response_model=NoteMutation)
 async def add_candidate_note(
     candidate_id: str,
-    note_text: str = Form(...),
+    note_text: str = Form(..., min_length=1, max_length=10000),
     current_user: User = Depends(get_current_user)
 ):
     """Add note to candidate — cualquier usuario autenticado puede comentar"""
-    candidate_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    if not note_text.strip():
+        raise HTTPException(422, 'La nota no puede estar vacía')
+    candidate_doc = await db.candidates.find_one({"id": candidate_id, "is_deleted": {"$ne": True}}, {"_id": 0})
     
     if not candidate_doc:
         raise HTTPException(
@@ -822,8 +839,10 @@ async def add_candidate_note(
         )
     
     note = RecruiterNote(
-        note=note_text,
-        created_by=current_user.name
+        id=str(uuid.uuid4()),
+        note=note_text.strip(),
+        created_by=current_user.name,
+        created_by_id=current_user.id,
     )
     
     note_dict = note.model_dump()
@@ -839,18 +858,28 @@ async def add_candidate_note(
     
     await log_activity(current_user, "note_added", "candidate", candidate_id, candidate_doc.get("full_name"))
     
-    return {"message": "Nota agregada exitosamente"}
+    return NoteMutation(message="Nota agregada exitosamente", note=note)
+
+
+@api_router.patch('/candidates/{candidate_id}/notes/{note_id}', response_model=NoteMutation)
+async def edit_candidate_note(candidate_id: str, note_id: str, body: NoteEdit, current_user: User = Depends(get_current_user)):
+    return await mutate_note(db, candidate_id, note_id, current_user, body.note_text)
+
+
+@api_router.delete('/candidates/{candidate_id}/notes/{note_id}', response_model=NoteMutation)
+async def delete_candidate_note(candidate_id: str, note_id: str, current_user: User = Depends(get_current_user)):
+    return await mutate_note(db, candidate_id, note_id, current_user)
 
 
 @api_router.delete("/candidates/{candidate_id}")
 async def delete_candidate(
     candidate_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """
     Soft delete de candidato.
     El candidato se marca como eliminado pero permanece en BD para trazabilidad.
-    Admin y Recruiters pueden eliminar candidatos individuales.
+    Solo Admin y Super Admin pueden eliminar candidatos.
     """
     # Verificar que existe
     candidate = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "is_deleted": 1, "full_name": 1})
@@ -1089,7 +1118,7 @@ from error_handling import (
 )
 import time
 
-@api_router.post("/candidates/upload-resume")
+@api_router.post("/candidates/upload-resume", dependencies=[Depends(enforce_upload_capacity)])
 async def upload_resume(
     file: UploadFile = File(...),
     candidate_id: Optional[str] = Form(None),
@@ -1619,12 +1648,12 @@ async def upload_resume(
     return response
 
 
-@api_router.post("/candidates/retry-processing/{candidate_id}")
+@api_router.post("/candidates/retry-processing/{candidate_id}", dependencies=[Depends(enforce_admin_ai_capacity)])
 async def retry_candidate_processing(
     candidate_id: str,
     reprocess_classification: bool = Query(True),
     reprocess_embedding: bool = Query(True),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """
     Reintentar procesamiento de un candidato que tuvo errores.
@@ -2116,10 +2145,10 @@ async def prepare_ocr_dependencies():
     async for batch in db.cv_recheck_batches.find({'status': {'$in': ['queued', 'processing']}}, {'_id': 0, 'batch_id': 1}):
         launch_recheck_batch(db, batch['batch_id'])
 
-@api_router.post("/atlas/classify/{candidate_id}")
+@api_router.post("/atlas/classify/{candidate_id}", dependencies=[Depends(enforce_admin_ai_capacity)])
 async def classify_candidate_by_atlas(
     candidate_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Classify candidate using Atlas AI"""
     candidate_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
@@ -2171,7 +2200,7 @@ async def classify_candidate_by_atlas(
 @api_router.post("/atlas/approve-classification/{candidate_id}")
 async def approve_atlas_classification(
     candidate_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Approve Atlas classification and apply to candidate.
     For unclassified candidates (ai_classification=null), creates a manual approval record.
@@ -2288,6 +2317,10 @@ async def get_pending_classifications(
     
     # Format response
     results = []
+    admin_reviewer = current_user.role in (UserRole.ADMIN, UserRole.SUPER_ADMIN)
+    assigned_ids = set()
+    if current_user.role == UserRole.RECRUITER:
+        assigned_ids = set(await db.assignments.distinct('candidate_id', {'recruiter_id': current_user.id, 'status': 'active'}))
     for c in candidates_data:
         ai_class = c.get("ai_classification") or {}
         results.append({
@@ -2311,6 +2344,7 @@ async def get_pending_classifications(
             },
             "confidence_score": ai_class.get("confidence_score", 0),
             "manually_edited": bool(ai_class.get("manual_fields")),
+            "can_edit": admin_reviewer or c.get('id') in assigned_ids,
             "review_status": c.get("review_status"),
             "review_message": c.get("review_message"),
             "second_pass": ai_class.get("second_pass"),
@@ -2351,6 +2385,7 @@ async def save_review_field(
     current_user: User = Depends(get_current_user),
 ):
     """Save human edits immediately, without approving or invoking any model."""
+    await verify_candidate_edit_permission(candidate_id, current_user)
     return await save_manual_classification(db, candidate_id, patch, current_user.id)
 
 
@@ -2395,7 +2430,7 @@ class BulkApproveRequest(PydanticBaseModel):
 @api_router.post("/atlas/classifications/bulk-approve")
 async def bulk_approve_classifications(
     request: BulkApproveRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Approve multiple classifications at once. 
     For unclassified candidates (ai_classification=null), marks as manually approved without changing fields.
@@ -2483,7 +2518,7 @@ class CorrectClassificationRequest(PydanticBaseModel):
 async def correct_classification(
     candidate_id: str,
     corrections: CorrectClassificationRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Correct and approve a classification with user-provided values.
     Works for both classified and unclassified candidates.
@@ -4008,7 +4043,7 @@ async def get_seniority_levels(current_user: User = Depends(get_current_user)):
 @api_router.post("/candidates/{candidate_id}/reclassify-seniority")
 async def reclassify_candidate_seniority(
     candidate_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """
     Reclasifica el seniority de un candidato usando la nueva lógica.
@@ -4140,7 +4175,7 @@ async def reclassify_all_seniority(
 # ============= SEED DATA ROUTE =============
 
 @api_router.post("/seed/initial-data")
-async def seed_initial_data():
+async def seed_initial_data(current_user: User = Depends(require_role([UserRole.SUPER_ADMIN]))):
     """Seed initial taxonomy data from master taxonomy file"""
     from taxonomy import get_all_industries, get_all_functional_areas
     
@@ -4385,10 +4420,9 @@ async def update_job(
 @api_router.delete("/jobs/{job_id}")
 async def delete_job(
     job_id: str,
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Eliminar vacante"""
-    await get_current_user(credentials)
     
     result = await db.jobs.delete_one({"id": job_id})
     if result.deleted_count == 0:
@@ -4607,7 +4641,7 @@ async def update_assignment_stage(
     candidate_id: str,
     job_id: str,
     request: UpdateAssignmentStageRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Actualiza el stage del vínculo. Si llega a 'placed', crea la restricción de colocación."""
     if request.stage not in JOB_ASSIGNMENT_STAGES:
@@ -4687,7 +4721,7 @@ async def get_candidate_notes(
     cand = await db.candidates.find_one({"id": candidate_id}, {"_id": 0, "notes": 1})
     if not cand:
         raise HTTPException(status_code=404, detail="Candidato no encontrado")
-    notes = cand.get("notes") or []
+    notes = [expose_note(note, index) for index, note in enumerate(cand.get("notes") or [])]
     return {"candidate_id": candidate_id, "notes": notes, "total": len(notes)}
 
 
@@ -5761,13 +5795,13 @@ async def root():
 
 
 # Include the router in the main app
-app.include_router(create_recheck_router(get_current_user, lambda: db))
+app.include_router(create_recheck_router(get_current_user, lambda: db, require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN])))
 app.include_router(api_router)
 
 app.add_middleware(
-    CORSMiddleware,
+    PreviewAwareCORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=get_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

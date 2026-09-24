@@ -77,6 +77,12 @@ export const UploadBatchProvider = ({ children }) => {
       return data;
     } catch (error) {
       if (ownerRef.current === owner) {
+        if (error.response?.status === 429) {
+          const message = error.response.data?.detail || 'Límite de procesamiento alcanzado. Espera a que termine un lote.';
+          setState(prev => ({ ...prev, transferring: false, error: message }));
+          toast.warning(message);
+          return;
+        }
         setState(prev => ({ ...prev, transferring: false, error: 'No se pudo confirmar la recepción. Actualiza el seguimiento antes de volver a enviar archivos.' }));
         toast.error('No se pudo confirmar la carga de lote');
         // A lost response does not mean the server did not receive the upload.

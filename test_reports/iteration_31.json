@@ -1,0 +1,60 @@
+{
+  "summary": "Executed Option A verification with isolated backend tests, one live synthetic classify call, browser fixture UI checks (MOCKED API writes for safety), and a live read-only admin UI check.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_candidate_detail_option_a_isolated.py",
+    "/app/backend/tests/test_option_a_public_readonly.py",
+    "/app/test_reports/pytest/iteration_31_option_a_backend.xml",
+    "/app/test_reports/pytest/iteration_31_option_a_public.xml",
+    "/app/test_reports/check_option_a_candidate_detail_mocked.py",
+    "/app/test_reports/check_security_candidate_responsive.py"
+  ],
+  "action_items": [
+    "Keep using read-only/mocked browser fixtures for CandidateDetail write paths while preview/prod share Atlas."
+  ],
+  "critical_code_review_comments": [
+    "CandidateDetail classify button is present for admin/super_admin and hidden for recruiter/researcher in tested role scenarios.",
+    "Classify request lock + duplicate click protection validated: POST /api/atlas/classify/:id triggered once while in-flight lock active.",
+    "Manual profile edits validated for exactly four dropdowns; each user action emitted single-field PATCH payload and persisted after reload (including years_experience 0 vs null distinction).",
+    "Permission behavior validated end-to-end: admin/super_admin and assigned recruiter can edit; unassigned recruiter and researcher (even assigned) are read-only; can-edit failure path fails closed.",
+    "Approved profile lock policy preserved: backend returns 409 for manual patch when ai_classification.approved_by_recruiter=true.",
+    "Isolated backend persistence confirmed using temporary LOCAL Mongo overrides for server.db, assignment_service.db, background_processor.db.",
+    "One live synthetic classify call executed successfully (no real CV), confirming configured LLM path works in this environment.",
+    "Freeze check passed: git diff remained empty for scoring/ and backend/job_matching_service.py."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_candidate_detail_option_a_isolated.py",
+    "/app/backend/tests/test_option_a_public_readonly.py",
+    "/app/test_reports/check_option_a_candidate_detail_mocked.py",
+    "/app/test_reports/iteration_31.json"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6)",
+    "frontend": "100% targeted Option A flows under MOCKED mutation fixtures"
+  },
+  "seed_data_creation": "None. Synthetic test candidates were created only inside temporary LOCAL Mongo test DBs and dropped.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "UI write-path verification in this run was MOCKED/INTERCEPTED intentionally to protect shared Atlas data. Public preview read-only auth checks (login/auth-me/candidate read) were executed live with stored test admin credentials without mutating real candidates.",
+  "rca of the issue": "Main-agent reproduction corrected the initial hypothesis: baseline fixture returned [] for /taxonomy/lookup, causing TypeError reading technology and a blank CandidateDetail before classify-button could be found. The incorrect /edit-permission stub was a second fixture defect, not the admin button visibility cause. Fixtures now return valid lookup/seniority/status shapes and use /can-edit. Baseline button and responsive checks pass. No auth/backend role changes needed.",
+  "main_agent_followup": {
+    "date": "2026-09-24",
+    "status": "pass",
+    "backend_final_regression": "9 passed, 16 deselected; no second live LLM call",
+    "backend_evidence": "/app/test_reports/pytest/option_a_final_regression.xml",
+    "frontend_verified": ["Admin/super_admin classify visible, other roles hidden", "Single classify POST, result refetch, 403/429/500 honest errors", "Four single-field PATCH payloads, reload persistence, zero versus null, unchanged confidence", "Assigned recruiter editable; unassigned recruiter/researcher read-only", "Pending/failed permissions fail closed", "403/409/422/500 manual-save errors retain original value", "Approved classification lock and in-flight mutual exclusion"],
+    "responsive_evidence": ["/app/test_reports/option_a_mocked_responsive.json", "/app/test_reports/security_candidate_responsive_verified.json"],
+    "responsive_widths_passed": [320, 768, 1024, 1440],
+    "live_test_safety": "New live test is opt-in; local-only Mongo hostname guard added. No production candidate mutations.",
+    "frozen_scope": "Storage and seven preexisting code errors untouched. Scoring, job_matching_service.py and scoring_config.py diff empty vs working tree and 37f838fbf8b6507d6e115c62073f7047a1ecb8b4.",
+    "notes": "Obsolete note-delete dialog assertion removed from baseline fixture because note deletion is outside Option A; product notes code untouched. Browser mutations remain MOCKED only during tests."
+  }
+}

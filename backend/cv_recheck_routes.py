@@ -13,11 +13,11 @@ class LatestRecheck(BaseModel):
     batch_id: str | None = None
 
 
-def create_recheck_router(auth_dependency, database):
+def create_recheck_router(auth_dependency, database, admin_dependency):
     router = APIRouter(prefix='/api/atlas/classifications')
 
     @router.post('/recheck', status_code=202, response_model=RecheckStarted)
-    async def start(body: RecheckRequest, user: User = Depends(auth_dependency)):
+    async def start(body: RecheckRequest, user: User = Depends(admin_dependency)):
         return await enqueue_rechecks(database(), body.candidate_ids, user.id)
 
     @router.get('/rechecks/latest', response_model=LatestRecheck)

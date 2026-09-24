@@ -1,0 +1,26 @@
+[
+  {
+    "width": 320,
+    "scroll": 320,
+    "viewport": 320,
+    "offenders": []
+  },
+  {
+    "width": 768,
+    "scroll": 768,
+    "viewport": 768,
+    "offenders": []
+  },
+  {
+    "width": 1024,
+    "scroll": 1024,
+    "viewport": 1024,
+    "offenders": []
+  },
+  {
+    "width": 1440,
+    "scroll": 1440,
+    "viewport": 1440,
+    "offenders": []
+  }
+]

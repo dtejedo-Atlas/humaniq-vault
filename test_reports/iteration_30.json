@@ -1,0 +1,52 @@
+{
+  "summary": "Completed isolated backend security/quota/CORS regression and mocked frontend role-permission/quota UX checks for the requested audit scope.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "CandidateDetailPage",
+        "issues": [
+          "Horizontal overflow detected at 320/768/1024/1440 during mocked responsive probe; header action group appears wider than viewport and needs wrapping/containment review."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_security_roles_notes_quota_cors_isolated.py",
+    "/app/backend/tests/test_classification_review_isolated_v2.py",
+    "/app/backend/tests/test_background_processor_isolated.py",
+    "/app/test_reports/pytest/iteration_30_security.xml"
+  ],
+  "action_items": [
+    "Review CandidateDetailPage responsive overflow in action buttons/header layout (all tested breakpoints).",
+    "Keep production CORS hardening pending: preview is fixed/restricted, but production still allows arbitrary origin with credentials (observed externally).",
+    "Optionally add a deterministic backend test that forces true concurrent note edit collision to explicitly assert 409 race handling path."
+  ],
+  "critical_code_review_comments": [
+    "Role guards verified on isolated ASGI for admin-only mutations: recruiter/researcher get 403 before mutation; admin/super_admin reach handlers.",
+    "Manual classification edit permissions align with policy: admin/super OR assigned recruiter; researcher denied even if assigned.",
+    "Stage move policy verified: recruiter/admin/super allowed; researcher denied.",
+    "Notes policy verified: any authenticated role can create; author spoofing rejected by server-owned created_by_id; owner/admin-only edit/delete; legacy note handling remained admin-only for missing author ID.",
+    "Quota policy validated in isolated LOCAL Mongo: reserve_batch enforces 1 active + 2 waiting, 4th request returns 429 with Retry-After; batch size >50 rejected; duplicate batch id not duplicated; per-user CV slot cap <=2 enforced during simulated 50-file run.",
+    "Source freeze check passed: git diff vs baseline 37f838fbf8b6507d6e115c62073f7047a1ecb8b4 was EMPTY for backend/scoring, backend/job_matching_service.py, backend/scoring_config.py, backend/hybrid_search_service.py, backend/auth.py, backend/user_service.py, frontend/src/contexts/AuthContext.js.",
+    "Preview CORS behavior validated (allowed prod+preview public origins, untrusted 400, exact proxy alias normalization only). External check confirms production currently remains permissive for untrusted origin + credentials."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_security_roles_notes_quota_cors_isolated.py",
+    "/app/test_reports/iteration_30.json"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20)",
+    "frontend": "92% (all targeted mocked role/quota checks passed; responsive overflow probe flagged issue)"
+  },
+  "seed_data_creation": "None. Tests used isolated LOCAL Mongo temporary databases that were dropped.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Frontend mutation checks were MOCKED/INTERCEPTED intentionally (no real production mutations). Backend tests are reusable and isolated. Public CORS distinction: preview restricted/fixed, production still permissive as observed in preflight.",
+  "rca of the issue": "Responsive overflow likely originates from CandidateDetail action controls exceeding container width on smaller breakpoints. Repro: mocked authenticated navigation to /candidates/cand-1 and evaluate documentElement.scrollWidth > innerWidth at 320/768/1024/1440 => true across all tested widths. Mitigation: enforce wrapping/stacking for action button row and verify no element with min-width forcing horizontal scroll."
+}

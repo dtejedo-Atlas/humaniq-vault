@@ -1,0 +1,53 @@
+{
+  "verified_at": "2026-09-24T16:37:29.654550+00:00",
+  "public_allowed_origins": [
+    "https://atlas-recruiting-ai.emergent.host",
+    "https://atlas-recruiting-ai.preview.emergentagent.com"
+  ],
+  "observations": [
+    {
+      "target": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "origin": "https://atlas-recruiting-ai.emergent.host",
+      "status": 200,
+      "allow_origin": "https://atlas-recruiting-ai.emergent.host",
+      "allow_credentials": "true"
+    },
+    {
+      "target": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "origin": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "status": 200,
+      "allow_origin": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "allow_credentials": "true"
+    },
+    {
+      "target": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "origin": "https://security-audit.invalid",
+      "status": 400,
+      "allow_origin": null,
+      "allow_credentials": "true"
+    },
+    {
+      "target": "https://atlas-recruiting-ai.emergent.host",
+      "origin": "https://atlas-recruiting-ai.emergent.host",
+      "status": 200,
+      "allow_origin": "https://atlas-recruiting-ai.emergent.host",
+      "allow_credentials": "true"
+    },
+    {
+      "target": "https://atlas-recruiting-ai.emergent.host",
+      "origin": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "status": 200,
+      "allow_origin": "https://atlas-recruiting-ai.preview.emergentagent.com",
+      "allow_credentials": "true"
+    },
+    {
+      "target": "https://atlas-recruiting-ai.emergent.host",
+      "origin": "https://security-audit.invalid",
+      "status": 200,
+      "allow_origin": "https://security-audit.invalid",
+      "allow_credentials": "true"
+    }
+  ],
+  "preview_corrected": true,
+  "production_change_pending": true
+}

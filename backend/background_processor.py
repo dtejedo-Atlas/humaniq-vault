@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import BaseModel
+from ai_workload_limits import reserve_batch, release_batch, try_cv_slot
 import uuid
 import logging
 
@@ -181,6 +182,15 @@ class BackgroundProcessor:
                     self.queue.task_done()
                     continue
 
+                batch = await self.db.upload_batches.find_one({'batch_id': job.batch_id}, {'_id': 0, 'user_id': 1, 'quota_managed': 1})
+                lease = None
+                if batch and batch.get('quota_managed'):
+                    lease = await try_cv_slot(self.db, batch['user_id'], job.batch_id)
+                    if lease is None:
+                        await self.queue.put(job_id)
+                        self.queue.task_done()
+                        await asyncio.sleep(.1)
+                        continue
                 logger.info(f"Worker {worker_id} processing job {job_id}: {job.file_name}")
 
                 try:
@@ -201,6 +211,9 @@ class BackgroundProcessor:
                         )
 
                     await self.persist_job(job)
+                    if lease:
+                        await lease.release()
+                    await self.finish_batch_if_done(job.batch_id)
 
                     if job_id in self.file_data:
                         del self.file_data[job_id]
@@ -259,7 +272,12 @@ class BackgroundProcessor:
             user_id=user_id,
             total_files=file_count
         )
-        await self.db.upload_batches.insert_one(batch.to_dict())
+        await reserve_batch(self.db, user_id, batch.batch_id, 'upload', file_count)
+        try:
+            await self.db.upload_batches.insert_one({**batch.to_dict(), 'quota_managed': True})
+        except Exception:
+            await release_batch(self.db, user_id, batch.batch_id)
+            raise
         return batch
 
     async def add_job(
@@ -305,6 +323,12 @@ class BackgroundProcessor:
             {"batch_id": batch_id},
             {"$set": {"submission_complete": True, "rejected_files": rejected}},
         )
+        await self.finish_batch_if_done(batch_id)
+
+    async def finish_batch_if_done(self, batch_id):
+        batch = await self.db.upload_batches.find_one({'batch_id': batch_id, 'quota_managed': True, 'submission_complete': True}, {'_id': 0, 'user_id': 1})
+        if batch and not await self.db.upload_jobs.count_documents({'batch_id': batch_id, 'status': {'$in': ['pending', 'processing']}}):
+            await release_batch(self.db, batch['user_id'], batch_id)
 
     async def get_job(self, job_id: str) -> Optional[Dict]:
         """Obtener estado de un job desde MongoDB (funciona en cualquier réplica)"""
@@ -418,6 +442,8 @@ class BackgroundProcessor:
         job.completed_at = None
         job.retry_count += 1
 
+        metadata = self.file_metadata.get(job_id) or {}
+        await reserve_batch(self.db, metadata['user_id'], job.batch_id, 'upload', 1)
         await self.persist_job(job)
         await self.queue.put(job_id)
 

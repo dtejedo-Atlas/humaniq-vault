@@ -1,0 +1,18 @@
+[
+  {
+    "width": 320,
+    "scroll": 320
+  },
+  {
+    "width": 768,
+    "scroll": 768
+  },
+  {
+    "width": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1440,
+    "scroll": 1440
+  }
+]

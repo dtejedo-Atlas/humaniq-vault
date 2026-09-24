@@ -34,6 +34,8 @@ class AssignmentService:
         """
         if user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
             return True
+        if user.role != UserRole.RECRUITER:
+            return False
         
         # Verificar si el candidato está asignado a este reclutador
         for assignment in assignments:

@@ -33,7 +33,32 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
-## Último trabajo — 2026-09-22: CAPA 1 y CAPA 2 completadas
+## Último trabajo — 2026-09-24: opción A, ficha y clasificación verificadas
+**Alcance explícito:** resolver el timeout del botón de clasificación y validar cuatro dropdowns de guardado inmediato según los permisos aplicados. Nada más. Almacenamiento local de CV y siete errores de código preexistentes expresamente congelados.
+
+### Implementación y diagnóstico
+- El botón `classify-button` ya estaba condicionado correctamente a admin/super_admin y se confirmó visible antes de cambiar código. No se relajó ese permiso. El timeout se reprodujo en la prueba antigua: el fixture devolvía `[]` para `/taxonomy/lookup`, provocando una excepción al mostrar industria; también simulaba `/edit-permission` en lugar de `/can-edit`. Ambos datos de prueba corregidos. No fue necesario cambiar autenticación ni backend.
+- Los cuatro dropdowns existían en Por Revisar pero faltaban en CandidateDetail. Ahora la ficha reutiliza `ReviewField` mediante `CandidateClassificationFields.js`: industria, área funcional, seniority y años; PATCH existente de un solo campo, guardado inmediato, cero años distinto de Sin dato, confirmación visible solo tras éxito y conservación del valor anterior ante error.
+- Edición manual habilitada exclusivamente con `/can-edit` confirmado: admin/super_admin o recruiter asignado; researcher y recruiter no asignado en solo lectura. Estado de permiso ligado a candidato/usuario/rol; mientras carga o falla, no habilita edición. Fichas aprobadas permanecen bloqueadas conforme a la política 409 existente del servidor.
+- Clasificar/aprobar bloqueados durante guardado y los dropdowns durante clasificación/aprobación. Protección frente a doble clic y mensajes reales ante 403/429/500. Botón Editar enfoca el primer campo. Corrección de distribución de clasificación y columna lateral para móvil.
+- Cambios de producto de esta ronda limitados a `frontend/src/pages/CandidateDetailPage.js` y nuevo `frontend/src/components/CandidateClassificationFields.js`; resto: pruebas y documentación. No se modificaron cuentas, claves, backend productivo, modelos, taxonomía ni almacenamiento.
+
+### Verificación final
+- `yarn build` correcto, con advertencias históricas de hooks/dependencias; no se afirma limpieza global.
+- Iteración 31: cinco tests backend aislados y una comprobación pública de lectura aprobados. Incluye **una clasificación real con el servicio IA existente sobre candidato puramente sintético en Mongo LOCAL**, sin CV/datos de candidatos reales. Prueba live convertida a opt-in `RUN_LIVE_CLASSIFICATION_TEST=1` para evitar llamadas futuras accidentales.
+- Autocomprobación final: **9 tests de regresión aislados aprobados**, sin repetir la llamada IA. Persistencia de los cuatro campos, rechazo por rol, clasificación, conservación de confianza/aprobación y validación de valores.
+- Navegador: botón visible para ambos roles administrativos; oculto para recruiter/researcher; cinco combinaciones de rol/asignación verificadas. Cuatro PATCH individuales y persistencia al recargar; 0/null, bloqueo concurrente, errores 403/409/422/500 de guardado y 403/429/500 de clasificación; permisos lentos/fallidos y fichas aprobadas comprobados.
+- Dos fixtures responsive pasan a **320/768/1024/1440**, scrollWidth igual al viewport, sin desbordamiento ni elementos fuera de pantalla.
+- **MOCKED únicamente en las pruebas de navegador** para no mutar Atlas compartido; aplicación usa APIs reales y persistencia backend se prueba en Mongo local temporal. Ningún candidato real modificado.
+- `git diff` vacío en `backend/scoring/`, `backend/job_matching_service.py` y `backend/scoring_config.py`, tanto working tree como contra `37f838fbf8b6507d6e115c62073f7047a1ecb8b4`. Pesos/matching intactos.
+- Evidencia: `test_reports/iteration_31.json`, `pytest/option_a_final_regression.xml`, `option_a_mocked_responsive.json`, `security_candidate_responsive_verified.json`. Scripts reutilizables corregidos: `check_option_a_candidate_detail_mocked.py` y `check_security_candidate_responsive.py`.
+
+### Prioridades y próximos pasos
+- P0 opción A: sin pendientes técnicos conocidos tras la verificación; pendiente la validación del usuario.
+- P1: revisión del usuario con una ficha de prueba y un reclutador asignado; no realizar cambios adicionales sin solicitud.
+- P2/P3: almacenamiento local de CV, siete hallazgos de código, sesiones JWT, límites de autenticación, auditoría visible y demás backlog permanecen congelados o aplazados. Posible mejora futura: visibilidad del historial de ajustes manuales, sin implementación en esta ronda.
+
+## Trabajo anterior — 2026-09-22: CAPA 1 y CAPA 2 completadas
 **Autorización del usuario:** ejecutar en orden dos capas, informar números de Capa 1 antes de avanzar a Capa 2, NO integrar web, NO tocar scoring/pesos/matching. El usuario confirmó además que recargó créditos durante la ejecución.
 
 ### Capa 1 — extracción corregida y 34 reprocesados
