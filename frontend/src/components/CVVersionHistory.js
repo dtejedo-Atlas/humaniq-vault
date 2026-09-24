@@ -103,6 +103,7 @@ const CVVersionHistory = ({ candidateId, candidateName, onVersionUpdated }) => {
     } catch (error) {
       console.error('Error uploading CV:', error);
       toast.error(error.response?.data?.detail || 'Error subiendo CV');
+      if (error.response?.status === 503 && onVersionUpdated) onVersionUpdated();
     } finally {
       setUploading(false);
       if (fileInputRef.current) {

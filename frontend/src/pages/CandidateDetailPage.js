@@ -291,6 +291,10 @@ const CandidateDetailPage = () => {
       console.error('Error classifying:', error);
       const detail = error.response?.data?.detail;
       toast.error(typeof detail === 'string' ? detail : 'Error clasificando candidato');
+      if (error.response?.status === 422) {
+        await fetchCandidate();
+        window.dispatchEvent(new Event('classification-review-updated'));
+      }
     } finally {
       classificationAction.current = false;
       setClassifying(false);
@@ -531,6 +535,18 @@ const CandidateDetailPage = () => {
 
         {/* Alert Banners */}
         <div className="space-y-3">
+          {candidate.cv_storage_issue?.status === 'failed' && (
+            <div data-testid="candidate-cv-storage-error" role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              <p className="font-semibold">CV original pendiente de guardar</p>
+              <p className="mt-1">{candidate.cv_storage_issue.message}</p>
+              <p data-testid="candidate-cv-storage-filename" className="mt-1 break-all">{candidate.cv_storage_issue.file_name}</p>
+            </div>
+          )}
+          {candidate.review_status === 'manual_capture' && (
+            <div data-testid="candidate-manual-capture-alert" role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              {candidate.review_message || 'Requiere captura manual: no se pudo leer el CV original.'}
+            </div>
+          )}
           {/* Restricted Candidate Alert */}
           {candidate.is_restricted && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3" data-testid="restricted-alert">

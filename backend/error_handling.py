@@ -76,7 +76,7 @@ ERROR_MESSAGES = {
     ErrorType.AI_INVALID_RESPONSE: "La IA devolvió una respuesta inválida.",
     ErrorType.EMBEDDING_GENERATION_FAILED: "Error al generar vector de búsqueda. El candidato se guardó pero sin búsqueda semántica.",
     ErrorType.EMBEDDING_API_ERROR: "Error de API al generar embeddings. El candidato se guardó correctamente.",
-    ErrorType.STORAGE_UPLOAD_FAILED: "Error al guardar el archivo. Se usó almacenamiento local.",
+    ErrorType.STORAGE_UPLOAD_FAILED: "No se pudo confirmar el guardado remoto del CV original. Vuelve a subir el archivo; no se guardó una copia local.",
     ErrorType.DATABASE_SAVE_FAILED: "Error al guardar en base de datos.",
     ErrorType.VALIDATION_ERROR: "Datos incompletos o inválidos extraídos del CV.",
     ErrorType.UNKNOWN_ERROR: "Error desconocido durante el procesamiento.",

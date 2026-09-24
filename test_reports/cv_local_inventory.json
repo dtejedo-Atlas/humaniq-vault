@@ -1,0 +1,29 @@
+{
+  "generated_at": "2026-09-24T19:49:54.591668+00:00",
+  "read_only": true,
+  "database_writes": 0,
+  "file_migrations": 0,
+  "scope": "All candidates including soft-deleted and all cv_versions; existing app database connection.",
+  "counts": {
+    "candidates_total": 915,
+    "candidates_deleted": 86,
+    "candidates_active": 829,
+    "candidate_resume_references_remote": 862,
+    "candidate_resume_references_local": 3,
+    "version_references_remote": 120,
+    "version_references_local": 3
+  },
+  "local_unique_files": 3,
+  "local_references_total": 6,
+  "local_candidate_ids_total": 3,
+  "active_candidates_with_local_references": 3,
+  "unique_local_files_in_active_candidate_or_current_active_version": 3,
+  "local_files_present_in_preview": 1,
+  "local_files_not_found_in_preview": 2,
+  "local_versions_without_candidate": 0,
+  "limitations": [
+    "Counts local references, not proof of which historical upload branch created them.",
+    "File existence checked only in this preview container, never production; missing here does not prove irrecoverable loss.",
+    "Remote object availability and local file readability not checked; no CV contents were opened."
+  ]
+}

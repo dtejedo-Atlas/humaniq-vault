@@ -33,7 +33,34 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
-## Último trabajo — 2026-09-24: opción A, ficha y clasificación verificadas
+## Último trabajo — 2026-09-24: lectura segura de CV y eliminación de fallbacks locales
+**Autorización del usuario:** únicamente detener clasificación cuando no se puede leer el CV, reemplazar fallback local por reintentos remotos/error visible/marca persistente e inventariar referencias locales existentes SIN borrarlas ni migrarlas. Cinco F811 y un F402 siguen congelados. No scoring/matching/pesos.
+
+### Implementado
+- `resume_read_safety.py` recupera CV vigente (versión activa o archivo más reciente), distingue storage remoto y ruta local heredada, usa extracción real PDF/DOCX y exige texto legible. El endpoint classify no invoca IA si falta el original, falla la descarga o extracción, o el contenido es ilegible: registra el error, responde 422, marca `manual_capture` y motivo, deja `ai_classification=null` y conserva la anterior dentro de `classification_read_error.previous_classification`. Campos profesionales/notas/asignaciones intactos; candidato aparece en Por Revisar. Si cambia la ficha/CV durante el intento, no sobreescribe el cambio y responde 409.
+- `StorageService.upload_resume`: máximo 3 intentos totales (inicial + 2 reintentos) para fallos transitorios, misma clave remota en cada intento, timeout/backoff acotados. Fallos permanentes de permisos/credenciales/cuota abortan inmediatamente según playbook. Ningún nuevo proveedor ni claves.
+- Eliminados los dos fallbacks de upload-resume y el mismo fallback encontrado en `process_cv_job` (carga por lote, dentro del mismo problema funcional). Fallo remoto: resultado `failed`, sin ruta/archivo local ni versión fantasma, ficha conservada con `cv_storage_issue`. Si había CV anterior, permanece intacto. La actualización de CV desde ficha también marca error 503 y una carga posterior exitosa limpia la marca.
+- UI: clasificación 422 refresca ficha/contador y muestra Requiere captura manual sin éxito falso; aviso persistente de original pendiente; cargas individual/lote muestran error explícito. Lote fallido por storage ofrece Abrir ficha, no un reintento imposible sin bytes (worker preexistente libera memoria). La usuaria puede volver a cargar desde Nueva versión. Fallo de Nueva versión refresca marca en ficha; éxito la limpia.
+
+### Inventario de SOLO LECTURA (2026-09-24 19:49:54 UTC)
+- BD compartida existente: 915 candidatos, 829 activos y 86 eliminados lógicamente. 3 referencias locales en candidatos + 3 en cv_versions representan **3 archivos únicos de 3 candidatos activos**, NO seis CV distintos. 862 referencias remotas en candidatos, 120 remotas en versiones.
+- **1 archivo existe en este preview; 2 no existen aquí.** No se inspeccionó el disco de producción; ausencia en preview NO demuestra pérdida definitiva. No se abrió contenido de CV ni verificó disponibilidad remota.
+- Cero escrituras de inventario, cero borrados, cero migraciones. Los tres originales heredados siguen pendientes de decisión/recuperación del usuario antes de una sustitución del contenedor.
+- Resumen sin PII: `/app/test_reports/cv_local_inventory.json`. Detalle privado IDs/rutas, permiso 0600: `/root/humaniq_cv_diagnosis/local_resume_inventory.json`. Script reproducible de lectura: `backend/scripts/inventory_local_resume_references.py`. Cuenta referencias locales; no prueba cuál rama histórica las creó.
+
+### Verificación
+- Testing iteration_32 inicialmente 40 pass / 2 live omitidos. Autoverificación ampliada final: **65 pass / 2 live omitidos**, en Mongo LOCAL temporal; IA/storage MOCKED exclusivamente en pruebas, ninguna mutación en Atlas ni uploads remotos reales. DOCX sintético real extraído sin simular parser; éxitos local/remoto, selección de versión vigente, 404/timeouts/archivo corrupto/vacío, reintentos, preservación CV anterior, recuperación por update-cv y conflicto por CV retirado probados.
+- Navegador con APIs MOCKED: transición classify422 a captura manual sin aprobación/éxito falso; fallo de carga individual y lote; avisos a 320/768/1024/1440 sin overflow. Fixture final bloquea llamadas API no simuladas. Build frontend pasa con warnings históricos.
+- Evidencia: `test_reports/iteration_32.json`, `test_reports/pytest/cv_safety_final.xml`, `cv_safety_final_pytest.log`, `cv_safety_build.log`, `check_iteration_32_cv_safety_mocked.py` y `cv_safety_smoke.jpg` (todos persistentes).
+- `git diff` vacío working tree y contra baseline **d1d276fddbfb6a4b31e8df140ad4965a57f0d8b5** en `backend/scoring/`, `backend/job_matching_service.py`, `backend/scoring_config.py`. AST de ambas definiciones de modelos duplicados, prompt duplicado y dashboard shadow idéntico. Ruff sigue reportando exactamente **5 F811 + 1 F402** congelados; E722 eliminado con corrección funcional, no simple limpieza.
+- Nota de pruebas: la selección histórica de DB prioriza Atlas; se conserva sin refactor y TODAS las pruebas sobrescriben servicios con Mongo local. No se afirma limpieza global, sincronización GitHub, despliegue ni seguridad de producción. CORS de producción requiere comprobación separada tras actualizarla; el último chequeo anterior seguía permisivo.
+
+### Pendientes
+- P0: decisión del usuario sobre recuperar/migrar los 3 CV locales heredados; NO ejecutar sin autorización. Validación usuaria de los dos fixes.
+- P1: si se solicita, probar configuración/permisos de producción tras actualización real; no equiparar código local con producción.
+- P2: cinco F811 y F402 + demás backlog continúan congelados. Mejora futura sugerida, no implementada: control periódico de disponibilidad de originales.
+
+## Trabajo anterior — 2026-09-24: opción A, ficha y clasificación verificadas
 **Alcance explícito:** resolver el timeout del botón de clasificación y validar cuatro dropdowns de guardado inmediato según los permisos aplicados. Nada más. Almacenamiento local de CV y siete errores de código preexistentes expresamente congelados.
 
 ### Implementación y diagnóstico

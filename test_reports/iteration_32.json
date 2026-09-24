@@ -1,0 +1,68 @@
+{
+  "summary": "Executed isolated backend regression suite for CV read safety/storage failures plus MOCKED frontend UI checks for manual-capture and batch storage-error visibility. All targeted backend tests passed (40 passed, 2 live tests skipped by design).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api (startup db selection)",
+        "issue": "server.py prioritizes ATLAS_URI over MONGO_URL; high accidental-write risk in preview/testing contexts unless tests always override server.db as done here."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_candidate_detail_option_a_isolated.py",
+    "/app/backend/tests/test_cv_safety_storage_isolated.py",
+    "/app/backend/tests/test_storage_service_retry_unit.py",
+    "/app/backend/tests/test_layer2_capa2_isolated.py",
+    "/app/test_reports/check_iteration_32_cv_safety_mocked.py",
+    "/app/test_reports/pytest/iteration_32.xml"
+  ],
+  "action_items": [
+    "Keep enforcing isolated-db override pattern for every new backend test touching candidate/storage/classification flows.",
+    "If desired, add one non-live synthetic DOCX byte-path integration test for classify success using real extraction helper (still with mocked LLM/storage).",
+    "Maintain ATLAS write protection guardrails in CI to prevent accidental shared-db writes."
+  ],
+  "critical_code_review_comments": [
+    "Mongo selection in server.py (ATLAS_URI first) is operationally risky for test environments; a missing override can hit shared Atlas.",
+    "models.py contains duplicated class names/sections (e.g., ActivityLog, SmartFolder variants), which increases maintenance and schema drift risk."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_candidate_detail_option_a_isolated.py",
+    "/app/backend/tests/test_cv_safety_storage_isolated.py",
+    "/app/backend/tests/test_storage_service_retry_unit.py",
+    "/app/test_reports/check_iteration_32_cv_safety_mocked.py",
+    "/app/test_reports/iteration_32.json",
+    "/app/test_reports/pytest/iteration_32.xml"
+  ],
+  "success_rate": {
+    "backend": "100% (40 passed / 0 failed / 2 skipped-live)",
+    "frontend": "100% for MOCKED scripted checks"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "New isolated tests now cover: classify 422 manual_capture without LLM call, classify success marker clearing, 409 CV-change protection, upload-resume storage failures (new/existing), update-cv storage failure durability, process_cv_job failed-on-storage, and StorageService retry/fail-fast policy. Frontend check script under /app/test_reports/check_iteration_32_cv_safety_mocked.py validates mocked manual-capture + batch-storage-failure UI including responsive alert visibility.",
+  "rca of the issue": "Original classify route read remote references as local files and swallowed all read exceptions, then called AI with empty text. New helper reads current original correctly and fails to manual capture before LLM. Upload paths previously acknowledged local-disk fallback as success/partial; all such candidate upload fallbacks now report durable storage failures with no phantom reference.",
+  "main_agent_final_verification": {
+    "backend": "65 passed, 2 optional live tests skipped; Mongo LOCAL only; mocked external storage/LLM; actual synthetic DOCX parsing",
+    "backend_report": "/app/test_reports/pytest/cv_safety_final.xml",
+    "frontend": "PASS: classify422 state/refetch, no fake success/approval, responsive320/768/1024/1440, individual storage upload failed, batch failed/error/profile link/no impossible retry",
+    "build": "PASS with preexisting hooks warnings; /app/test_reports/cv_safety_build.log",
+    "additional_cases": ["Actual current remote CV version selected", "Latest resume fallback selected", "Legacy local CV extracted without migration", "Missing local/remote404/timeout/corrupt/blank/invalid path no LLM", "Successful update-cv clears storage error and preserves prior CV", "CV removed during classification returns409, not fake200 or500"],
+    "fixture_fixes": "Module search-path imports fixed; browser asserts actual Fallido label instead of Error; all unmatched API mutations intercepted, not continued to production.",
+    "inventory_report": "/app/test_reports/cv_local_inventory.json",
+    "local_unique_cvs": 3,
+    "local_affected_active_candidates": 3,
+    "present_in_preview": 1,
+    "not_found_in_preview": 2,
+    "inventory_writes_or_migrations": 0,
+    "inventory_caveat": "Preview file presence only; no assertion of irreversible loss or production filesystem state.",
+    "protected_diff": "EMPTY for backend/scoring/, backend/job_matching_service.py and backend/scoring_config.py against working tree and baseline d1d276fddbfb6a4b31e8df140ad4965a57f0d8b5",
+    "frozen_findings": "Five F811 and one F402 unchanged, AST verified. Shared Atlas selection acknowledged as preexisting operational risk, not changed without authorization."
+  }
+}

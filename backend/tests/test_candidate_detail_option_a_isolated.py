@@ -106,13 +106,23 @@ async def _insert_candidate(db, candidate_id: str, **extra):
 async def test_classify_stores_ai_classification_and_updates_candidate(api_client, isolated_db, monkeypatch):
     client, current = api_client
     current["user"] = _user(UserRole.ADMIN, "admin-classify")
-    await _insert_candidate(isolated_db, "cand-classify")
+    await _insert_candidate(
+        isolated_db,
+        "cand-classify",
+        resume_files=[{
+            "file_name": "cv.docx",
+            "file_path": "atlas-talent-vault/resumes/cand-classify/cv.docx",
+            "file_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "upload_date": _iso_now(),
+        }],
+    )
 
     calls = {"count": 0}
 
     async def _fake_classify(candidate_data, resume_text):
         calls["count"] += 1
         assert candidate_data["id"] == "cand-classify"
+        assert isinstance(resume_text, str) and len(resume_text.strip()) >= 50
         return {
             "industry": "technology",
             "functional_area": "it",
@@ -121,6 +131,24 @@ async def test_classify_stores_ai_classification_and_updates_candidate(api_clien
             "suggested_tags": ["liderazgo"],
         }
 
+    async def _fake_readable_resume(_db, _candidate):
+        return (
+            "Experiencia sólida en operaciones, liderazgo, estrategia y resultados durante más de diez años.",
+            {
+                "key": "atlas-talent-vault/resumes/cand-classify/cv.docx",
+                "type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+        )
+
+    async def _fake_current_resume(_db, _candidate):
+        return {
+            "key": "atlas-talent-vault/resumes/cand-classify/cv.docx",
+            "type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+
+    import cv_recheck_service
+    monkeypatch.setattr(server, "readable_resume", _fake_readable_resume)
+    monkeypatch.setattr(cv_recheck_service, "current_resume", _fake_current_resume)
     monkeypatch.setattr(server.atlas_service, "classify_candidate", _fake_classify)
     response = await client.post("/api/atlas/classify/cand-classify")
 

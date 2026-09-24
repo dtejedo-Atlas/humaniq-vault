@@ -74,6 +74,7 @@ const UploadPage = () => {
             warnings: data.warnings || [],
             reviewStatus: data.review_status,
             reviewMessage: data.review_message,
+            storageIssue: data.cv_storage_issue,
             processingTime: data.processing_time_ms,
             duplicates: data.duplicates,
             isDuplicate
@@ -359,6 +360,12 @@ const UploadPage = () => {
                       </div>
                     </div>
                     {job.review_status === 'manual_capture' && <p data-testid={`batch-job-manual-capture-${job.job_id}`} role="alert" className="mt-2 text-sm font-medium text-amber-800">No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».</p>}
+                    {job.errors?.some(error => error.type === 'storage_upload_failed') && (
+                      <div data-testid={`batch-job-storage-error-${job.job_id}`} role="alert" className="mt-2 text-sm text-red-800">
+                        <p>{job.errors.find(error => error.type === 'storage_upload_failed').message}</p>
+                        {job.candidate_id && <Button data-testid={`batch-storage-profile-${job.job_id}`} size="sm" variant="outline" className="mt-2" onClick={() => navigate(`/candidates/${job.candidate_id}`)}>Abrir ficha</Button>}
+                      </div>
+                    )}
                     
                     {/* Barra de progreso individual */}
                     {job.status === 'processing' && (
@@ -430,7 +437,7 @@ const UploadPage = () => {
                               Ver Perfil
                             </Button>
                           )}
-                          {(job.status === 'failed' || job.status === 'partial') && (
+                          {(job.status === 'failed' || job.status === 'partial') && !job.errors?.some(error => error.type === 'storage_upload_failed') && (
                             <Button
                               size="sm"
                               variant="ghost"
@@ -492,6 +499,7 @@ const UploadPage = () => {
                 {uploadResults.map((result, index) => (
                   <div
                     key={index}
+                    data-testid={`upload-result-${index}`}
                     className={`p-4 border rounded-sm ${
                       result.status === 'success' ? 'border-green-200 bg-green-50/50' :
                       result.status === 'partial_success' ? 'border-yellow-200 bg-yellow-50/50' :
@@ -523,7 +531,8 @@ const UploadPage = () => {
                         Ver Perfil
                       </Button>
                     )}
-                    {result.reviewStatus === 'manual_capture' && <p data-testid={`upload-result-manual-capture-${index}`} role="alert" className="mt-3 text-sm font-medium text-amber-800">No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».</p>}
+                    {result.reviewStatus === 'manual_capture' && <p data-testid={`upload-result-manual-capture-${index}`} role="alert" className="mt-3 text-sm font-medium text-amber-800">{result.reviewMessage || 'No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».'}</p>}
+                    {result.storageIssue && <p data-testid={`upload-result-storage-error-${index}`} role="alert" className="mt-3 text-sm font-medium text-red-800">{result.storageIssue.message}</p>}
                     {!!result.errors?.length && <p data-testid={`upload-result-errors-${index}`} role="alert" className="mt-2 text-xs text-red-700 break-words">{result.errors.map(error => error.message).join(' · ')}</p>}
                   </div>
                 ))}

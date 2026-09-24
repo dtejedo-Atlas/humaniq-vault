@@ -290,6 +290,8 @@ class Candidate(BaseModel):
     review_status: Optional[str] = None
     review_message: Optional[str] = None
     cv_extraction: Optional[Dict] = None
+    cv_storage_issue: Optional[Dict] = None
+    classification_read_error: Optional[Dict] = None
     embedding: Optional[List[float]] = None
     embedding_updated_at: Optional[datetime] = None
     

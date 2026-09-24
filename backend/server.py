@@ -41,7 +41,9 @@ from candidate_note_service import NoteEdit, NoteMutation, expose_note, mutate_n
 from cors_config import get_cors_origins, PreviewAwareCORSMiddleware
 from ai_workload_limits import immediate_cv_slot
 from cv_recheck_service import launch_batch as launch_recheck_batch
-from storage_service import storage_service, init_storage
+from storage_service import storage_service, init_storage, ResumeStorageError
+from resume_read_safety import readable_resume, mark_manual_capture, ResumeReadError, snapshot_filter
+from resume_storage_state import storage_issue
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
 from embedding_service import embedding_service
@@ -1433,7 +1435,7 @@ async def upload_resume(
         
         # ===== ETAPA 7: ALMACENAMIENTO DE ARCHIVO =====
         try:
-            storage_result = storage_service.upload_resume(
+            storage_result = await asyncio.to_thread(storage_service.upload_resume,
                 file_data,
                 candidate_id,
                 file.filename,
@@ -1458,24 +1460,8 @@ async def upload_resume(
                 recoverable=True
             )
             
-            # Fallback a almacenamiento local
-            try:
-                upload_path = UPLOAD_DIR / candidate_id
-                upload_path.mkdir(parents=True, exist_ok=True)
-                file_path = upload_path / file.filename
-                with open(file_path, "wb") as f:
-                    f.write(file_data)
-                
-                resume_file = ResumeFile(
-                    file_name=file.filename,
-                    file_path=str(file_path.relative_to(ROOT_DIR)),
-                    file_type=Path(file.filename).suffix,
-                    upload_date=datetime.now(timezone.utc)
-                )
-                candidate.resume_files = [resume_file]
-                warnings.append("Archivo guardado localmente (fallback)")
-            except Exception as local_e:
-                logger.error(f"Error saving locally: {str(local_e)}")
+            candidate.cv_storage_issue = storage_issue(file.filename, e)
+            candidate.resume_files = []
         
         result.stage_reached = ProcessingStage.EMBEDDING_GENERATION
         
@@ -1576,9 +1562,13 @@ async def upload_resume(
         # Agregar CV a candidato existente
         result.candidate_id = candidate_id
         result.stage_reached = ProcessingStage.STORAGE
+
+        existing_candidate = await db.candidates.find_one({'id': candidate_id, 'is_deleted': {'$ne': True}}, {'_id': 0, 'id': 1, 'resume_files': 1})
+        if not existing_candidate:
+            raise HTTPException(404, 'Candidato no encontrado')
         
         try:
-            storage_result = storage_service.upload_resume(
+            storage_result = await asyncio.to_thread(storage_service.upload_resume,
                 file_data,
                 candidate_id,
                 file.filename,
@@ -1593,20 +1583,14 @@ async def upload_resume(
             )
         except Exception as e:
             logger.error(f"Error uploading to storage: {str(e)}")
-            # Fallback local
-            upload_path = UPLOAD_DIR / candidate_id
-            upload_path.mkdir(parents=True, exist_ok=True)
-            file_path = upload_path / file.filename
-            with open(file_path, "wb") as f:
-                f.write(file_data)
-            
-            resume_file = ResumeFile(
-                file_name=file.filename,
-                file_path=str(file_path.relative_to(ROOT_DIR)),
-                file_type=Path(file.filename).suffix,
-                upload_date=datetime.now(timezone.utc)
-            )
-            warnings.append("Archivo guardado localmente")
+            issue = storage_issue(file.filename, e, bool(existing_candidate.get('resume_files')))
+            await db.candidates.update_one({'id': candidate_id}, {'$set': {
+                'cv_storage_issue': issue, 'updated_at': datetime.now(timezone.utc).isoformat(),
+            }})
+            result.add_error(ErrorType.STORAGE_UPLOAD_FAILED, ProcessingStage.STORAGE, str(e), recoverable=True)
+            result.status = 'failed'
+            result.processing_time_ms = int((time.time() - start_time) * 1000)
+            return {**result.to_response(), 'cv_storage_issue': issue}
         
         resume_dict = resume_file.model_dump()
         resume_dict['upload_date'] = resume_dict['upload_date'].isoformat()
@@ -1617,6 +1601,7 @@ async def upload_resume(
             {"id": candidate_id},
             {
                 "$push": {"resume_files": resume_dict},
+                "$unset": {"cv_storage_issue": ""},
                 "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
             }
         )
@@ -1628,12 +1613,14 @@ async def upload_resume(
     # Determinar estado final
     if len(result.errors) == 0:
         result.status = "success"
-    elif any(e.error_type in [ErrorType.DATABASE_SAVE_FAILED, ErrorType.FILE_CORRUPTED] for e in result.errors):
+    elif any(e.error_type in [ErrorType.DATABASE_SAVE_FAILED, ErrorType.FILE_CORRUPTED, ErrorType.STORAGE_UPLOAD_FAILED] for e in result.errors):
         result.status = "failed"
     else:
         result.status = "partial_success"
     
     result.warnings = warnings
+    if any(e.error_type == ErrorType.STORAGE_UPLOAD_FAILED for e in result.errors):
+        result.stage_reached = ProcessingStage.STORAGE
     
     if result.status == "success" and result.candidate_id:
         await log_activity(current_user, "candidate_uploaded", "candidate", result.candidate_id, (parsed_data or {}).get("full_name"))
@@ -1641,7 +1628,7 @@ async def upload_resume(
     response = result.to_response()
     response["parsed_data"] = parsed_data
     if result.candidate_id:
-        review_flags = await db.candidates.find_one({'id': result.candidate_id}, {'_id': 0, 'review_status': 1, 'review_message': 1})
+        review_flags = await db.candidates.find_one({'id': result.candidate_id}, {'_id': 0, 'review_status': 1, 'review_message': 1, 'cv_storage_issue': 1})
         response.update(review_flags or {})
     response["has_low_confidence_duplicates"] = len(soft_duplicates) > 0 and soft_duplicates[0]['confidence'] < 0.85 if soft_duplicates else False
     
@@ -1954,21 +1941,11 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         )
         candidate.resume_files = [resume_file]
     except Exception as e:
-        result["warnings"].append("Archivo guardado localmente (fallback)")
-        
-        upload_path = UPLOAD_DIR / candidate_id
-        upload_path.mkdir(parents=True, exist_ok=True)
-        file_path = upload_path / file_name
-        with open(file_path, "wb") as f:
-            f.write(file_data)
-        
-        resume_file = ResumeFile(
-            file_name=file_name,
-            file_path=str(file_path.relative_to(ROOT_DIR)),
-            file_type=Path(file_name).suffix,
-            upload_date=datetime.now(timezone.utc)
-        )
-        candidate.resume_files = [resume_file]
+        logger.error('Batch remote CV upload failed for candidate %s (%s); no local fallback', candidate_id, type(e).__name__)
+        candidate.cv_storage_issue = storage_issue(file_name, e)
+        candidate.resume_files = []
+        result['errors'].append({'type': 'storage_upload_failed', 'stage': 'storage',
+                                 'message': candidate.cv_storage_issue['message'], 'recoverable': False})
     
     job.stage_timings["storage"] = int((time.time() - _t) * 1000)
     job.progress = 85
@@ -2038,7 +2015,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     
     # Determinar estado final
     result["candidate_id"] = candidate_id
-    if len(result["errors"]) == 0:
+    if any(error['type'] == 'storage_upload_failed' for error in result['errors']):
+        result['status'] = 'failed'
+        job.current_stage = 'storage'
+    elif len(result["errors"]) == 0:
         result["status"] = "success"
     else:
         result["status"] = "partial_success"
@@ -2151,7 +2131,7 @@ async def classify_candidate_by_atlas(
     current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
     """Classify candidate using Atlas AI"""
-    candidate_doc = await db.candidates.find_one({"id": candidate_id}, {"_id": 0})
+    candidate_doc = await db.candidates.find_one({"id": candidate_id, "is_deleted": {"$ne": True}}, {"_id": 0})
     
     if not candidate_doc:
         raise HTTPException(
@@ -2159,15 +2139,12 @@ async def classify_candidate_by_atlas(
             detail="Candidato no encontrado"
         )
     
-    # Get resume text
-    resume_text = ""
-    if candidate_doc.get('resume_files'):
-        first_resume = candidate_doc['resume_files'][0]
-        resume_path = ROOT_DIR / first_resume['file_path']
-        try:
-            resume_text = DocumentParser.extract_text(str(resume_path))
-        except:
-            pass
+    try:
+        resume_text, reference = await readable_resume(db, candidate_doc)
+    except ResumeReadError as error:
+        logger.exception('CV reading failed for candidate %s (%s); classification not attempted', candidate_id, error.reason)
+        message = await mark_manual_capture(db, candidate_doc, error)
+        raise HTTPException(status_code=422, detail=message) from error
     
     # Classify
     classification = await atlas_service.classify_candidate(candidate_doc, resume_text)
@@ -2184,15 +2161,28 @@ async def classify_candidate_by_atlas(
     ai_class_dict = ai_classification.model_dump()
     ai_class_dict['classified_at'] = ai_class_dict['classified_at'].isoformat()
     
-    await db.candidates.update_one(
-        {"id": candidate_id},
+    from cv_recheck_service import current_resume
+    latest = await db.candidates.find_one({'id': candidate_id, 'is_deleted': {'$ne': True}}, {'_id': 0})
+    try:
+        latest_reference = await current_resume(db, latest) if latest else None
+    except ValueError:
+        latest_reference = None
+    if latest_reference != reference:
+        raise HTTPException(409, 'Cambió el CV activo durante la clasificación; el resultado no se aplicó.')
+    saved = await db.candidates.update_one(
+        snapshot_filter(candidate_doc),
         {
             "$set": {
                 "ai_classification": ai_class_dict,
+                "review_status": "classified" if ai_classification.confidence_score >= 0.75 else "pending_review",
+                "review_message": None,
                 "updated_at": datetime.now(timezone.utc).isoformat()
-            }
+            },
+            "$unset": {"classification_read_error": ""},
         }
     )
+    if saved.matched_count != 1:
+        raise HTTPException(409, 'La ficha cambió durante la clasificación; no se sobrescribieron cambios recientes.')
     
     return classification
 
@@ -3380,7 +3370,7 @@ async def update_candidate_cv(
         file_size = len(file_data)
         
         # Upload new CV to storage
-        storage_result = storage_service.upload_resume(
+        storage_result = await asyncio.to_thread(storage_service.upload_resume,
             file_data, candidate_id, file.filename, file.content_type
         )
         
@@ -3462,6 +3452,7 @@ async def update_candidate_cv(
             {"id": candidate_id},
             {
                 "$set": update_data,
+                "$unset": {"cv_storage_issue": ""},
                 "$push": {"resume_files": resume_file}
             }
         )
@@ -3477,6 +3468,12 @@ async def update_candidate_cv(
             "has_parsed_snapshot": parsed_snapshot is not None
         }
         
+    except ResumeStorageError as e:
+        issue = storage_issue(file.filename, e, bool(candidate.get('resume_files')))
+        await db.candidates.update_one({'id': candidate_id}, {'$set': {
+            'cv_storage_issue': issue, 'updated_at': datetime.now(timezone.utc).isoformat(),
+        }})
+        raise HTTPException(503, issue['message']) from e
     except Exception as e:
         logger.error(f"Error updating CV: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error actualizando CV: {str(e)}")
