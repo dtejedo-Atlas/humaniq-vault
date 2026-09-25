@@ -41,6 +41,7 @@ from query_parser import (
     parse_query,
     extract_keywords,
     infer_seniority_from_title,
+    fold_accents,
 )
 from trajectory_analyzer import (
     calculate_experience_level,
@@ -359,16 +360,26 @@ class HybridSearchService:
         v2.2: Acepta skills cortos válidos (Go, R, C#, AI, ML, etc.)
         """
         keywords = query_parsed.get("keywords", [])
-        raw_query = query_parsed.get("raw_query", "").lower()
+        # Comparación insensible a acentos (consulta e índice). Sólo puede sumar
+        # coincidencias: no se modifican pesos, boosts ni orden de ranking.
+        raw_query_original = query_parsed.get("raw_query", "").lower()
+        raw_query = fold_accents(query_parsed.get("raw_query", ""))
         
         if not keywords:
             return (0, False)
         
         # Campos a buscar con pesos
-        current_title = str(candidate.get("current_title", "")).lower()
-        current_company = str(candidate.get("current_company", "")).lower()
-        ai_summary = str(candidate.get("ai_summary", "")).lower()
-        skills = " ".join(candidate.get("skills", [])).lower()
+        titles = (str(candidate.get("current_title", "")).lower(),
+                  fold_accents(str(candidate.get("current_title", ""))))
+        companies = (str(candidate.get("current_company", "")).lower(),
+                     fold_accents(str(candidate.get("current_company", ""))))
+        summaries = (str(candidate.get("ai_summary", "")).lower(),
+                     fold_accents(str(candidate.get("ai_summary", ""))))
+        skills_text = (" ".join(candidate.get("skills", [])).lower(),
+                       fold_accents(" ".join(candidate.get("skills", []))))
+        
+        def found(needle_pair, haystack_pair):
+            return needle_pair[0] in haystack_pair[0] or needle_pair[1] in haystack_pair[1]
         
         # Contar matches
         matches = 0
@@ -376,27 +387,27 @@ class HybridSearchService:
         valid_keywords_count = 0
         
         for keyword in keywords:
-            keyword_lower = keyword.lower()
+            keyword_pair = (keyword.lower(), fold_accents(keyword))
             
             # Filtrar keywords cortos EXCEPTO los de la whitelist
             if len(keyword) < 2:
                 continue
-            if len(keyword) == 2 and keyword_lower not in SHORT_SKILLS_WHITELIST:
+            if len(keyword) == 2 and keyword_pair[0] not in SHORT_SKILLS_WHITELIST:
                 continue
             
             valid_keywords_count += 1
             
             # Título tiene peso triple
-            if keyword_lower in current_title:
+            if found(keyword_pair, titles):
                 matches += 3
                 title_match = True
             # Skills peso doble (importante para búsquedas de skill)
-            if keyword_lower in skills:
+            if found(keyword_pair, skills_text):
                 matches += 2
             # Otros campos peso 1
-            if keyword_lower in current_company:
+            if found(keyword_pair, companies):
                 matches += 1
-            if keyword_lower in ai_summary:
+            if found(keyword_pair, summaries):
                 matches += 1
         
         # Calcular score basado en proporción
@@ -407,7 +418,7 @@ class HybridSearchService:
         score = (matches / max_possible) * 100
         
         # Verificar si query aparece en título
-        keyword_in_title = raw_query in current_title or title_match
+        keyword_in_title = raw_query_original in titles[0] or raw_query in titles[1] or title_match
         
         return (min(100, score), keyword_in_title)
     

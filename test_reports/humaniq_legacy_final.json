@@ -1,0 +1,103 @@
+{
+  "executed_at": "2026-09-25T20:08:14.426790+00:00",
+  "before": {
+    "total_active": 838,
+    "by_functional_area": {
+      "operations": 150,
+      "sales": 108,
+      "finance": 107,
+      "supply_chain": 107,
+      "human_resources": 105,
+      "technology": 64,
+      "marketing": 62,
+      "general_management": 54,
+      "project_management": 32,
+      "business_development": 29,
+      "legal": 10,
+      "null": 9,
+      "research_development": 1
+    },
+    "non_engine_areas": {
+      "business_development": 29,
+      "project_management": 32,
+      "research_development": 1
+    },
+    "by_seniority": {
+      "manager": 259,
+      "director": 229,
+      "senior": 142,
+      "mid": 90,
+      "c_level": 82,
+      "junior": 20,
+      "null": 7,
+      "lead": 3,
+      "entry": 3,
+      "vp": 2,
+      "trainee": 1
+    },
+    "sin_presentation_area": 0,
+    "jobs_by_functional_area": {
+      "operations": 2,
+      "finance": 2,
+      "sales": 1,
+      "technology": 1,
+      "human_resources": 1
+    }
+  },
+  "unambiguous_legacy": {
+    "project_management": {
+      "clave_motor": "operations",
+      "candidatos": 32,
+      "ai_classification": 32,
+      "vacantes": 0
+    }
+  },
+  "to_manual_review": {
+    "research_development": 1
+  },
+  "pending_user_decision": {
+    "project_management": 0,
+    "business_development": 29,
+    "research_development": 0
+  },
+  "after": {
+    "total_active": 838,
+    "by_functional_area": {
+      "operations": 182,
+      "sales": 108,
+      "finance": 107,
+      "supply_chain": 107,
+      "human_resources": 105,
+      "technology": 64,
+      "marketing": 62,
+      "general_management": 54,
+      "business_development": 29,
+      "legal": 10,
+      "null": 10
+    },
+    "non_engine_areas": {
+      "business_development": 29
+    },
+    "by_seniority": {
+      "manager": 259,
+      "director": 229,
+      "senior": 142,
+      "mid": 90,
+      "c_level": 82,
+      "junior": 20,
+      "null": 7,
+      "lead": 3,
+      "entry": 3,
+      "vp": 2,
+      "trainee": 1
+    },
+    "sin_presentation_area": 0,
+    "jobs_by_functional_area": {
+      "operations": 2,
+      "finance": 2,
+      "sales": 1,
+      "technology": 1,
+      "human_resources": 1
+    }
+  }
+}

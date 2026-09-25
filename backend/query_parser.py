@@ -9,7 +9,17 @@ NUEVO en v2.1:
 """
 
 import re
+import unicodedata
 from typing import Optional, Dict, List, Any
+
+
+def fold_accents(text: str) -> str:
+    """Minúsculas sin acentos: 'Logística' → 'logistica'. No altera pesos ni ranking."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", text.lower())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
+
 
 # ============= WHITELIST DE SKILLS CORTOS =============
 # Skills de 2 caracteres o menos que son válidos y no deben filtrarse
@@ -171,64 +181,71 @@ def parse_query(query: str) -> Dict[str, Any]:
     }
 
 
+def _contains(keyword: str, text: str, strict_short: bool = False) -> bool:
+    """Coincidencia de keyword en texto.
+
+    En la pasada sin acentos (strict_short=True) los keywords de 3 caracteres o
+    menos (CFO, CIO, VP, RH...) exigen límite de palabra para que normalizar
+    acentos no introduzca falsos positivos ('cio' dentro de 'produccion').
+    La pasada literal conserva el comportamiento histórico sin cambios.
+    """
+    if strict_short and len(keyword) <= 3:
+        return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
+    return keyword in text
+
+
 def detect_functional_area(query: str) -> Optional[str]:
     """
     Detecta el área funcional mencionada en la query.
     Prioriza matches más específicos.
+    Dos pasadas: primero tal cual (comportamiento histórico intacto) y sólo si no
+    hay coincidencia se reintenta sin acentos.
     """
-    query = query.lower()
+    for candidate_query, keyword_transform, strict in ((query.lower(), str.lower, False),
+                                                      (fold_accents(query), fold_accents, True)):
+        matches = []
+        for area, keywords in AREA_KEYWORDS.items():
+            for keyword in keywords:
+                if _contains(keyword_transform(keyword), candidate_query, strict):
+                    # Priorizar keywords más largos (más específicos)
+                    matches.append((area, len(keyword), keyword))
+        if matches:
+            matches.sort(key=lambda x: x[1], reverse=True)
+            return matches[0][0]
     
-    # Buscar coincidencias
-    matches = []
-    for area, keywords in AREA_KEYWORDS.items():
-        for keyword in keywords:
-            if keyword in query:
-                # Priorizar keywords más largos (más específicos)
-                matches.append((area, len(keyword), keyword))
-    
-    if not matches:
-        return None
-    
-    # Ordenar por longitud de keyword (más específico primero)
-    matches.sort(key=lambda x: x[1], reverse=True)
-    
-    return matches[0][0]
+    return None
 
 
 def detect_industry(query: str) -> Optional[str]:
     """
-    Detecta la industria mencionada en la query.
+    Detecta la industria mencionada en la query (dos pasadas: con y sin acentos).
     """
-    query = query.lower()
+    for candidate_query, keyword_transform, strict in ((query.lower(), str.lower, False),
+                                                      (fold_accents(query), fold_accents, True)):
+        matches = []
+        for industry, keywords in INDUSTRY_KEYWORDS.items():
+            for keyword in keywords:
+                if _contains(keyword_transform(keyword), candidate_query, strict):
+                    matches.append((industry, len(keyword)))
+        if matches:
+            matches.sort(key=lambda x: x[1], reverse=True)
+            return matches[0][0]
     
-    matches = []
-    for industry, keywords in INDUSTRY_KEYWORDS.items():
-        for keyword in keywords:
-            if keyword in query:
-                matches.append((industry, len(keyword)))
-    
-    if not matches:
-        return None
-    
-    # Ordenar por longitud de keyword
-    matches.sort(key=lambda x: x[1], reverse=True)
-    
-    return matches[0][0]
+    return None
 
 
 def detect_seniority(query: str) -> Optional[int]:
     """
-    Detecta el nivel de seniority en la query.
+    Detecta el nivel de seniority en la query (dos pasadas: con y sin acentos).
     Retorna índice 1-12 o None si no se detecta.
     """
-    query = query.lower()
-    
-    # Buscar desde niveles más altos (más específicos) hacia abajo
-    for level in range(12, 0, -1):
-        keywords = SENIORITY_KEYWORDS.get(level, [])
-        for keyword in keywords:
-            if keyword in query:
-                return level
+    for candidate_query, keyword_transform, strict in ((query.lower(), str.lower, False),
+                                                      (fold_accents(query), fold_accents, True)):
+        # Buscar desde niveles más altos (más específicos) hacia abajo
+        for level in range(12, 0, -1):
+            for keyword in SENIORITY_KEYWORDS.get(level, []):
+                if _contains(keyword_transform(keyword), candidate_query, strict):
+                    return level
     
     return None
 

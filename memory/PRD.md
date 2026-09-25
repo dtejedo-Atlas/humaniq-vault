@@ -79,9 +79,28 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Cobertura de datos: 829/838 candidatos activos tienen área de presentación; 255 tienen subárea (la subárea se rellena al clasificar o editar, no se puede inferir de la clave del motor).
 - Sin conteos ni dashboard nuevo (decisión explícita del usuario). Alerta de calidad y comparación de versiones: descartadas por el usuario (ya cubiertas por la bandeja Por Revisar y la vista de versiones).
 
+### Búsqueda insensible a acentos (2026-09-25, cuarta tanda)
+- Autorizado por el usuario a tocar `hybrid_search_service.py` SÓLO para acentos (queda fuera de la lista protegida del test; siguen protegidos `scoring/`, `job_matching_service.py` y `scoring_config.py`).
+- `query_parser.fold_accents` + estrategia de **dos pasadas**: primero la coincidencia literal (comportamiento histórico intacto) y sólo si no hay match se reintenta sin acentos. En la pasada sin acentos, los keywords de ≤3 caracteres (CFO, CIO, VP, RH) exigen límite de palabra para que normalizar no cree falsos positivos.
+- `_calculate_keyword_score` compara literal OR sin acentos (superconjunto: sólo puede sumar coincidencias). No se tocaron pesos, boosts, penalties ni el orden del ranking.
+- Verificación con snapshot de 15 consultas antes/después (`/app/test_reports/search_snapshot_before.json` vs `search_snapshot_final.json`): **12 idénticas byte a byte**; cambian sólo las 3 sin acento, que ahora devuelven lo mismo que su versión acentuada («logistica» 0→7, «tecnologia» 0→15, «gerente de logistica» 19→26 con los mismos 26 candidatos).
+- `tests/test_search_accent_insensitive.py`: 5 pruebas.
+- Deuda preexistente documentada (NO corregida, requiere decisión): en la pasada literal los keywords de ≤3 caracteres se cuelan dentro de palabras — «operaciones» contiene «cio», así que «director de operaciones» se interpreta como C-Level (nivel 11) en lugar de director (9). Afecta a cualquier búsqueda con «operaciones», «produccion», etc.
+
+### Claves históricas: cierre (2026-09-25, cuarta tanda)
+- `project_management` → `operations` (32 candidatos, aprobado por el usuario tras revisar ejemplos).
+- `research_development` → 1 candidato a **revisión manual**: `functional_area` null, confianza 0.5, `review_status: requires_manual_review` (aparece en la bandeja Por Revisar).
+- `business_development` (29) **se queda como está** por decisión del usuario: el motor ya le da trato especial (85 vs sales, 60 vs marketing) y mapearlo cambiaría resultados que funcionan.
+
+### Inferencia masiva de subáreas: estimación entregada, PENDIENTE de aprobación
+- Elegibles: **492 candidatos** (con área, sin subárea, sin aprobación humana). Excluidos 82 aprobados por persona.
+- Reparto: ventas 89, operaciones 76, recursos_humanos 75, tecnologia 62, finanzas 60, marketing 59, cadena_suministro 52, servicio_cliente 9, legal 9, ingenieria 1.
+- 380 tienen puesto actual; 491 tienen skills; 112 sin puesto (candidatos a quedar vacíos).
+- Costo estimado con Claude Sonnet 4.5: ~USD 1.30-1.60 con puesto+empresa+skills (~650 tokens in / 60 out por candidato); ~USD 6-7 si se manda el CV completo. Tiempo: ~20-25 min secuencial, ~5-7 min con 5 en paralelo.
+
 ### Deuda detectada y NO corregida (informada)
 - Nada pendiente de los dos defectos del merge: ambos quedaron corregidos y con pruebas (ver sección anterior).
-- La búsqueda de texto es sensible a acentos: «logistica» devuelve 0 y «logística» sí encuentra. Vive en `hybrid_search_service.py` (protegido), no se tocó.
+- La búsqueda de texto es sensible a acentos: corregido (ver sección de acentos). Queda pendiente de decisión el bug de keywords cortos dentro de palabras en la pasada literal.
 
 ## Trabajo anterior — 2026-09-24: lectura segura de CV y eliminación de fallbacks locales
 **Autorización del usuario:** únicamente detener clasificación cuando no se puede leer el CV, reemplazar fallback local por reintentos remotos/error visible/marca persistente e inventariar referencias locales existentes SIN borrarlas ni migrarlas. Cinco F811 y un F402 siguen congelados. No scoring/matching/pesos.

@@ -103,7 +103,12 @@ UNAMBIGUOUS_LEGACY = {
     "planning": ("operaciones", "planeacion_operaciones", "operations"),
     "commercial": ("ventas", None, "sales"),
     "it_technology": ("tecnologia", None, "technology"),
+    # Aprobadas por el usuario tras revisar ejemplos (2026-09-25)
+    "project_management": ("operaciones", "gestion_proyectos_op", "operations"),
 }
+
+# Sin equivalencia en el motor: van a revisión manual, sin mapeo artificial.
+TO_MANUAL_REVIEW = ("research_development",)
 
 # Requieren decisión del usuario: no se tocan.
 AMBIGUOUS_LEGACY = ("project_management", "business_development", "research_development")
@@ -135,6 +140,29 @@ def apply_unambiguous_legacy(db):
     return changed
 
 
+def send_to_manual_review(db):
+    """Claves sin equivalencia: se limpia la clave del motor y baja la confianza
+    para que el candidato aparezca en la bandeja Por Revisar."""
+    now = datetime.now(timezone.utc).isoformat()
+    result = {}
+    for legacy in TO_MANUAL_REVIEW:
+        candidates = list(db.candidates.find(
+            {"functional_area": legacy, "is_deleted": {"$ne": True}}, {"_id": 0, "id": 1}))
+        for doc in candidates:
+            db.candidates.update_one({"id": doc["id"]}, {"$set": {
+                "functional_area": None,
+                "ai_classification.functional_area": None,
+                "ai_classification.confidence_score": 0.5,
+                "ai_classification.approved_by_recruiter": False,
+                "review_status": "requires_manual_review",
+                "review_message": "Área sin equivalencia en el motor: requiere decisión humana",
+                "taxonomy_version": CATALOG_VERSION,
+                "updated_at": now,
+            }})
+        result[legacy] = len(candidates)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply-it", action="store_true")
@@ -151,6 +179,7 @@ def main():
         report["presentation_backfill"] = apply_presentation_backfill(db)
     if args.apply_unambiguous:
         report["unambiguous_legacy"] = apply_unambiguous_legacy(db)
+        report["to_manual_review"] = send_to_manual_review(db)
         report["pending_user_decision"] = {
             key: db.candidates.count_documents({"functional_area": key, "is_deleted": {"$ne": True}})
             for key in AMBIGUOUS_LEGACY}

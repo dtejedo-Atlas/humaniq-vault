@@ -1,0 +1,1396 @@
+{
+ "contabilidad": [
+  {
+   "id": "21e44bf6-d000-4ab3-819b-a2f22db85375",
+   "score": 85,
+   "name": "Alfonso Cuellar"
+  },
+  {
+   "id": "2c0f5336-5775-4d24-85a7-5a8aa5876e5c",
+   "score": 85,
+   "name": "Fernando Alfredo Aguilar"
+  },
+  {
+   "id": "ede915c9-7f72-4a38-81c5-8af7ee1eb612",
+   "score": 81,
+   "name": "Julio César López Solorio"
+  },
+  {
+   "id": "2c0f5686-cd31-4d8f-b6fd-66505f3df896",
+   "score": 79,
+   "name": "Eduardo Paredes Borjón"
+  },
+  {
+   "id": "4984e002-4955-4d1f-bf9b-8e7a02c9d15b",
+   "score": 79,
+   "name": "Gonzalo Morales Nolasco"
+  },
+  {
+   "id": "dca6fda8-907e-43b4-93df-04f5ab703d50",
+   "score": 79,
+   "name": "Hugo Hernández García"
+  },
+  {
+   "id": "839da376-4cb0-41d7-be5e-84bc910b7e50",
+   "score": 77,
+   "name": "Efren Christian Sanchez Cruz"
+  },
+  {
+   "id": "5c43b4c8-5d54-4d7c-be86-09b5f52fe070",
+   "score": 76,
+   "name": "Alejandro Burckle de la Parra"
+  },
+  {
+   "id": "b9d8254d-ad98-4ccf-9951-218d6cdd9e41",
+   "score": 76,
+   "name": "Alfonso Martínez Puente Morales"
+  },
+  {
+   "id": "dc56d0a9-58c9-4d10-8cd3-55880d799f5a",
+   "score": 75,
+   "name": "Mario Gutiérrez"
+  },
+  {
+   "id": "ee62c9ea-ea88-4727-aa44-4590bbe6bf6c",
+   "score": 75,
+   "name": "M.A. Enrique Lerch Vital"
+  },
+  {
+   "id": "89156f15-bb30-4b26-aca5-b7799ef4a986",
+   "score": 75,
+   "name": "Laura Romero Rojas"
+  },
+  {
+   "id": "183b174b-259f-45c9-b6fb-80ce148d914c",
+   "score": 75,
+   "name": "Martha Angélica Jácome Cedeño"
+  },
+  {
+   "id": "77fd420b-0b71-4167-9567-d5cca097ee25",
+   "score": 75,
+   "name": "Miguel I. Marroquín Márquez"
+  },
+  {
+   "id": "30b576a8-9202-4c01-97b4-051c216a80c5",
+   "score": 75,
+   "name": "Víctor Manuel Pérez González"
+  },
+  {
+   "id": "9e7c8063-3dbb-4d8e-a95f-dcc576962b7f",
+   "score": 74,
+   "name": "Álvaro A. Martínez Carbajal"
+  },
+  {
+   "id": "58d1a53d-88b2-4c88-b33b-e62e9cc79d7a",
+   "score": 74,
+   "name": "Jennifer Karin Sauza Montero"
+  },
+  {
+   "id": "e223c4a0-0ed5-427a-b47c-1d9d15347dd2",
+   "score": 74,
+   "name": "TEST_Repro Lote Prod"
+  },
+  {
+   "id": "9cb0b03b-c759-4767-96ca-ab610ff04bde",
+   "score": 74,
+   "name": "Víctor Manuel Serrano Camacho"
+  },
+  {
+   "id": "256d6f04-6d40-45b7-bbe2-6749ad8c32b9",
+   "score": 72,
+   "name": "Winston Grey"
+  },
+  {
+   "id": "e7ffebc2-f9f1-4466-bc03-1d873637e6f0",
+   "score": 71,
+   "name": "Alberto Lagunas Ortiz"
+  },
+  {
+   "id": "1cc28c2c-72da-4b88-b7a6-c8ce2675e7a7",
+   "score": 71,
+   "name": "Amaro González Padilla"
+  },
+  {
+   "id": "7b63b712-6830-42fe-add2-d7efc0402ece",
+   "score": 68,
+   "name": "César Villegas Ortega"
+  },
+  {
+   "id": "7e75ab55-cb9c-4234-9796-ee7cf8c7e254",
+   "score": 68,
+   "name": "David Ceballos Sierra"
+  },
+  {
+   "id": "5e700bc5-c189-41e0-9857-d99612565138",
+   "score": 68,
+   "name": "Erick Gabriel Morales Rivera"
+  },
+  {
+   "id": "49f0226f-2025-4f79-a6da-ae998712a1b1",
+   "score": 68,
+   "name": "Esteban Arrieta Argueta"
+  },
+  {
+   "id": "0cecaa74-2367-4413-ae27-dc91dc74d1d7",
+   "score": 68,
+   "name": "Ricardo Cruz Navarrete"
+  },
+  {
+   "id": "3b7e8fc6-e19d-4aab-9c6b-9190c5cc94a4",
+   "score": 68,
+   "name": "Pablo David Ruiz Carrillo"
+  },
+  {
+   "id": "1f2c9e50-05cf-4203-ad76-375238357c31",
+   "score": 68,
+   "name": "Vicente Nava García"
+  },
+  {
+   "id": "a252c600-c5e9-4af9-93ee-44ea6b39da34",
+   "score": 68,
+   "name": "Victor Manuel Serrano Camacho"
+  }
+ ],
+ "logística": [
+  {
+   "id": "5470240a-417c-4897-83d4-91ffd5700e96",
+   "score": 87,
+   "name": "Rafael Covarrubias Gómez"
+  },
+  {
+   "id": "bedffc1d-f05e-4d65-8d60-08a89dc1ceeb",
+   "score": 84,
+   "name": "Elias Cruz González"
+  },
+  {
+   "id": "aa5ee578-4281-4904-9ff2-3957441a6c1a",
+   "score": 79,
+   "name": "No especificado"
+  },
+  {
+   "id": "b30ba878-0935-432c-82de-de87e12cc4e4",
+   "score": 76,
+   "name": "Fausto Castillo Arballo"
+  },
+  {
+   "id": "32309a9d-496f-48cc-9dcf-39d4e3bfa709",
+   "score": 76,
+   "name": "Miguel Ángel Oregón Núñez"
+  },
+  {
+   "id": "5b268db5-4395-4365-95dc-fc56a8d7646e",
+   "score": 75,
+   "name": "Publio César Rendón Hernández"
+  },
+  {
+   "id": "5d40655a-86dd-4112-8292-45ef945b7122",
+   "score": 71,
+   "name": "José Rafael González Nieto"
+  }
+ ],
+ "logistica": [
+  {
+   "id": "5470240a-417c-4897-83d4-91ffd5700e96",
+   "score": 87,
+   "name": "Rafael Covarrubias Gómez"
+  },
+  {
+   "id": "bedffc1d-f05e-4d65-8d60-08a89dc1ceeb",
+   "score": 84,
+   "name": "Elias Cruz González"
+  },
+  {
+   "id": "aa5ee578-4281-4904-9ff2-3957441a6c1a",
+   "score": 79,
+   "name": "No especificado"
+  },
+  {
+   "id": "b30ba878-0935-432c-82de-de87e12cc4e4",
+   "score": 76,
+   "name": "Fausto Castillo Arballo"
+  },
+  {
+   "id": "32309a9d-496f-48cc-9dcf-39d4e3bfa709",
+   "score": 76,
+   "name": "Miguel Ángel Oregón Núñez"
+  },
+  {
+   "id": "5b268db5-4395-4365-95dc-fc56a8d7646e",
+   "score": 75,
+   "name": "Publio César Rendón Hernández"
+  },
+  {
+   "id": "5d40655a-86dd-4112-8292-45ef945b7122",
+   "score": 71,
+   "name": "José Rafael González Nieto"
+  }
+ ],
+ "gerente de logística": [
+  {
+   "id": "aa5ee578-4281-4904-9ff2-3957441a6c1a",
+   "score": 100,
+   "name": "No especificado"
+  },
+  {
+   "id": "5470240a-417c-4897-83d4-91ffd5700e96",
+   "score": 91,
+   "name": "Rafael Covarrubias Gómez"
+  },
+  {
+   "id": "b30ba878-0935-432c-82de-de87e12cc4e4",
+   "score": 89,
+   "name": "Fausto Castillo Arballo"
+  },
+  {
+   "id": "5d40655a-86dd-4112-8292-45ef945b7122",
+   "score": 89,
+   "name": "José Rafael González Nieto"
+  },
+  {
+   "id": "32309a9d-496f-48cc-9dcf-39d4e3bfa709",
+   "score": 89,
+   "name": "Miguel Ángel Oregón Núñez"
+  },
+  {
+   "id": "5b268db5-4395-4365-95dc-fc56a8d7646e",
+   "score": 88,
+   "name": "Publio César Rendón Hernández"
+  },
+  {
+   "id": "bedffc1d-f05e-4d65-8d60-08a89dc1ceeb",
+   "score": 67,
+   "name": "Elias Cruz González"
+  },
+  {
+   "id": "d8a83358-f059-441c-a2b9-c1eda955bdfb",
+   "score": 60,
+   "name": "Alfonso Arzate Gómez"
+  },
+  {
+   "id": "a01d4b65-fb40-4cba-b189-23f5cae4e319",
+   "score": 60,
+   "name": "Cristopher Danilo Elizondo Ogawa"
+  },
+  {
+   "id": "5948e1b7-f088-43ec-8a6f-fc91017c6875",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "ead5d219-8798-495e-a3f9-6f67ded89c6a",
+   "score": 60,
+   "name": "TEST_Carga Paralela 1"
+  },
+  {
+   "id": "956cbbda-3424-416c-9c03-f2caaff6a0a4",
+   "score": 60,
+   "name": "TEST_Carga Paralela 2"
+  },
+  {
+   "id": "692c4585-b121-49d0-b6e5-ce48d4af8490",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "2df1dad2-0e84-4402-80ad-2ebb574b66ab",
+   "score": 60,
+   "name": "TEST_Carga Paralela 3"
+  },
+  {
+   "id": "d72bda7e-17b7-49cc-998b-fe9f36da5ce9",
+   "score": 60,
+   "name": "TEST_Carga Paralela 4"
+  },
+  {
+   "id": "4bae0644-a41c-48f0-b5e7-d3958446b418",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "e75e6e1f-97a9-4568-96d3-6793e40cdfe1",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "3fcfe355-4dcf-476f-8af2-9e90ecf2399e",
+   "score": 60,
+   "name": "TEST_Carga Paralela 2"
+  },
+  {
+   "id": "ae269cad-db02-429c-bce8-26cd5e394b61",
+   "score": 60,
+   "name": "TEST_Carga Paralela 1"
+  },
+  {
+   "id": "cadf2571-ba5a-41dd-96b6-65d361ba2146",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "549590fa-d4a7-4358-9fe7-1d7640a85d2e",
+   "score": 60,
+   "name": "TEST_Carga Paralela 3"
+  },
+  {
+   "id": "03850009-127f-4f6b-a2a4-7961dd2f20f9",
+   "score": 60,
+   "name": "TEST_Carga Paralela 4"
+  },
+  {
+   "id": "3b6472b3-4192-4a38-a543-5fedda2612c9",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "fad4e4d1-34f1-42a8-bea9-f6aa10d78e81",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "5eaf8f79-d874-4e6a-8196-17d339ef1cb2",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "b025eb54-51e9-434d-9504-79dd1594beb5",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  }
+ ],
+ "gerente de logistica": [
+  {
+   "id": "aa5ee578-4281-4904-9ff2-3957441a6c1a",
+   "score": 100,
+   "name": "No especificado"
+  },
+  {
+   "id": "5470240a-417c-4897-83d4-91ffd5700e96",
+   "score": 91,
+   "name": "Rafael Covarrubias Gómez"
+  },
+  {
+   "id": "b30ba878-0935-432c-82de-de87e12cc4e4",
+   "score": 89,
+   "name": "Fausto Castillo Arballo"
+  },
+  {
+   "id": "32309a9d-496f-48cc-9dcf-39d4e3bfa709",
+   "score": 89,
+   "name": "Miguel Ángel Oregón Núñez"
+  },
+  {
+   "id": "5b268db5-4395-4365-95dc-fc56a8d7646e",
+   "score": 88,
+   "name": "Publio César Rendón Hernández"
+  },
+  {
+   "id": "5d40655a-86dd-4112-8292-45ef945b7122",
+   "score": 84,
+   "name": "José Rafael González Nieto"
+  },
+  {
+   "id": "bedffc1d-f05e-4d65-8d60-08a89dc1ceeb",
+   "score": 67,
+   "name": "Elias Cruz González"
+  },
+  {
+   "id": "d8a83358-f059-441c-a2b9-c1eda955bdfb",
+   "score": 60,
+   "name": "Alfonso Arzate Gómez"
+  },
+  {
+   "id": "a01d4b65-fb40-4cba-b189-23f5cae4e319",
+   "score": 60,
+   "name": "Cristopher Danilo Elizondo Ogawa"
+  },
+  {
+   "id": "5948e1b7-f088-43ec-8a6f-fc91017c6875",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "ead5d219-8798-495e-a3f9-6f67ded89c6a",
+   "score": 60,
+   "name": "TEST_Carga Paralela 1"
+  },
+  {
+   "id": "956cbbda-3424-416c-9c03-f2caaff6a0a4",
+   "score": 60,
+   "name": "TEST_Carga Paralela 2"
+  },
+  {
+   "id": "692c4585-b121-49d0-b6e5-ce48d4af8490",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "2df1dad2-0e84-4402-80ad-2ebb574b66ab",
+   "score": 60,
+   "name": "TEST_Carga Paralela 3"
+  },
+  {
+   "id": "d72bda7e-17b7-49cc-998b-fe9f36da5ce9",
+   "score": 60,
+   "name": "TEST_Carga Paralela 4"
+  },
+  {
+   "id": "4bae0644-a41c-48f0-b5e7-d3958446b418",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "e75e6e1f-97a9-4568-96d3-6793e40cdfe1",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "3fcfe355-4dcf-476f-8af2-9e90ecf2399e",
+   "score": 60,
+   "name": "TEST_Carga Paralela 2"
+  },
+  {
+   "id": "ae269cad-db02-429c-bce8-26cd5e394b61",
+   "score": 60,
+   "name": "TEST_Carga Paralela 1"
+  },
+  {
+   "id": "cadf2571-ba5a-41dd-96b6-65d361ba2146",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "549590fa-d4a7-4358-9fe7-1d7640a85d2e",
+   "score": 60,
+   "name": "TEST_Carga Paralela 3"
+  },
+  {
+   "id": "03850009-127f-4f6b-a2a4-7961dd2f20f9",
+   "score": 60,
+   "name": "TEST_Carga Paralela 4"
+  },
+  {
+   "id": "3b6472b3-4192-4a38-a543-5fedda2612c9",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "fad4e4d1-34f1-42a8-bea9-f6aa10d78e81",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "5eaf8f79-d874-4e6a-8196-17d339ef1cb2",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "b025eb54-51e9-434d-9504-79dd1594beb5",
+   "score": 60,
+   "name": "TEST_Carga Paralela 0"
+  }
+ ],
+ "CFO": [
+  {
+   "id": "dc56d0a9-58c9-4d10-8cd3-55880d799f5a",
+   "score": 100,
+   "name": "Mario Gutiérrez"
+  },
+  {
+   "id": "5c43b4c8-5d54-4d7c-be86-09b5f52fe070",
+   "score": 100,
+   "name": "Alejandro Burckle de la Parra"
+  },
+  {
+   "id": "7e75ab55-cb9c-4234-9796-ee7cf8c7e254",
+   "score": 100,
+   "name": "David Ceballos Sierra"
+  },
+  {
+   "id": "2c0f5336-5775-4d24-85a7-5a8aa5876e5c",
+   "score": 94,
+   "name": "Fernando Alfredo Aguilar"
+  },
+  {
+   "id": "ee62c9ea-ea88-4727-aa44-4590bbe6bf6c",
+   "score": 93,
+   "name": "M.A. Enrique Lerch Vital"
+  },
+  {
+   "id": "a252c600-c5e9-4af9-93ee-44ea6b39da34",
+   "score": 87,
+   "name": "Victor Manuel Serrano Camacho"
+  },
+  {
+   "id": "986b8907-fb80-4b3f-a3ab-7d48d2227712",
+   "score": 86,
+   "name": "Claudia Ibarra Pérez"
+  },
+  {
+   "id": "9dedd1e9-bc1b-422e-aede-535d2280fc1c",
+   "score": 80,
+   "name": "Alberto Mulás"
+  },
+  {
+   "id": "ede915c9-7f72-4a38-81c5-8af7ee1eb612",
+   "score": 79,
+   "name": "Julio César López Solorio"
+  },
+  {
+   "id": "21e44bf6-d000-4ab3-819b-a2f22db85375",
+   "score": 79,
+   "name": "Alfonso Cuellar"
+  },
+  {
+   "id": "9cb0b03b-c759-4767-96ca-ab610ff04bde",
+   "score": 79,
+   "name": "Víctor Manuel Serrano Camacho"
+  },
+  {
+   "id": "89156f15-bb30-4b26-aca5-b7799ef4a986",
+   "score": 75,
+   "name": "Laura Romero Rojas"
+  },
+  {
+   "id": "c6f449f3-cdd8-46a9-98cc-2ff0744e6330",
+   "score": 74,
+   "name": "Fernanda Langarica O'Hea"
+  },
+  {
+   "id": "b9d8254d-ad98-4ccf-9951-218d6cdd9e41",
+   "score": 74,
+   "name": "Alfonso Martínez Puente Morales"
+  },
+  {
+   "id": "49f0226f-2025-4f79-a6da-ae998712a1b1",
+   "score": 74,
+   "name": "Esteban Arrieta Argueta"
+  },
+  {
+   "id": "0cecaa74-2367-4413-ae27-dc91dc74d1d7",
+   "score": 74,
+   "name": "Ricardo Cruz Navarrete"
+  },
+  {
+   "id": "89eaee03-666f-4f0c-a4d9-a658305374e0",
+   "score": 73,
+   "name": "Gamaliel González Leines"
+  },
+  {
+   "id": "5e700bc5-c189-41e0-9857-d99612565138",
+   "score": 73,
+   "name": "Erick Gabriel Morales Rivera"
+  },
+  {
+   "id": "3b7e8fc6-e19d-4aab-9c6b-9190c5cc94a4",
+   "score": 73,
+   "name": "Pablo David Ruiz Carrillo"
+  },
+  {
+   "id": "30b576a8-9202-4c01-97b4-051c216a80c5",
+   "score": 73,
+   "name": "Víctor Manuel Pérez González"
+  },
+  {
+   "id": "256d6f04-6d40-45b7-bbe2-6749ad8c32b9",
+   "score": 70,
+   "name": "Winston Grey"
+  },
+  {
+   "id": "420696b2-f22c-412a-863f-f16cc778551e",
+   "score": 65,
+   "name": "Hugo Alberto Menéndez Rosas"
+  }
+ ],
+ "ventas": [
+  {
+   "id": "a91ba1ca-032a-458c-a8be-407a7d30016f",
+   "score": 100,
+   "name": "Cesar Ricardo Jimenez Marquez"
+  },
+  {
+   "id": "b369e32b-3bc0-443d-80aa-a08a949aec08",
+   "score": 96,
+   "name": "Danyella Fernanda Arroyo Gerala"
+  },
+  {
+   "id": "aa3d1698-7fc9-4071-8fd5-967516296fb6",
+   "score": 93,
+   "name": "Omar Alberto Vega Torres"
+  },
+  {
+   "id": "38fd7e63-1cc3-4fed-a7e2-cc14f865f170",
+   "score": 80,
+   "name": "Antonio Alegria"
+  },
+  {
+   "id": "1d44644d-df15-42b1-b392-d825bda44d18",
+   "score": 78,
+   "name": "Rodrigo Ubierna Revesz"
+  },
+  {
+   "id": "209e11ad-39fe-489c-b384-c184ac154ce8",
+   "score": 78,
+   "name": "Rodrigo Mena Rodríguez"
+  },
+  {
+   "id": "2f253925-ac3a-4e47-bdf2-221d58130a70",
+   "score": 78,
+   "name": "Jesús Contreras Bulnes"
+  },
+  {
+   "id": "7ae0c67d-5059-44a5-a2a8-2d5ae049dac6",
+   "score": 78,
+   "name": "José Carlos Castillo Zazuéta"
+  },
+  {
+   "id": "f84af3de-faae-48bc-b9f1-6067be5ecf19",
+   "score": 78,
+   "name": "Bruno Batch694cc47f Salazar"
+  },
+  {
+   "id": "02412e18-7421-4d69-a202-f238d14aeb18",
+   "score": 78,
+   "name": "Bruno Batch2b051712 Salazar"
+  },
+  {
+   "id": "74f6bb23-7af3-4dae-a123-b50591aa452e",
+   "score": 76,
+   "name": "David Armando Cisneros Figueroa"
+  },
+  {
+   "id": "f6d31cb7-5f17-4c60-a212-f794344ce123",
+   "score": 75,
+   "name": "Hector Alfredo Rivera Espinosa"
+  },
+  {
+   "id": "b8c3b42f-4f3d-4510-bb16-f5338e719c55",
+   "score": 75,
+   "name": "Bruno Batch0f2dfd26 Salazar"
+  },
+  {
+   "id": "702534b8-b5df-4ad2-864e-074c73a5e321",
+   "score": 74,
+   "name": "Alberto González Ríos"
+  },
+  {
+   "id": "2f79b016-8893-4802-9595-d573d9438b9f",
+   "score": 71,
+   "name": "C. Alejandra Romero Arriaga"
+  },
+  {
+   "id": "858c9b09-3f2a-46ea-8c87-d22f7c67982e",
+   "score": 70,
+   "name": "Nalleli Tinoco"
+  },
+  {
+   "id": "0ce3c1df-fcf2-409a-a68a-ecbeb2677ce8",
+   "score": 70,
+   "name": "René Alberto Durán Guerrero"
+  },
+  {
+   "id": "33d4f668-c74d-4cb3-9c41-9dc9ba4da2bc",
+   "score": 68,
+   "name": "Karina Carranza"
+  },
+  {
+   "id": "88c9f85f-bfdf-4b91-8830-20de9cf2b623",
+   "score": 68,
+   "name": "Ignacio Salazar Soto"
+  },
+  {
+   "id": "fe99d3e5-3199-4ae4-a0b2-5d6951cf4e59",
+   "score": 68,
+   "name": "Mario Arturo Chávez Badiola"
+  },
+  {
+   "id": "9ef3011c-5864-4bf0-82d7-458fcf574a4d",
+   "score": 67,
+   "name": "Carolina Aguayo Bedolla"
+  },
+  {
+   "id": "9ddb7005-fda7-4b33-acde-ee892ff1cd77",
+   "score": 65,
+   "name": "Cv María José Coca Candia"
+  },
+  {
+   "id": "9293a154-7cd7-47fc-9599-7a49ee24ac9a",
+   "score": 62,
+   "name": "Carlos Uribe Bello"
+  }
+ ],
+ "director de operaciones": [
+  {
+   "id": "4a4e0c11-a134-4953-b909-91f36245e840",
+   "score": 100,
+   "name": "Maria Elena Garcia Lopez"
+  },
+  {
+   "id": "109da702-2738-4f56-9bb0-45188fc4243f",
+   "score": 100,
+   "name": "Marco Antonio Ortega Moreno"
+  },
+  {
+   "id": "0ded4bbb-76e9-4898-a984-5689c09a1985",
+   "score": 100,
+   "name": "Hector Hugo Padilla Lara"
+  },
+  {
+   "id": "07875ea4-af71-4c34-b596-104719060ffb",
+   "score": 100,
+   "name": "Teodoro Baltazar Rodríguez Rosas"
+  },
+  {
+   "id": "f2f7cee8-74c7-460a-a2ca-7758ac118cf9",
+   "score": 100,
+   "name": "Armando E. Sabah Canto"
+  },
+  {
+   "id": "4694f3c8-479f-4f55-90fb-9f6d3809d630",
+   "score": 100,
+   "name": "Gabriel Cedillo Rosales"
+  },
+  {
+   "id": "f4a94ccb-60d9-4e33-b072-196aa7c3978e",
+   "score": 100,
+   "name": "Ricardo Gallo Pérez"
+  },
+  {
+   "id": "c17cd002-ab4a-4b1e-af7c-7db3b3989a18",
+   "score": 100,
+   "name": "Juan Manuel Herrera Guerra"
+  },
+  {
+   "id": "9c4d2cb8-3175-41a0-a2b6-fb36dfc0d1e8",
+   "score": 100,
+   "name": "Ana Batch694cc47f Ramírez"
+  },
+  {
+   "id": "0820be6f-4dc6-4bf5-8daa-a40e0709141a",
+   "score": 100,
+   "name": "Ana Batch2b051712 Ramírez"
+  },
+  {
+   "id": "b3cd68ce-23f0-4856-8fba-ca4e477b73e7",
+   "score": 100,
+   "name": "Ana Batch0f2dfd26 Ramírez"
+  },
+  {
+   "id": "abeecd7e-a04c-4fcd-bda6-371b81d0bde3",
+   "score": 98,
+   "name": "Eduardo Alonso Luna"
+  },
+  {
+   "id": "e561627d-2749-4ce9-b828-988af607ca3e",
+   "score": 97,
+   "name": "Ricardo Valenzuela"
+  },
+  {
+   "id": "22a6a4cd-acea-404c-8c07-96a259c38f78",
+   "score": 97,
+   "name": "José Mauricio Alvarez Campuzano"
+  },
+  {
+   "id": "915720cb-a67a-448c-a99e-2bb28e20ff94",
+   "score": 97,
+   "name": "Jorge Hidalgo Reygadas"
+  },
+  {
+   "id": "d296ce36-18c4-48ff-b4ae-642d6846e72b",
+   "score": 97,
+   "name": "Ernesto Pichardo Pedrero"
+  },
+  {
+   "id": "26013b60-3094-4e2b-b1ec-ce7e688de123",
+   "score": 96,
+   "name": "Hans Hofmann González"
+  },
+  {
+   "id": "da5c01ea-2615-4823-9c1d-729560cb97f7",
+   "score": 95,
+   "name": "Norberto Murillo Rosales"
+  },
+  {
+   "id": "f50780f7-0d0c-4996-b0e0-ac1f96c86684",
+   "score": 92,
+   "name": "Jaime Novoa Hernández"
+  },
+  {
+   "id": "33fbed1f-97da-4f0e-b22a-5e3b6ea11276",
+   "score": 92,
+   "name": "William Lendeborg"
+  },
+  {
+   "id": "b658ea10-ef28-4eb7-95a0-06f17a54404c",
+   "score": 87,
+   "name": "Ignacio Hernández Cuevas"
+  },
+  {
+   "id": "ebcae8fc-59ab-42ee-9b42-24bbe7d3cb1c",
+   "score": 86,
+   "name": "Lidia Rubi Harfush"
+  },
+  {
+   "id": "e1791477-ae0f-408e-a6c8-617659667b62",
+   "score": 85,
+   "name": "Rodrigo Rey"
+  },
+  {
+   "id": "d8a83358-f059-441c-a2b9-c1eda955bdfb",
+   "score": 85,
+   "name": "Alfonso Arzate Gómez"
+  },
+  {
+   "id": "f5fd6a71-3ecb-41b6-a5cf-664c4349f541",
+   "score": 80,
+   "name": "Christian Esparza Calderón"
+  },
+  {
+   "id": "a01d4b65-fb40-4cba-b189-23f5cae4e319",
+   "score": 80,
+   "name": "Cristopher Danilo Elizondo Ogawa"
+  },
+  {
+   "id": "0f193397-ad8a-4fa6-ad23-278f642402e7",
+   "score": 79,
+   "name": "Alejandro Aragón Ramírez"
+  },
+  {
+   "id": "3bb8ca13-23c3-46db-986a-59324ac694af",
+   "score": 73,
+   "name": "Alejandro E. Tobón Reyes"
+  },
+  {
+   "id": "fad4e4d1-34f1-42a8-bea9-f6aa10d78e81",
+   "score": 72,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "5948e1b7-f088-43ec-8a6f-fc91017c6875",
+   "score": 65,
+   "name": "TEST_Carga Paralela 0"
+  }
+ ],
+ "java": [],
+ "recursos humanos": [
+  {
+   "id": "c216b308-5d0a-4af4-b3b1-7c96e1cc03dd",
+   "score": 100,
+   "name": "Mariana Rueda Morales"
+  },
+  {
+   "id": "eb1402df-00f1-4335-bdb0-2ea2935b0107",
+   "score": 99,
+   "name": "Leobardo Jasso Laucirica"
+  },
+  {
+   "id": "9d29a167-6ebd-464a-99f0-8067013bb668",
+   "score": 85,
+   "name": "Ilana Lester Nosnik"
+  },
+  {
+   "id": "7c4166cf-a225-4110-b735-863861f8a107",
+   "score": 85,
+   "name": "Alberto Soria"
+  },
+  {
+   "id": "ca638835-eab3-4b6a-84d5-2df1fa8643f6",
+   "score": 79,
+   "name": "Martha Ruth Blass Huerta"
+  },
+  {
+   "id": "ea589de5-2e5f-43ac-9817-b9695541b43c",
+   "score": 78,
+   "name": "Rodrigo Ochoa Martinez Parente"
+  },
+  {
+   "id": "5a2f9a3f-7a9b-441a-b1e5-6ac5b59649eb",
+   "score": 75,
+   "name": "Omar Saldaña Santiago"
+  },
+  {
+   "id": "80d6272d-af1a-44fb-adbd-3c5fa3edee5f",
+   "score": 74,
+   "name": "Juan Christian Trejo Vilchis"
+  },
+  {
+   "id": "4f2a5d06-c3f4-430f-954b-b81f6696c458",
+   "score": 72,
+   "name": "Jamy Elizabeth Badillo Molina"
+  },
+  {
+   "id": "6d961143-3edf-4e35-9aa0-43058b31e9f6",
+   "score": 70,
+   "name": "Berenice Rangel Jiménez"
+  },
+  {
+   "id": "12dff993-13d8-49a8-8aaa-edd4065d430f",
+   "score": 70,
+   "name": "Mariana López Romo"
+  },
+  {
+   "id": "c493b5ee-e7ec-44e9-a2cf-e3c07544f708",
+   "score": 68,
+   "name": "Cv Giovanny Robles"
+  },
+  {
+   "id": "83819d7a-25fb-457f-849a-d002e6b7bff8",
+   "score": 67,
+   "name": "Susana Hernández Olivares"
+  },
+  {
+   "id": "222d10f2-3299-4074-8f7b-0b1d81829597",
+   "score": 67,
+   "name": "Mariana Márquez Montañez"
+  },
+  {
+   "id": "ce492059-ff1e-4ce9-87a8-ba7f4ed501e0",
+   "score": 66,
+   "name": "Steeve Yvan Pascal Marchal"
+  },
+  {
+   "id": "8e3761d3-a824-4d69-9f86-09a66cc44ae0",
+   "score": 66,
+   "name": "María Aurora González Chico Marco"
+  },
+  {
+   "id": "6b4d0106-89ef-437a-98e0-4ee9b12ee675",
+   "score": 66,
+   "name": "Diana Estrada López"
+  },
+  {
+   "id": "d96c26d5-c662-408b-afbd-918376f79a75",
+   "score": 63,
+   "name": "Cesia González Jiménez"
+  },
+  {
+   "id": "31467085-4fa0-4c23-8417-474502867bf7",
+   "score": 63,
+   "name": "Mariela Patricia Apango Ramirez"
+  },
+  {
+   "id": "ae61323b-b7dc-44d8-a398-a5d8758dba6e",
+   "score": 63,
+   "name": "Rubí Jocelyn Martínez Reyes"
+  },
+  {
+   "id": "680f8c6a-17b0-4038-9829-0e84800591aa",
+   "score": 60,
+   "name": "Viridiana García Mondragón"
+  },
+  {
+   "id": "b883a114-103e-4ea6-b0a7-db2bcf772886",
+   "score": 60,
+   "name": "Gabriela Martínez"
+  },
+  {
+   "id": "04e2ed91-ed34-45ee-93be-f869d0d4e4e0",
+   "score": 60,
+   "name": "Romina Tahis Ibacache Saavedra"
+  }
+ ],
+ "tecnología": [
+  {
+   "id": "b240ac9f-f996-434b-89d2-59e6b4a8bc1c",
+   "score": 100,
+   "name": "Omar Isaac De La Cruz Jiménez"
+  },
+  {
+   "id": "b3197038-9975-47bd-81dd-39a5de323b31",
+   "score": 100,
+   "name": "Omar Isaac De La Cruz Jiménez"
+  },
+  {
+   "id": "59d01e59-7e81-4352-8124-a82b1d715e42",
+   "score": 100,
+   "name": "Omar Isaac De La Cruz Jiménez"
+  },
+  {
+   "id": "c762bf4b-188d-49be-a0a6-5be7f679e5bc",
+   "score": 99,
+   "name": "Víctor Hugo Gómez Gómez"
+  },
+  {
+   "id": "a8932069-336a-402b-9b6c-138d8339aa3c",
+   "score": 96,
+   "name": "Oscar David Velázquez Friederichsen"
+  },
+  {
+   "id": "97d038e2-e188-4e4c-8d67-82f956c70a12",
+   "score": 91,
+   "name": "Omar Cardona Marroquin"
+  },
+  {
+   "id": "5bdaa228-0689-4e92-9458-2f643f360d25",
+   "score": 89,
+   "name": "Marco Antonio Cáceres Rodríguez"
+  },
+  {
+   "id": "e1103bd6-02ed-4813-babe-eb370b926786",
+   "score": 88,
+   "name": "Daniel Batch694cc47f Núñez"
+  },
+  {
+   "id": "f74b7b8a-bc82-43bc-a58d-7340983ef488",
+   "score": 88,
+   "name": "Daniel Batch2b051712 Núñez"
+  },
+  {
+   "id": "4e64ed0b-e1dc-4491-ab11-ab916269dc26",
+   "score": 88,
+   "name": "Daniel Batch0f2dfd26 Núñez"
+  },
+  {
+   "id": "3da7657a-b5f8-498a-b17f-0bcf0d62700c",
+   "score": 85,
+   "name": "Juan Pablo Plascencia M."
+  },
+  {
+   "id": "aeb91c58-11ed-4cdf-9e43-6bc817f618ab",
+   "score": 79,
+   "name": "Nicolás Hernández Rodríguez"
+  },
+  {
+   "id": "f30cf63d-67b0-48b4-8661-b6d4ea64c367",
+   "score": 77,
+   "name": "Jardany Alonso Navarrete Romero"
+  },
+  {
+   "id": "62a1cd1f-fa2f-41d4-affc-cc3e79cb52a4",
+   "score": 73,
+   "name": "Juan Vargas Rincón"
+  },
+  {
+   "id": "6ac538be-dad3-40c6-a4b1-c5e96bb0fb8e",
+   "score": 71,
+   "name": "Ricardo Rubén Franco Díaz"
+  }
+ ],
+ "tecnologia": [
+  {
+   "id": "b240ac9f-f996-434b-89d2-59e6b4a8bc1c",
+   "score": 100,
+   "name": "Omar Isaac De La Cruz Jiménez"
+  },
+  {
+   "id": "b3197038-9975-47bd-81dd-39a5de323b31",
+   "score": 100,
+   "name": "Omar Isaac De La Cruz Jiménez"
+  },
+  {
+   "id": "59d01e59-7e81-4352-8124-a82b1d715e42",
+   "score": 100,
+   "name": "Omar Isaac De La Cruz Jiménez"
+  },
+  {
+   "id": "c762bf4b-188d-49be-a0a6-5be7f679e5bc",
+   "score": 99,
+   "name": "Víctor Hugo Gómez Gómez"
+  },
+  {
+   "id": "a8932069-336a-402b-9b6c-138d8339aa3c",
+   "score": 96,
+   "name": "Oscar David Velázquez Friederichsen"
+  },
+  {
+   "id": "97d038e2-e188-4e4c-8d67-82f956c70a12",
+   "score": 91,
+   "name": "Omar Cardona Marroquin"
+  },
+  {
+   "id": "5bdaa228-0689-4e92-9458-2f643f360d25",
+   "score": 89,
+   "name": "Marco Antonio Cáceres Rodríguez"
+  },
+  {
+   "id": "e1103bd6-02ed-4813-babe-eb370b926786",
+   "score": 88,
+   "name": "Daniel Batch694cc47f Núñez"
+  },
+  {
+   "id": "f74b7b8a-bc82-43bc-a58d-7340983ef488",
+   "score": 88,
+   "name": "Daniel Batch2b051712 Núñez"
+  },
+  {
+   "id": "4e64ed0b-e1dc-4491-ab11-ab916269dc26",
+   "score": 88,
+   "name": "Daniel Batch0f2dfd26 Núñez"
+  },
+  {
+   "id": "3da7657a-b5f8-498a-b17f-0bcf0d62700c",
+   "score": 85,
+   "name": "Juan Pablo Plascencia M."
+  },
+  {
+   "id": "aeb91c58-11ed-4cdf-9e43-6bc817f618ab",
+   "score": 79,
+   "name": "Nicolás Hernández Rodríguez"
+  },
+  {
+   "id": "f30cf63d-67b0-48b4-8661-b6d4ea64c367",
+   "score": 77,
+   "name": "Jardany Alonso Navarrete Romero"
+  },
+  {
+   "id": "62a1cd1f-fa2f-41d4-affc-cc3e79cb52a4",
+   "score": 73,
+   "name": "Juan Vargas Rincón"
+  },
+  {
+   "id": "6ac538be-dad3-40c6-a4b1-c5e96bb0fb8e",
+   "score": 71,
+   "name": "Ricardo Rubén Franco Díaz"
+  }
+ ],
+ "ingeniería de producción": [
+  {
+   "id": "109da702-2738-4f56-9bb0-45188fc4243f",
+   "score": 100,
+   "name": "Marco Antonio Ortega Moreno"
+  },
+  {
+   "id": "26013b60-3094-4e2b-b1ec-ce7e688de123",
+   "score": 100,
+   "name": "Hans Hofmann González"
+  },
+  {
+   "id": "abeecd7e-a04c-4fcd-bda6-371b81d0bde3",
+   "score": 100,
+   "name": "Eduardo Alonso Luna"
+  },
+  {
+   "id": "d296ce36-18c4-48ff-b4ae-642d6846e72b",
+   "score": 100,
+   "name": "Ernesto Pichardo Pedrero"
+  },
+  {
+   "id": "c17cd002-ab4a-4b1e-af7c-7db3b3989a18",
+   "score": 96,
+   "name": "Juan Manuel Herrera Guerra"
+  },
+  {
+   "id": "4694f3c8-479f-4f55-90fb-9f6d3809d630",
+   "score": 95,
+   "name": "Gabriel Cedillo Rosales"
+  },
+  {
+   "id": "b3cd68ce-23f0-4856-8fba-ca4e477b73e7",
+   "score": 95,
+   "name": "Ana Batch0f2dfd26 Ramírez"
+  },
+  {
+   "id": "f50780f7-0d0c-4996-b0e0-ac1f96c86684",
+   "score": 91,
+   "name": "Jaime Novoa Hernández"
+  },
+  {
+   "id": "33fbed1f-97da-4f0e-b22a-5e3b6ea11276",
+   "score": 90,
+   "name": "William Lendeborg"
+  },
+  {
+   "id": "4a4e0c11-a134-4953-b909-91f36245e840",
+   "score": 84,
+   "name": "Maria Elena Garcia Lopez"
+  },
+  {
+   "id": "f2f7cee8-74c7-460a-a2ca-7758ac118cf9",
+   "score": 84,
+   "name": "Armando E. Sabah Canto"
+  },
+  {
+   "id": "d8a83358-f059-441c-a2b9-c1eda955bdfb",
+   "score": 83,
+   "name": "Alfonso Arzate Gómez"
+  },
+  {
+   "id": "f4a94ccb-60d9-4e33-b072-196aa7c3978e",
+   "score": 83,
+   "name": "Ricardo Gallo Pérez"
+  },
+  {
+   "id": "5948e1b7-f088-43ec-8a6f-fc91017c6875",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "ead5d219-8798-495e-a3f9-6f67ded89c6a",
+   "score": 83,
+   "name": "TEST_Carga Paralela 1"
+  },
+  {
+   "id": "956cbbda-3424-416c-9c03-f2caaff6a0a4",
+   "score": 83,
+   "name": "TEST_Carga Paralela 2"
+  },
+  {
+   "id": "692c4585-b121-49d0-b6e5-ce48d4af8490",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "2df1dad2-0e84-4402-80ad-2ebb574b66ab",
+   "score": 83,
+   "name": "TEST_Carga Paralela 3"
+  },
+  {
+   "id": "d72bda7e-17b7-49cc-998b-fe9f36da5ce9",
+   "score": 83,
+   "name": "TEST_Carga Paralela 4"
+  },
+  {
+   "id": "4bae0644-a41c-48f0-b5e7-d3958446b418",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "e75e6e1f-97a9-4568-96d3-6793e40cdfe1",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "3fcfe355-4dcf-476f-8af2-9e90ecf2399e",
+   "score": 83,
+   "name": "TEST_Carga Paralela 2"
+  },
+  {
+   "id": "ae269cad-db02-429c-bce8-26cd5e394b61",
+   "score": 83,
+   "name": "TEST_Carga Paralela 1"
+  },
+  {
+   "id": "cadf2571-ba5a-41dd-96b6-65d361ba2146",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "549590fa-d4a7-4358-9fe7-1d7640a85d2e",
+   "score": 83,
+   "name": "TEST_Carga Paralela 3"
+  },
+  {
+   "id": "03850009-127f-4f6b-a2a4-7961dd2f20f9",
+   "score": 83,
+   "name": "TEST_Carga Paralela 4"
+  },
+  {
+   "id": "3b6472b3-4192-4a38-a543-5fedda2612c9",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "fad4e4d1-34f1-42a8-bea9-f6aa10d78e81",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "5eaf8f79-d874-4e6a-8196-17d339ef1cb2",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  },
+  {
+   "id": "b025eb54-51e9-434d-9504-79dd1594beb5",
+   "score": 83,
+   "name": "TEST_Carga Paralela 0"
+  }
+ ],
+ "compras": [
+  {
+   "id": "5470240a-417c-4897-83d4-91ffd5700e96",
+   "score": 86,
+   "name": "Rafael Covarrubias Gómez"
+  },
+  {
+   "id": "bedffc1d-f05e-4d65-8d60-08a89dc1ceeb",
+   "score": 82,
+   "name": "Elias Cruz González"
+  },
+  {
+   "id": "aa5ee578-4281-4904-9ff2-3957441a6c1a",
+   "score": 74,
+   "name": "No especificado"
+  },
+  {
+   "id": "32309a9d-496f-48cc-9dcf-39d4e3bfa709",
+   "score": 74,
+   "name": "Miguel Ángel Oregón Núñez"
+  },
+  {
+   "id": "5b268db5-4395-4365-95dc-fc56a8d7646e",
+   "score": 70,
+   "name": "Publio César Rendón Hernández"
+  },
+  {
+   "id": "b30ba878-0935-432c-82de-de87e12cc4e4",
+   "score": 65,
+   "name": "Fausto Castillo Arballo"
+  }
+ ],
+ "marketing digital": [
+  {
+   "id": "54d49809-404c-4f22-b583-76c10da61e6b",
+   "score": 100,
+   "name": "Daniel Andres Mac Nuñez"
+  },
+  {
+   "id": "f1d0faf6-811c-4e79-80aa-162a6b56cb55",
+   "score": 100,
+   "name": "Ricardo Said Ibarra Bocanegra"
+  },
+  {
+   "id": "75e12df5-1d90-4c4d-a699-bc2c1b07c5ab",
+   "score": 94,
+   "name": "Carla Batch694cc47f Gómez"
+  },
+  {
+   "id": "ec8813db-fc4f-4950-a8ef-8b6caf174888",
+   "score": 94,
+   "name": "Carla Batch2b051712 Gómez"
+  },
+  {
+   "id": "8031a7fe-73e5-4a07-a450-733be22a10a9",
+   "score": 94,
+   "name": "Carla Batch0f2dfd26 Gómez"
+  },
+  {
+   "id": "9ed8cc1d-eb22-4f80-b6d2-1724e4d4cf1c",
+   "score": 91,
+   "name": "Norma Hernández"
+  },
+  {
+   "id": "6153aaf3-fdf4-4966-bc90-4ba591438e52",
+   "score": 88,
+   "name": "Norma Hernández"
+  },
+  {
+   "id": "eaa91a95-1cf5-4f51-861a-b33e1750dfa4",
+   "score": 85,
+   "name": "Roberto Carlos Luna"
+  },
+  {
+   "id": "b3a06c9a-72b9-4d38-aaf9-9b390eccfb51",
+   "score": 82,
+   "name": "Miguel Amir Bernal Hernández"
+  },
+  {
+   "id": "9ed5bf75-8bc9-4ce2-b978-6b1bba6b2727",
+   "score": 79,
+   "name": "Gabriela Martínez Juárez"
+  },
+  {
+   "id": "5f56a6c6-5b26-4943-89cc-6bf47944bbd0",
+   "score": 77,
+   "name": "Miguel Alfonso Romero Salgado"
+  },
+  {
+   "id": "edb922d0-d581-478f-80cd-5b54238bd692",
+   "score": 75,
+   "name": "Alejandra Cabrera Bustamante"
+  },
+  {
+   "id": "4cd300d1-39f2-46c0-a41d-7eb3503fcf90",
+   "score": 73,
+   "name": "Carlos Guillermo Santamaría Barajas"
+  }
+ ]
+}
