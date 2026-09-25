@@ -553,6 +553,15 @@ async def change_password(payload: ChangePasswordRequest, current_user: User = D
     return {"message": "Contraseña actualizada correctamente"}
 
 
+def filter_by_presentation(candidates: list, area: Optional[str], subarea: Optional[str]) -> list:
+    """Filtra por área/subárea del catálogo Humaniq sin tocar el motor de búsqueda."""
+    if area and area.strip():
+        candidates = [c for c in candidates if c.get('presentation_area') == area.strip()]
+    if subarea and subarea.strip():
+        candidates = [c for c in candidates if c.get('presentation_subarea') == subarea.strip()]
+    return candidates
+
+
 # ============= CANDIDATE ROUTES =============
 
 @api_router.get("/candidates", response_model=List[Candidate])
@@ -562,6 +571,8 @@ async def get_candidates(
     status: Optional[CandidateStatus] = None,
     industry: Optional[str] = None,
     functional_area: Optional[str] = None,
+    presentation_area: Optional[str] = None,
+    presentation_subarea: Optional[str] = None,
     seniority: Optional[SeniorityLevel] = None,
     search: Optional[str] = None,
     use_semantic: bool = True,
@@ -593,6 +604,9 @@ async def get_candidates(
             limit=limit
         )
         
+        # Filtro de presentación (área/subárea Humaniq) sobre los resultados del motor híbrido
+        results = filter_by_presentation(results, presentation_area, presentation_subarea)
+        
         # Aplicar skip para paginación
         results = results[skip:skip+limit] if skip > 0 else results[:limit]
         
@@ -613,6 +627,10 @@ async def get_candidates(
         query['industry'] = industry.strip()
     if functional_area and functional_area.strip():
         query['functional_area'] = functional_area.strip()
+    if presentation_area and presentation_area.strip():
+        query['presentation_area'] = presentation_area.strip()
+    if presentation_subarea and presentation_subarea.strip():
+        query['presentation_subarea'] = presentation_subarea.strip()
     if seniority:
         query['seniority'] = seniority.value if hasattr(seniority, 'value') else str(seniority)
     
@@ -2753,6 +2771,8 @@ async def hybrid_search(
     status: Optional[str] = Query(None),
     industry: Optional[str] = Query(None),
     functional_area: Optional[str] = Query(None),
+    presentation_area: Optional[str] = Query(None),
+    presentation_subarea: Optional[str] = Query(None),
     seniority: Optional[str] = Query(None),
     min_experience: Optional[int] = Query(None),
     max_experience: Optional[int] = Query(None),
@@ -2787,6 +2807,8 @@ async def hybrid_search(
         use_semantic=use_semantic,
         limit=limit
     )
+    
+    results = filter_by_presentation(results, presentation_area, presentation_subarea)
     
     # Parse dates for results
     for candidate in results:

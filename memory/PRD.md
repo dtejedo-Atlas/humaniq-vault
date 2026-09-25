@@ -73,8 +73,15 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Inequívocas aplicadas: **149 candidatos + 2 vacantes** → logistics 39 y procurement 10 → `supply_chain`; accounting 31 (+1 vacante) → `finance`; talent_acquisition 19 → `human_resources`; quality 14, construction_management 13, customer_service 9, manufacturing 7, maintenance 4, planning 2, engineering 1 → `operations`; it_technology (1 vacante) → `technology`. Todas conservan su área y subárea real en `presentation_area/subarea`.
 - **Pendientes de decisión del usuario (62 candidatos, 0 vacantes):** `project_management` 32 (administración vs operaciones), `business_development` 29 (el motor ya le da trato especial: 85 vs sales y 60 vs marketing, mapearlo a `sales` cambiaría resultados existentes), `research_development` 1 (ingeniería vs tecnología).
 
+### Filtro en cascada área → subárea (2026-09-25, tercera tanda)
+- Backend: `GET /api/candidates` y `POST /api/search/hybrid` aceptan `presentation_area` y `presentation_subarea`. Con búsqueda de texto se aplica como post-filtro en `server.py::filter_by_presentation` para NO tocar `hybrid_search_service.py` (protegido).
+- Frontend: nuevo `components/AreaSubareaFilter.js` (prop `renderOnly` para maquetar por separado), usado en `CandidatesPage` y `SearchPage`. La subárea se deshabilita hasta elegir área y se limpia al cambiarla. Las listas muestran «Área · Subárea» del catálogo Humaniq.
+- Cobertura de datos: 829/838 candidatos activos tienen área de presentación; 255 tienen subárea (la subárea se rellena al clasificar o editar, no se puede inferir de la clave del motor).
+- Sin conteos ni dashboard nuevo (decisión explícita del usuario). Alerta de calidad y comparación de versiones: descartadas por el usuario (ya cubiertas por la bandeja Por Revisar y la vista de versiones).
+
 ### Deuda detectada y NO corregida (informada)
 - Nada pendiente de los dos defectos del merge: ambos quedaron corregidos y con pruebas (ver sección anterior).
+- La búsqueda de texto es sensible a acentos: «logistica» devuelve 0 y «logística» sí encuentra. Vive en `hybrid_search_service.py` (protegido), no se tocó.
 
 ## Trabajo anterior — 2026-09-24: lectura segura de CV y eliminación de fallbacks locales
 **Autorización del usuario:** únicamente detener clasificación cuando no se puede leer el CV, reemplazar fallback local por reintentos remotos/error visible/marca persistente e inventariar referencias locales existentes SIN borrarlas ni migrarlas. Cinco F811 y un F402 siguen congelados. No scoring/matching/pesos.

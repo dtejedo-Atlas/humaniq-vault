@@ -19,17 +19,19 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate } from '../utils/helpers';
 import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
+import { AreaSubareaFilter } from '../components/AreaSubareaFilter';
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
-  const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
+  const { getIndustryOptions, getIndustryName, getPresentationAreaName, getPresentationSubareaName } = useTaxonomy();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({
     status: '',
     industry: '',
-    functional_area: '',
+    presentation_area: '',
+    presentation_subarea: '',
     seniority: ''
   });
   const [sortBy, setSortBy] = useState('created_at');
@@ -37,7 +39,6 @@ const CandidatesPage = () => {
 
   // Obtener opciones de taxonomía desde el contexto
   const industries = getIndustryOptions();
-  const functionalAreas = getFunctionalAreaOptions();
 
   useEffect(() => {
     fetchCandidates();
@@ -99,8 +100,8 @@ const CandidatesPage = () => {
         {/* Search and Filters */}
         <Card>
           <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-2 relative">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4">
+              <div className="md:col-span-3 lg:col-span-2 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
                   placeholder="Buscar por nombre, email, empresa..."
@@ -139,6 +140,13 @@ const CandidatesPage = () => {
                   ))}
                 </SelectContent>
               </Select>
+
+              <AreaSubareaFilter
+                area={filters.presentation_area}
+                subarea={filters.presentation_subarea}
+                onChange={(area, subarea) => setFilters({ ...filters, presentation_area: area, presentation_subarea: subarea })}
+                idPrefix="candidates-filter"
+              />
 
               <Select value={filters.seniority} onValueChange={(value) => setFilters({ ...filters, seniority: value })}>
                 <SelectTrigger data-testid="filter-seniority">
@@ -209,15 +217,16 @@ const CandidatesPage = () => {
               </div>
             </div>
 
-            {(search || filters.status || filters.industry || filters.seniority || sortBy !== 'created_at') && (
+            {(search || filters.status || filters.industry || filters.seniority || filters.presentation_area || sortBy !== 'created_at') && (
               <div className="mt-4 flex items-center gap-2">
                 <span className="text-sm text-slate-600">Filtros activos:</span>
                 <Button
                   variant="outline"
                   size="sm"
+                  data-testid="candidates-clear-filters"
                   onClick={() => {
                     setSearch('');
-                    setFilters({ status: '', industry: '', functional_area: '', seniority: '' });
+                    setFilters({ status: '', industry: '', presentation_area: '', presentation_subarea: '', seniority: '' });
                     setSortBy('created_at');
                     setSortOrder('desc');
                   }}
@@ -315,10 +324,11 @@ const CandidatesPage = () => {
                                 {getIndustryName(candidate.industry)}
                               </Badge>
                             )}
-                            {candidate.functional_area && (
-                              <p className="text-xs text-slate-600 flex items-center gap-1">
+                            {candidate.presentation_area && (
+                              <p className="text-xs text-slate-600 flex items-center gap-1" data-testid={`candidate-area-${candidate.id}`}>
                                 <Briefcase className="w-3 h-3" />
-                                {getFunctionalAreaName(candidate.functional_area)}
+                                {getPresentationAreaName(candidate.presentation_area)}
+                                {candidate.presentation_subarea && ` · ${getPresentationSubareaName(candidate.presentation_area, candidate.presentation_subarea)}`}
                               </p>
                             )}
                           </div>

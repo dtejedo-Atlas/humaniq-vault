@@ -17,13 +17,14 @@ import {
 import { Search, Sparkles, Loader2, Eye } from 'lucide-react';
 import { searchAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
+import { AreaSubareaFilter } from '../components/AreaSubareaFilter';
 import { toast } from 'sonner';
 import { getStatusColor, getStatusLabel, getSeniorityLabel } from '../utils/helpers';
 
 const SearchPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { getIndustryOptions, getFunctionalAreaOptions, getIndustryName, getFunctionalAreaName } = useTaxonomy();
+  const { getIndustryOptions, getIndustryName, getPresentationAreaName, getPresentationSubareaName } = useTaxonomy();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState({});
@@ -33,7 +34,6 @@ const SearchPage = () => {
 
   // Obtener opciones de taxonomía desde el contexto
   const industries = getIndustryOptions();
-  const functionalAreas = getFunctionalAreaOptions();
 
   // Leer parámetro 'q' de la URL y ejecutar búsqueda automáticamente
   useEffect(() => {
@@ -129,7 +129,7 @@ const SearchPage = () => {
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4 border-t">
               <div>
                 <Label>Industria</Label>
                 <Select value={filters.industry || ''} onValueChange={(value) => setFilters({ ...filters, industry: value || undefined })}>
@@ -149,19 +149,32 @@ const SearchPage = () => {
 
               <div>
                 <Label>Área Funcional</Label>
-                <Select value={filters.functional_area || ''} onValueChange={(value) => setFilters({ ...filters, functional_area: value || undefined })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value=" ">Todas</SelectItem>
-                    {functionalAreas.map((area) => (
-                      <SelectItem key={area.value} value={area.value}>
-                        {area.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <AreaSubareaFilter
+                  area={filters.presentation_area || ''}
+                  subarea={filters.presentation_subarea || ''}
+                  onChange={(area, subarea) => setFilters({
+                    ...filters,
+                    presentation_area: area || undefined,
+                    presentation_subarea: subarea || undefined
+                  })}
+                  idPrefix="search-filter"
+                  renderOnly="area"
+                />
+              </div>
+
+              <div>
+                <Label>Subárea</Label>
+                <AreaSubareaFilter
+                  area={filters.presentation_area || ''}
+                  subarea={filters.presentation_subarea || ''}
+                  onChange={(area, subarea) => setFilters({
+                    ...filters,
+                    presentation_area: area || undefined,
+                    presentation_subarea: subarea || undefined
+                  })}
+                  idPrefix="search-filter"
+                  renderOnly="subarea"
+                />
               </div>
 
               <div>
@@ -246,8 +259,11 @@ const SearchPage = () => {
                           {candidate.industry && (
                             <Badge variant="outline">{getIndustryName(candidate.industry)}</Badge>
                           )}
-                          {candidate.functional_area && (
-                            <Badge variant="outline">{getFunctionalAreaName(candidate.functional_area)}</Badge>
+                          {candidate.presentation_area && (
+                            <Badge variant="outline">
+                              {getPresentationAreaName(candidate.presentation_area)}
+                              {candidate.presentation_subarea && ` · ${getPresentationSubareaName(candidate.presentation_area, candidate.presentation_subarea)}`}
+                            </Badge>
                           )}
                           {candidate.seniority && (
                             <Badge variant="outline">{getSeniorityLabel(candidate.seniority)}</Badge>
