@@ -33,6 +33,8 @@ from types import SimpleNamespace
 import invitation_service
 from email_service import send_invitation_email, send_password_reset_email
 from atlas_service import atlas_service, classify_seniority
+from humaniq_catalog import (public_catalog, presentation_fields, resolve_area, resolve_seniority,
+                             normalize_job_taxonomy, ENGINE_AREA_LABELS, CATALOG_VERSION)
 from document_parser import DocumentParser
 from ocr_runtime import ensure_ocr_runtime
 from classification_refinement import classify_with_refinement, MANUAL_MESSAGE
@@ -1407,6 +1409,8 @@ async def upload_resume(
                 candidate.functional_area = classification.get('functional_area')
                 candidate.seniority = classification.get('seniority')
                 candidate.tags = classification.get('suggested_tags', [])
+                for field, value in presentation_fields(classification).items():
+                    setattr(candidate, field, value)
                 
                 candidate.ai_classification = AIClassification.model_validate(classification)
                 candidate.years_experience = classification.get('years_experience', candidate.years_experience)
@@ -1677,6 +1681,7 @@ async def retry_candidate_processing(
             updates['functional_area'] = classification.get('functional_area')
             updates['seniority'] = classification.get('seniority')
             updates['tags'] = classification.get('suggested_tags', [])
+            updates.update(presentation_fields(classification))
             
             ai_classification = AIClassification.model_validate(classification)
             updates['years_experience'] = classification.get('years_experience', candidate_doc.get('years_experience'))
@@ -1897,6 +1902,8 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
             candidate.functional_area = classification.get('functional_area')
             candidate.seniority = classification.get('seniority')
             candidate.tags = classification.get('suggested_tags', [])
+            for field, value in presentation_fields(classification).items():
+                setattr(candidate, field, value)
             
             candidate.ai_classification = AIClassification.model_validate(classification)
             candidate.years_experience = classification.get('years_experience', candidate.years_experience)
@@ -2155,7 +2162,8 @@ async def classify_candidate_by_atlas(
         functional_area=classification.get('functional_area'),
         seniority=classification.get('seniority'),
         confidence_score=classification.get('confidence_score', 0.0),
-        suggested_tags=classification.get('suggested_tags', [])
+        suggested_tags=classification.get('suggested_tags', []),
+        **presentation_fields(classification)
     )
     
     ai_class_dict = ai_classification.model_dump()
@@ -2197,7 +2205,7 @@ async def approve_atlas_classification(
     """
     candidate_doc = await db.candidates.find_one(
         {"id": candidate_id, "is_deleted": {"$ne": True}}, 
-        {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1}
+        {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1, "presentation_area": 1, "presentation_subarea": 1, "presentation_seniority": 1, "taxonomy_version": 1}
     )
     
     if not candidate_doc:
@@ -2220,6 +2228,8 @@ async def approve_atlas_classification(
             "functional_area": ai_class.get('functional_area') or candidate_doc.get('functional_area'),
             "seniority": ai_class.get('seniority') or candidate_doc.get('seniority'),
             "tags": ai_class.get('suggested_tags') or candidate_doc.get('tags', []),
+            **{field: ai_class.get(field) or candidate_doc.get(field)
+               for field in presentation_fields(ai_class)},
             "ai_classification.approved_by_recruiter": True,
             "ai_classification.approved_at": now,
             "ai_classification.approved_by": current_user.id,
@@ -2322,6 +2332,9 @@ async def get_pending_classifications(
                 "industry": c.get("industry"),
                 "functional_area": c.get("functional_area"),
                 "seniority": c.get("seniority"),
+                "presentation_area": c.get("presentation_area"),
+                "presentation_subarea": c.get("presentation_subarea"),
+                "presentation_seniority": c.get("presentation_seniority"),
                 "years_experience": c.get("years_experience"),
                 "tags": c.get("tags", [])
             },
@@ -2329,6 +2342,9 @@ async def get_pending_classifications(
                 "industry": ai_class.get("industry"),
                 "functional_area": ai_class.get("functional_area"),
                 "seniority": ai_class.get("seniority"),
+                "presentation_area": ai_class.get("presentation_area"),
+                "presentation_subarea": ai_class.get("presentation_subarea"),
+                "presentation_seniority": ai_class.get("presentation_seniority"),
                 "years_experience": c.get("years_experience"),
                 "suggested_tags": ai_class.get("suggested_tags", [])
             },
@@ -2439,7 +2455,7 @@ async def bulk_approve_classifications(
         try:
             candidate_doc = await db.candidates.find_one(
                 {"id": candidate_id, "is_deleted": {"$ne": True}},
-                {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1}
+                {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "tags": 1, "presentation_area": 1, "presentation_subarea": 1, "presentation_seniority": 1, "taxonomy_version": 1}
             )
             
             if not candidate_doc:
@@ -2460,6 +2476,8 @@ async def bulk_approve_classifications(
                     "functional_area": ai_class.get("functional_area") or candidate_doc.get("functional_area"),
                     "seniority": ai_class.get("seniority") or candidate_doc.get("seniority"),
                     "tags": ai_class.get("suggested_tags") or candidate_doc.get("tags", []),
+                    **{field: ai_class.get(field) or candidate_doc.get(field)
+                       for field in presentation_fields(ai_class)},
                     "ai_classification.approved_by_recruiter": True,
                     "ai_classification.approved_at": now,
                     "ai_classification.approved_by": current_user.id,
@@ -2515,7 +2533,7 @@ async def correct_classification(
     """
     candidate_doc = await db.candidates.find_one(
         {"id": candidate_id, "is_deleted": {"$ne": True}},
-        {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1}
+        {"_id": 0, "ai_classification": 1, "industry": 1, "functional_area": 1, "seniority": 1, "presentation_area": 1, "presentation_subarea": 1, "presentation_seniority": 1, "taxonomy_version": 1}
     )
     
     if not candidate_doc:
@@ -2533,11 +2551,28 @@ async def correct_classification(
     final_area = corrections.functional_area or ai_class.get("functional_area") or candidate_doc.get("functional_area")
     final_seniority = corrections.seniority or ai_class.get("seniority") or candidate_doc.get("seniority")
     
+    # Normalizar a claves del motor + capa de presentación
+    resolved_area = resolve_area(final_area, ai_class.get("presentation_subarea") or candidate_doc.get("presentation_subarea"))
+    resolved_seniority = resolve_seniority(final_seniority)
+    if final_area and not resolved_area:
+        raise HTTPException(422, f"Valor fuera del catálogo: functional_area={final_area}")
+    if final_seniority and not resolved_seniority:
+        raise HTTPException(422, f"Valor fuera del catálogo: seniority={final_seniority}")
+    presentation = {
+        "presentation_area": resolved_area["presentation_area"] if resolved_area else None,
+        "presentation_subarea": resolved_area["presentation_subarea"] if resolved_area else None,
+        "presentation_seniority": resolved_seniority["presentation_seniority"] if resolved_seniority else None,
+        "taxonomy_version": CATALOG_VERSION,
+    }
+    final_area = resolved_area["engine_area"] if resolved_area else None
+    final_seniority = resolved_seniority["engine_seniority"] if resolved_seniority else None
+    
     # Build the complete ai_classification object (avoids dot-notation on null)
     new_ai_classification = {
         "industry": final_industry,
         "functional_area": final_area,
         "seniority": final_seniority,
+        **presentation,
         "suggested_tags": ai_class.get("suggested_tags", []),
         "confidence_score": ai_class.get("confidence_score", 1.0),  # Manual correction = full confidence
         "approved_by_recruiter": True,
@@ -2560,6 +2595,7 @@ async def correct_classification(
             "industry": final_industry,
             "functional_area": final_area,
             "seniority": final_seniority,
+            **presentation,
             "ai_classification": new_ai_classification,
             "updated_at": now
         }}
@@ -2573,7 +2609,8 @@ async def correct_classification(
         "applied_classification": {
             "industry": final_industry,
             "functional_area": final_area,
-            "seniority": final_seniority
+            "seniority": final_seniority,
+            **presentation
         }
     }
 
@@ -2596,9 +2633,9 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     
     # By status
     by_status = {}
-    for status in CandidateStatus:
-        count = await db.candidates.count_documents({"status": status.value, "is_deleted": {"$ne": True}})
-        by_status[status.value] = count
+    for candidate_status in CandidateStatus:
+        count = await db.candidates.count_documents({"status": candidate_status.value, "is_deleted": {"$ne": True}})
+        by_status[candidate_status.value] = count
     
     # By industry (top 5)
     industry_pipeline = [
@@ -4022,10 +4059,20 @@ async def get_taxonomy_lookup(current_user: User = Depends(get_current_user)):
     industries = await db.industries.find({}, {"_id": 0, "key": 1, "name_es": 1, "name_en": 1}).to_list(1000)
     areas = await db.functional_areas.find({}, {"_id": 0, "key": 1, "name_es": 1, "name_en": 1}).to_list(1000)
     
+    # Las claves técnicas del motor siempre tienen nombre para la UI
+    area_map = {key: {"name_es": label, "name_en": label} for key, label in ENGINE_AREA_LABELS.items()}
+    area_map.update({area["key"]: {"name_es": area["name_es"], "name_en": area["name_en"]} for area in areas})
+    
     return {
         "industries": {ind["key"]: {"name_es": ind["name_es"], "name_en": ind["name_en"]} for ind in industries},
-        "functional_areas": {area["key"]: {"name_es": area["name_es"], "name_en": area["name_en"]} for area in areas}
+        "functional_areas": area_map
     }
+
+
+@api_router.get("/taxonomy/humaniq")
+async def get_humaniq_catalog(current_user: User = Depends(get_current_user)):
+    """Catálogo Humaniq de presentación: 15 áreas, 105 subáreas y 13 seniorities."""
+    return public_catalog()
 
 
 @api_router.get("/taxonomy/seniority-levels")
@@ -4298,7 +4345,7 @@ async def create_job(
     # Construir documento
     job_doc = {
         "id": job_id,
-        **job_data.model_dump(),
+        **normalize_job_taxonomy(job_data.model_dump()),
         "status": "active",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -4382,6 +4429,7 @@ async def update_job(
     
     # Construir actualización
     update_data = {k: v for k, v in job_update.model_dump().items() if v is not None}
+    update_data = normalize_job_taxonomy(update_data)
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
     
     # Si se actualizan campos relevantes, regenerar embedding

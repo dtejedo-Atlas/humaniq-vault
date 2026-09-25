@@ -13,17 +13,14 @@ export const ReviewCandidateCard = ({ candidate, selected, toggle, taxonomy, onS
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const values = { ...candidate.current_classification, ...Object.fromEntries(Object.entries(candidate.proposed_classification || {}).filter(([, v]) => v != null)) };
-  const fields = [
-    ['industry', 'Industria', taxonomy.industries],
-    ['functional_area', 'Área funcional', taxonomy.functionalAreas],
-    ['seniority', 'Seniority', taxonomy.seniorityLevels],
-    ['years_experience', 'Años de experiencia', YEARS],
-  ];
-  const valid = fields.slice(0, 3).every(([key, , options]) => options.some(o => o.key === values[key]));
+  const fields = [...taxonomy.getClassificationFields(values), ['years_experience', 'Años de experiencia', YEARS]];
+  const valid = fields.slice(0, 2).every(([key, , options]) => options.some(o => o.key === values[key]))
+    && fields[3][2].some(o => o.key === values.presentation_seniority);
   const save = async (field, value) => {
     setSaving(true); onSaving(candidate.id, true); setError(''); setMessage('Guardando…');
     try {
-      const response = await reviewAPI.saveField(candidate.id, { [field]: value });
+      const payload = field === 'presentation_area' ? { presentation_area: value, presentation_subarea: null } : { [field]: value };
+      const response = await reviewAPI.saveField(candidate.id, payload);
       onSaved(candidate.id, response.data); setMessage('Guardado · pendiente de aprobación');
     } catch (e) {
       setMessage(''); setError(e.response?.data?.detail || 'No se guardó el cambio. Inténtalo de nuevo.');
@@ -41,8 +38,8 @@ export const ReviewCandidateCard = ({ candidate, selected, toggle, taxonomy, onS
           <p data-testid={`review-title-${candidate.id}`} className="mt-1 text-sm text-slate-500 break-words">{[candidate.current_title, candidate.current_company].filter(Boolean).join(' · ') || 'Sin puesto extraído'}</p>
         </div>
       </div>
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {fields.map(([field, label, options]) => <ReviewField key={field} candidateId={candidate.id} field={field} label={label} value={values[field]} options={options} disabled={saving || busy || !canEdit} onChange={save} />)}
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {fields.map(([field, label, options]) => <ReviewField key={field} candidateId={candidate.id} field={field} label={label} value={values[field]} options={options} disabled={saving || busy || !canEdit || (field === 'presentation_subarea' && !values.presentation_area)} onChange={save} />)}
       </div>
       {candidate.review_status === 'manual_capture' && <p data-testid={`review-manual-capture-${candidate.id}`} role="alert" className="mt-3 text-sm font-medium text-amber-800">Requiere captura manual. {candidate.review_message}</p>}
       {candidate.review_status !== 'manual_capture' && candidate.review_message && <p data-testid={`review-inference-message-${candidate.id}`} className="mt-3 text-xs text-amber-800">{candidate.review_message}</p>}

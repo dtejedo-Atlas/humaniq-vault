@@ -247,6 +247,13 @@ class AIClassification(BaseModel):
     industry: Optional[str] = None
     functional_area: Optional[str] = None
     seniority: Optional[SeniorityLevel] = None
+    # Capa de presentación Humaniq (15 áreas / 105 subáreas / 13 seniorities)
+    presentation_area: Optional[str] = None
+    presentation_subarea: Optional[str] = None
+    presentation_seniority: Optional[str] = None
+    taxonomy_version: Optional[str] = None
+    out_of_catalog: Optional[List[str]] = None
+    no_engine_equivalent: Optional[List[str]] = None
     confidence_score: float = 0.0
     suggested_tags: List[str] = []
     classified_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -273,6 +280,10 @@ class Candidate(BaseModel):
     industry: Optional[str] = None  # Almacena el 'key' canónico (ej: "manufacturing")
     functional_area: Optional[str] = None  # Almacena el 'key' canónico (ej: "supply_chain")
     seniority: Optional[SeniorityLevel] = None
+    presentation_area: Optional[str] = None      # Área del catálogo Humaniq (15)
+    presentation_subarea: Optional[str] = None   # Subárea del catálogo Humaniq (105)
+    presentation_seniority: Optional[str] = None # Seniority del catálogo Humaniq (13)
+    taxonomy_version: Optional[str] = None
     skills: List[str] = []
     languages: List[str] = []
     cv_language: Optional[str] = None  # 'es' | 'en' | 'otro' (idioma del CV original)
@@ -418,16 +429,6 @@ class SearchQuery(BaseModel):
     filters: Dict[str, Any]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class ActivityLog(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str
-    user_id: str
-    action: str
-    entity_type: str
-    entity_id: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    details: Optional[Dict[str, Any]] = None
-
 class DuplicateSuggestionModel(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
@@ -513,6 +514,9 @@ class Job(BaseModel):
     industry: str                                 # key: "manufacturing"
     functional_area: str                          # key: "operations"
     seniority: str                                # "manager", "director", etc.
+    presentation_area: Optional[str] = None       # Área del catálogo Humaniq
+    presentation_subarea: Optional[str] = None    # Subárea del catálogo Humaniq
+    presentation_seniority: Optional[str] = None  # Seniority del catálogo Humaniq
     
     # Requisitos de experiencia
     min_experience: int = 0                       # Años mínimos
@@ -573,6 +577,9 @@ class JobCreate(BaseModel):
     industry: str
     functional_area: str
     seniority: str
+    presentation_area: Optional[str] = None
+    presentation_subarea: Optional[str] = None
+    presentation_seniority: Optional[str] = None
     min_experience: int = 0
     max_experience: Optional[int] = None
     
@@ -609,6 +616,9 @@ class JobUpdate(BaseModel):
     industry: Optional[str] = None
     functional_area: Optional[str] = None
     seniority: Optional[str] = None
+    presentation_area: Optional[str] = None
+    presentation_subarea: Optional[str] = None
+    presentation_seniority: Optional[str] = None
     min_experience: Optional[int] = None
     max_experience: Optional[int] = None
     
@@ -710,10 +720,6 @@ class AssignmentCreate(BaseModel):
 
 # ============= SMART FOLDER MODELS =============
 
-class FolderType(str, Enum):
-    SYSTEM = "system"  # Predefinido, no eliminable
-    USER = "user"      # Creado por usuario, editable
-
 class SmartFolderCriteria(BaseModel):
     """Criterios de filtrado para smart folder"""
     industries: List[str] = []           # OR entre valores
@@ -722,41 +728,6 @@ class SmartFolderCriteria(BaseModel):
     min_experience: Optional[int] = None
     max_experience: Optional[int] = None
     skills: List[str] = []               # AND - debe tener todos
-
-class SmartFolder(BaseModel):
-    """Smart Folder para organizar candidatos dinámicamente"""
-    model_config = ConfigDict(extra="ignore")
-    
-    id: str
-    name: str                            # "CFO - Consumer Goods"
-    description: Optional[str] = None
-    folder_type: FolderType = FolderType.USER
-    criteria: SmartFolderCriteria
-    
-    # Ownership
-    owner_id: Optional[str] = None       # None para folders del sistema
-    owner_name: Optional[str] = None
-    is_shared: bool = True               # Visible para todo el equipo
-    
-    # Stats (calculados dinámicamente)
-    candidate_count: int = 0
-    
-    # Metadata
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class SmartFolderCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    criteria: SmartFolderCriteria
-    is_shared: bool = True
-
-class SmartFolderUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    criteria: Optional[SmartFolderCriteria] = None
-    is_shared: Optional[bool] = None
-
 
 # ============= ACTIVITY LOG MODELS =============
 

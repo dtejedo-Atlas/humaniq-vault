@@ -5,7 +5,10 @@ import asyncio
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 import json
 import re
-from taxonomy import build_taxonomy_prompt_section, get_industry_by_key, get_functional_area_by_key
+from taxonomy import (build_taxonomy_prompt_section, build_industries_prompt_section,
+                      get_industry_by_key)
+from humaniq_catalog import (build_humaniq_prompt_section, normalize_classification,
+                            resolve_area, resolve_seniority)
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -253,8 +256,8 @@ Responde SOLO con JSON válido, sin texto adicional:
     async def classify_candidate(self, candidate_data: dict, resume_text: str) -> dict:
         """Classify candidate by industry, functional area, and seniority using bilingual taxonomy"""
         
-        # Obtener la sección de taxonomía bilingüe para el prompt
-        taxonomy_section = build_taxonomy_prompt_section()
+        # Industrias desde la taxonomía técnica; áreas y seniority desde el catálogo Humaniq
+        taxonomy_section = build_industries_prompt_section() + build_humaniq_prompt_section()
         
         chat = LlmChat(
             api_key=self.api_key,
@@ -263,24 +266,22 @@ Responde SOLO con JSON válido, sin texto adicional:
 
 Tu tarea es clasificar candidatos por:
 - Industria (industry)
-- Área funcional / expertise (functional_area)
+- Área funcional y subárea (functional_area, presentation_subarea)
 - Nivel de seniority
 
 IMPORTANTE: 
 1. El CV puede estar en español O inglés. Debes clasificar correctamente independientemente del idioma.
-2. Debes responder usando ÚNICAMENTE las 'key' canónicas de la taxonomía, NO los nombres en español o inglés.
-3. Por ejemplo, si el CV menciona "Supply Chain" o "Cadena de Suministro", responde con la key "supply_chain".
+2. Debes responder usando ÚNICAMENTE las 'key' de los catálogos, NO los nombres largos ni traducciones al inglés.
+3. Por ejemplo, si el CV menciona "Supply Chain" o "Cadena de Suministro", responde con la key "cadena_suministro".
 
 {taxonomy_section}
-
-Niveles de seniority (usar estos valores exactos):
-  - entry, junior, mid, senior, lead, manager, director, vp, c_level
 
 Responde SOLO en formato JSON:
 {{
     "industry": "key_de_industria",
-    "functional_area": "key_de_area_funcional",
-    "seniority": "nivel_de_seniority",
+    "functional_area": "key_de_area_humaniq",
+    "presentation_subarea": "key_de_subarea_humaniq",
+    "seniority": "key_de_seniority_humaniq",
     "confidence_score": 0.85,
     "suggested_tags": ["tag1", "tag2", "tag3"],
     "reasoning": "breve explicación de la clasificación"
@@ -300,7 +301,7 @@ Habilidades: {', '.join(candidate_data.get('skills', []))}
 Texto del CV (primeros 3000 caracteres):
 {resume_text[:3000]}
 
-RECUERDA: Responde usando las 'key' canónicas de la taxonomía (ej: "manufacturing", "supply_chain"), NO los nombres en español o inglés.
+RECUERDA: Responde usando las 'key' del catálogo Humaniq (ej: "cadena_suministro", "gerencia"), NO los nombres largos ni en inglés.
 Responde SOLO con JSON válido.
 """
         )
@@ -320,21 +321,20 @@ Responde SOLO con JSON válido.
             
             # Validar que las keys existan en la taxonomía
             industry_key = classification.get('industry')
-            functional_area_key = classification.get('functional_area')
             
             if industry_key and not get_industry_by_key(industry_key):
                 # Intentar mapear si el LLM respondió con nombre en lugar de key
                 classification['industry'] = self._normalize_to_key(industry_key, 'industry')
             
-            if functional_area_key and not get_functional_area_by_key(functional_area_key):
-                classification['functional_area'] = self._normalize_to_key(functional_area_key, 'functional_area')
+            # Normalizar área/seniority ANTES de declarar nada fuera de catálogo:
+            # acepta keys Humaniq, claves técnicas históricas, inglés, labels y mayúsculas.
+            classification = normalize_classification(classification)
             
             # Si tras normalizar algún valor sigue fuera del catálogo, penalizar confidence
             # para que el candidato caiga a la bandeja de revisión individual
             final_ind = classification.get('industry')
-            final_area = classification.get('functional_area')
             if (final_ind and not get_industry_by_key(final_ind)) or \
-               (final_area and not get_functional_area_by_key(final_area)):
+               classification.get('out_of_catalog') or classification.get('no_engine_equivalent'):
                 original_conf = classification.get('confidence_score', 0.0)
                 classification['confidence_score'] = min(original_conf, 0.5)
                 classification['reasoning'] = (classification.get('reasoning') or '') + \
@@ -584,10 +584,19 @@ Responde SOLO con JSON válido.
             if industry_key and not get_industry_by_key(industry_key):
                 parsed_data['industry'] = self._normalize_to_key_with_default(industry_key, 'industry')
             
-            # Área funcional
-            functional_area_key = parsed_data.get('functional_area')
-            if functional_area_key and not get_functional_area_by_key(functional_area_key):
-                parsed_data['functional_area'] = self._normalize_to_key_with_default(functional_area_key, 'functional_area')
+            # Área funcional y seniority: normalizar a claves que el motor reconoce
+            job_area = resolve_area(parsed_data.get('functional_area'))
+            if job_area and job_area['engine_area']:
+                parsed_data['presentation_area'] = job_area['presentation_area']
+                parsed_data['presentation_subarea'] = job_area['presentation_subarea']
+                parsed_data['functional_area'] = job_area['engine_area']
+            elif parsed_data.get('functional_area'):
+                parsed_data['functional_area'] = self._normalize_to_key_with_default(
+                    parsed_data['functional_area'], 'functional_area')
+            job_seniority = resolve_seniority(parsed_data.get('seniority'))
+            if job_seniority:
+                parsed_data['presentation_seniority'] = job_seniority['presentation_seniority']
+                parsed_data['seniority'] = job_seniority['engine_seniority']
             
             # Asegurar que los números sean números
             for field in ['min_experience', 'max_experience', 'salary_min', 'salary_max']:

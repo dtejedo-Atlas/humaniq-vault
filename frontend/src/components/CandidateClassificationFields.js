@@ -15,19 +15,22 @@ export const CandidateClassificationFields = ({ candidate, canEdit, busy, onSavi
   const [permissionDenied, setPermissionDenied] = useState(false);
   const approved = candidate.ai_classification?.approved_by_recruiter === true;
   const disabled = !canEdit || permissionDenied || approved || busy || saving || taxonomy.loading;
-  const fields = [
-    ['industry', 'Industria', taxonomy.industries],
-    ['functional_area', 'Área funcional', taxonomy.functionalAreas],
-    ['seniority', 'Seniority', taxonomy.seniorityLevels],
-    ['years_experience', 'Años de experiencia', YEARS],
-  ];
+  const values = {
+    industry: candidate.ai_classification?.industry ?? candidate.industry ?? null,
+    presentation_area: candidate.ai_classification?.presentation_area ?? candidate.presentation_area ?? null,
+    presentation_subarea: candidate.ai_classification?.presentation_subarea ?? candidate.presentation_subarea ?? null,
+    presentation_seniority: candidate.ai_classification?.presentation_seniority ?? candidate.presentation_seniority ?? null,
+    years_experience: candidate.ai_classification?.years_experience ?? candidate.years_experience ?? null,
+  };
+  const fields = [...taxonomy.getClassificationFields(values), ['years_experience', 'Años de experiencia', YEARS]];
   const save = async (field, value) => {
     if (disabled || savingRef.current) return;
     savingRef.current = true;
     setSaving(true); onSaving(true); setError(''); setMessage('Guardando…');
     try {
-      const { data } = await reviewAPI.saveField(candidate.id, { [field]: value });
-      onSaved(candidate.id, { [field]: data[field] });
+      const payload = field === 'presentation_area' ? { presentation_area: value, presentation_subarea: null } : { [field]: value };
+      const { data } = await reviewAPI.saveField(candidate.id, payload);
+      onSaved(candidate.id, data);
       setMessage('Guardado · pendiente de aprobación');
       window.dispatchEvent(new Event('classification-review-updated'));
     } catch (e) {
@@ -42,11 +45,11 @@ export const CandidateClassificationFields = ({ candidate, canEdit, busy, onSavi
   };
   return (
     <div data-testid="candidate-classification-fields" className="min-w-0 space-y-3">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {fields.map(([field, label, options]) => (
           <ReviewField key={field} candidateId={candidate.id} field={field} label={label}
-            value={candidate.ai_classification?.[field] ?? candidate[field] ?? null}
-            options={options} disabled={disabled} onChange={save} />
+            value={values[field]}
+            options={options} disabled={disabled || (field === 'presentation_subarea' && !values.presentation_area)} onChange={save} />
         ))}
       </div>
       <p data-testid="candidate-classification-save-status" role="status" className="text-xs text-slate-500">

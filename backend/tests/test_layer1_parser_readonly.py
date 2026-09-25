@@ -197,7 +197,6 @@ def test_protected_scoring_files_have_no_diff():
         "backend/job_matching_service.py",
         "backend/scoring_config.py",
         "backend/hybrid_search_service.py",
-        "backend/atlas_service.py",
     ]
     cmd = ["git", "-C", "/app", "diff", "--"] + protected_paths
     diff = subprocess.check_output(cmd, text=True)

@@ -1,0 +1,217 @@
+{
+  "version": "humaniq-taxonomy-v1",
+  "idioma": "es",
+  "descripcion": "Catálogo maestro de áreas funcionales con subáreas y escala de seniority para clasificación y matching de candidatos. Estilo OCC ampliado, 2 niveles (área → subárea).",
+  "seniority_levels": [
+    { "key": "becario", "label": "Becario / Prácticas", "rank": 1 },
+    { "key": "trainee", "label": "Trainee", "rank": 2 },
+    { "key": "auxiliar", "label": "Auxiliar / Asistente", "rank": 3 },
+    { "key": "analista", "label": "Analista / Especialista", "rank": 4 },
+    { "key": "coordinador", "label": "Coordinador", "rank": 5 },
+    { "key": "jefatura", "label": "Jefatura", "rank": 6 },
+    { "key": "gerencia_jr", "label": "Gerencia Jr", "rank": 7 },
+    { "key": "gerencia", "label": "Gerencia", "rank": 8 },
+    { "key": "gerencia_sr", "label": "Gerencia Senior", "rank": 9 },
+    { "key": "subdireccion", "label": "Subdirección", "rank": 10 },
+    { "key": "direccion", "label": "Dirección", "rank": 11 },
+    { "key": "vicepresidencia", "label": "Vicepresidencia", "rank": 12 },
+    { "key": "c_level", "label": "C-Level / Dirección General", "rank": 13 }
+  ],
+  "areas": [
+    {
+      "key": "finanzas",
+      "label": "Finanzas",
+      "subareas": [
+        { "key": "contraloria", "label": "Contraloría" },
+        { "key": "contabilidad", "label": "Contabilidad" },
+        { "key": "tesoreria", "label": "Tesorería" },
+        { "key": "fpa", "label": "Planeación Financiera (FP&A)" },
+        { "key": "cuentas_por_cobrar", "label": "Cuentas por Cobrar / Crédito y Cobranza" },
+        { "key": "cuentas_por_pagar", "label": "Cuentas por Pagar" },
+        { "key": "fiscal", "label": "Fiscal / Impuestos" },
+        { "key": "auditoria", "label": "Auditoría" },
+        { "key": "costos", "label": "Costos" },
+        { "key": "finanzas_corporativas", "label": "Finanzas Corporativas / M&A" },
+        { "key": "riesgos_financieros", "label": "Riesgos Financieros" },
+        { "key": "relacion_inversionistas", "label": "Relación con Inversionistas" }
+      ]
+    },
+    {
+      "key": "ventas",
+      "label": "Ventas / Comercial",
+      "subareas": [
+        { "key": "ventas_b2b", "label": "Ventas B2B" },
+        { "key": "ventas_b2c", "label": "Ventas B2C" },
+        { "key": "ventas_corporativas", "label": "Ventas Corporativas / Key Account" },
+        { "key": "desarrollo_negocio", "label": "Desarrollo de Negocio" },
+        { "key": "ventas_canal", "label": "Ventas por Canal / Distribución" },
+        { "key": "ventas_gobierno", "label": "Ventas a Gobierno / Licitaciones" },
+        { "key": "ventas_tecnicas", "label": "Ventas Técnicas / Ingeniería de Ventas" },
+        { "key": "trade_marketing", "label": "Trade Marketing" },
+        { "key": "ventas_internacionales", "label": "Ventas Internacionales / Exportación" },
+        { "key": "inside_sales", "label": "Inside Sales / Televentas" }
+      ]
+    },
+    {
+      "key": "marketing",
+      "label": "Marketing",
+      "subareas": [
+        { "key": "marketing_digital", "label": "Marketing Digital" },
+        { "key": "brand_management", "label": "Brand Management / Marca" },
+        { "key": "producto", "label": "Marketing de Producto" },
+        { "key": "investigacion_mercados", "label": "Investigación de Mercados" },
+        { "key": "comunicacion", "label": "Comunicación / PR" },
+        { "key": "growth", "label": "Growth / Performance" },
+        { "key": "contenidos", "label": "Contenidos / Social Media" },
+        { "key": "crm_loyalty", "label": "CRM / Fidelización" },
+        { "key": "publicidad", "label": "Publicidad / Medios" }
+      ]
+    },
+    {
+      "key": "operaciones",
+      "label": "Operaciones",
+      "subareas": [
+        { "key": "operaciones_generales", "label": "Operaciones Generales" },
+        { "key": "mejora_continua", "label": "Mejora Continua / Lean / Six Sigma" },
+        { "key": "planeacion_operaciones", "label": "Planeación de Operaciones" },
+        { "key": "servicio_operaciones", "label": "Operaciones de Servicio" },
+        { "key": "gestion_proyectos_op", "label": "Gestión de Proyectos Operativos" },
+        { "key": "atencion_cliente", "label": "Atención a Clientes / Customer Service" }
+      ]
+    },
+    {
+      "key": "manufactura",
+      "label": "Manufactura / Producción",
+      "subareas": [
+        { "key": "produccion", "label": "Producción" },
+        { "key": "mantenimiento", "label": "Mantenimiento" },
+        { "key": "ingenieria_procesos", "label": "Ingeniería de Procesos" },
+        { "key": "calidad", "label": "Calidad / Aseguramiento de Calidad" },
+        { "key": "seguridad_industrial", "label": "Seguridad Industrial / HSE" },
+        { "key": "planeacion_produccion", "label": "Planeación de la Producción" },
+        { "key": "manufactura_esbelta", "label": "Manufactura Esbelta" },
+        { "key": "ingenieria_manufactura", "label": "Ingeniería de Manufactura" }
+      ]
+    },
+    {
+      "key": "cadena_suministro",
+      "label": "Cadena de Suministro / Logística",
+      "subareas": [
+        { "key": "logistica", "label": "Logística / Distribución" },
+        { "key": "compras", "label": "Compras / Abastecimiento" },
+        { "key": "almacen_inventarios", "label": "Almacén e Inventarios" },
+        { "key": "planeacion_demanda", "label": "Planeación de Demanda / S&OP" },
+        { "key": "comercio_exterior", "label": "Comercio Exterior / Aduanas" },
+        { "key": "abastecimiento_estrategico", "label": "Abastecimiento Estratégico / Sourcing" },
+        { "key": "transporte", "label": "Transporte / Flotas" }
+      ]
+    },
+    {
+      "key": "recursos_humanos",
+      "label": "Recursos Humanos / Capital Humano",
+      "subareas": [
+        { "key": "atraccion_talento", "label": "Atracción de Talento / Reclutamiento" },
+        { "key": "compensaciones", "label": "Compensaciones y Beneficios" },
+        { "key": "desarrollo_organizacional", "label": "Desarrollo Organizacional" },
+        { "key": "capacitacion", "label": "Capacitación y Desarrollo" },
+        { "key": "relaciones_laborales", "label": "Relaciones Laborales" },
+        { "key": "nominas", "label": "Nóminas / Administración de Personal" },
+        { "key": "cultura_clima", "label": "Cultura y Clima" },
+        { "key": "hrbp", "label": "HR Business Partner" }
+      ]
+    },
+    {
+      "key": "tecnologia",
+      "label": "Tecnología / TI",
+      "subareas": [
+        { "key": "desarrollo_software", "label": "Desarrollo de Software" },
+        { "key": "infraestructura", "label": "Infraestructura / Redes" },
+        { "key": "ciberseguridad", "label": "Ciberseguridad" },
+        { "key": "datos_bi", "label": "Datos / BI / Analytics" },
+        { "key": "arquitectura", "label": "Arquitectura de Sistemas" },
+        { "key": "soporte_ti", "label": "Soporte / Help Desk" },
+        { "key": "gestion_proyectos_ti", "label": "Gestión de Proyectos TI / PMO" },
+        { "key": "product_management_tech", "label": "Product Management (Tech)" },
+        { "key": "sistemas_erp", "label": "Sistemas Empresariales / ERP" }
+      ]
+    },
+    {
+      "key": "ingenieria",
+      "label": "Ingeniería",
+      "subareas": [
+        { "key": "ingenieria_proyectos", "label": "Ingeniería de Proyectos" },
+        { "key": "diseno", "label": "Diseño / I+D" },
+        { "key": "ingenieria_civil", "label": "Ingeniería Civil / Construcción" },
+        { "key": "ingenieria_electrica", "label": "Ingeniería Eléctrica" },
+        { "key": "ingenieria_mecanica", "label": "Ingeniería Mecánica" },
+        { "key": "automatizacion", "label": "Automatización / Control" }
+      ]
+    },
+    {
+      "key": "legal",
+      "label": "Legal / Jurídico",
+      "subareas": [
+        { "key": "corporativo", "label": "Legal Corporativo" },
+        { "key": "contratos", "label": "Contratos" },
+        { "key": "cumplimiento", "label": "Compliance / Cumplimiento" },
+        { "key": "laboral", "label": "Legal Laboral" },
+        { "key": "propiedad_intelectual", "label": "Propiedad Intelectual" },
+        { "key": "litigio", "label": "Litigio" },
+        { "key": "regulatorio", "label": "Regulatorio" }
+      ]
+    },
+    {
+      "key": "administracion",
+      "label": "Administración / Dirección General",
+      "subareas": [
+        { "key": "direccion_general", "label": "Dirección General" },
+        { "key": "administracion_general", "label": "Administración General" },
+        { "key": "planeacion_estrategica", "label": "Planeación Estratégica" },
+        { "key": "gestion_proyectos", "label": "Gestión de Proyectos / PMO" },
+        { "key": "transformacion", "label": "Transformación / Cambio" },
+        { "key": "unidad_negocio", "label": "Dirección de Unidad de Negocio" }
+      ]
+    },
+    {
+      "key": "servicio_cliente",
+      "label": "Servicio y Experiencia al Cliente",
+      "subareas": [
+        { "key": "call_center", "label": "Call Center / Contact Center" },
+        { "key": "customer_success", "label": "Customer Success" },
+        { "key": "experiencia_cliente", "label": "Experiencia del Cliente (CX)" },
+        { "key": "soporte_posventa", "label": "Soporte / Posventa" }
+      ]
+    },
+    {
+      "key": "salud",
+      "label": "Salud / Ciencias de la Vida",
+      "subareas": [
+        { "key": "asuntos_medicos", "label": "Asuntos Médicos" },
+        { "key": "asuntos_regulatorios_salud", "label": "Asuntos Regulatorios (Farma)" },
+        { "key": "acceso_mercado", "label": "Acceso a Mercado" },
+        { "key": "farmacovigilancia", "label": "Farmacovigilancia" },
+        { "key": "investigacion_clinica", "label": "Investigación Clínica" },
+        { "key": "ventas_farma", "label": "Ventas Farmacéuticas / Representante Médico" }
+      ]
+    },
+    {
+      "key": "proyectos_construccion",
+      "label": "Proyectos y Construcción",
+      "subareas": [
+        { "key": "direccion_obra", "label": "Dirección de Obra" },
+        { "key": "supervision", "label": "Supervisión de Proyectos" },
+        { "key": "costos_presupuestos", "label": "Costos y Presupuestos de Obra" },
+        { "key": "planeacion_construccion", "label": "Planeación de Construcción" }
+      ]
+    },
+    {
+      "key": "sustentabilidad",
+      "label": "Sustentabilidad / ESG",
+      "subareas": [
+        { "key": "medio_ambiente", "label": "Medio Ambiente" },
+        { "key": "responsabilidad_social", "label": "Responsabilidad Social" },
+        { "key": "esg_gobernanza", "label": "ESG / Gobernanza" }
+      ]
+    }
+  ]
+}

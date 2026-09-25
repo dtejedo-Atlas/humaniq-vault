@@ -124,38 +124,23 @@ def get_functional_area_display_name(key: str, lang: str = "es") -> str:
     return key
 
 
-def build_taxonomy_prompt_section() -> str:
-    """
-    Construye la sección del prompt que lista la taxonomía para el LLM.
-    El LLM debe usar las keys canónicas en sus respuestas.
-    Incluye aliases para mejorar la clasificación.
-    """
-    # Construir lista de industrias con aliases relevantes
+def build_industries_prompt_section() -> str:
+    """Sólo la sección de industrias. Las áreas funcionales vienen del catálogo Humaniq."""
     industries_lines = []
     for i in INDUSTRIES:
         aliases = INDUSTRY_ALIASES.get(i['key'], [])
         alias_hint = f" (aliases: {', '.join(aliases[:3])}...)" if aliases else ""
         industries_lines.append(f"  - key: \"{i['key']}\" (ES: {i['name_es']} / EN: {i['name_en']}){alias_hint}")
-    
-    industries_text = "\n".join(industries_lines)
-    
-    areas_text = "\n".join([
-        f"  - key: \"{a['key']}\" (ES: {a['name_es']} / EN: {a['name_en']})"
-        for a in FUNCTIONAL_AREAS
-    ])
-    
+
     return f"""
 TAXONOMÍA DE INDUSTRIAS (responde SOLO con el 'key'):
-{industries_text}
+{chr(10).join(industries_lines)}
 
 NOTAS IMPORTANTES DE CLASIFICACIÓN:
 - "Desarrollo Inmobiliario", "Bienes Raíces", "Real Estate" → usar key "real_estate"
-- "Fintech", "Tecnología Financiera", "Neobancos" → usar key "fintech"  
+- "Fintech", "Tecnología Financiera", "Neobancos" → usar key "fintech"
 - "Banca tradicional", "Seguros", "Asset Management" → usar key "financial_services"
 - "Oil & Gas", "Petróleo", "Energía renovable" → usar key "energy"
-
-TAXONOMÍA DE ÁREAS FUNCIONALES (responde SOLO con el 'key'):
-{areas_text}
 
 IMPORTANTE: No confundir industria con área funcional:
 - "Manufactura" como INDUSTRIA = empresa que fabrica productos
