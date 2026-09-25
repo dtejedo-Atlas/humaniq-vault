@@ -1,0 +1,193 @@
+{
+  "executed_at": "2026-09-25T19:32:41.505137+00:00",
+  "before": {
+    "total_active": 838,
+    "by_functional_area": {
+      "sales": 108,
+      "operations": 100,
+      "human_resources": 86,
+      "finance": 76,
+      "technology": 64,
+      "marketing": 62,
+      "supply_chain": 58,
+      "general_management": 54,
+      "logistics": 39,
+      "project_management": 32,
+      "accounting": 31,
+      "business_development": 29,
+      "talent_acquisition": 19,
+      "quality": 14,
+      "construction_management": 13,
+      "legal": 10,
+      "procurement": 10,
+      "null": 9,
+      "customer_service": 9,
+      "manufacturing": 7,
+      "maintenance": 4,
+      "planning": 2,
+      "research_development": 1,
+      "engineering": 1
+    },
+    "non_engine_areas": {
+      "quality": 14,
+      "talent_acquisition": 19,
+      "planning": 2,
+      "business_development": 29,
+      "construction_management": 13,
+      "accounting": 31,
+      "customer_service": 9,
+      "manufacturing": 7,
+      "maintenance": 4,
+      "logistics": 39,
+      "project_management": 32,
+      "procurement": 10,
+      "research_development": 1,
+      "engineering": 1
+    },
+    "by_seniority": {
+      "manager": 259,
+      "director": 229,
+      "senior": 142,
+      "mid": 90,
+      "c_level": 82,
+      "junior": 20,
+      "null": 7,
+      "lead": 3,
+      "entry": 3,
+      "vp": 2,
+      "trainee": 1
+    },
+    "sin_presentation_area": 0,
+    "jobs_by_functional_area": {
+      "operations": 2,
+      "sales": 1,
+      "it_technology": 1,
+      "human_resources": 1,
+      "finance": 1,
+      "accounting": 1
+    }
+  },
+  "unambiguous_legacy": {
+    "logistics": {
+      "clave_motor": "supply_chain",
+      "candidatos": 39,
+      "ai_classification": 39,
+      "vacantes": 0
+    },
+    "procurement": {
+      "clave_motor": "supply_chain",
+      "candidatos": 10,
+      "ai_classification": 10,
+      "vacantes": 0
+    },
+    "accounting": {
+      "clave_motor": "finance",
+      "candidatos": 31,
+      "ai_classification": 31,
+      "vacantes": 1
+    },
+    "talent_acquisition": {
+      "clave_motor": "human_resources",
+      "candidatos": 19,
+      "ai_classification": 19,
+      "vacantes": 0
+    },
+    "quality": {
+      "clave_motor": "operations",
+      "candidatos": 14,
+      "ai_classification": 14,
+      "vacantes": 0
+    },
+    "maintenance": {
+      "clave_motor": "operations",
+      "candidatos": 4,
+      "ai_classification": 4,
+      "vacantes": 0
+    },
+    "manufacturing": {
+      "clave_motor": "operations",
+      "candidatos": 7,
+      "ai_classification": 7,
+      "vacantes": 0
+    },
+    "engineering": {
+      "clave_motor": "operations",
+      "candidatos": 1,
+      "ai_classification": 1,
+      "vacantes": 0
+    },
+    "construction_management": {
+      "clave_motor": "operations",
+      "candidatos": 13,
+      "ai_classification": 13,
+      "vacantes": 0
+    },
+    "customer_service": {
+      "clave_motor": "operations",
+      "candidatos": 9,
+      "ai_classification": 9,
+      "vacantes": 0
+    },
+    "planning": {
+      "clave_motor": "operations",
+      "candidatos": 2,
+      "ai_classification": 2,
+      "vacantes": 0
+    },
+    "it_technology": {
+      "clave_motor": "technology",
+      "candidatos": 0,
+      "ai_classification": 0,
+      "vacantes": 1
+    }
+  },
+  "pending_user_decision": {
+    "project_management": 32,
+    "business_development": 29,
+    "research_development": 1
+  },
+  "after": {
+    "total_active": 838,
+    "by_functional_area": {
+      "operations": 150,
+      "sales": 108,
+      "finance": 107,
+      "supply_chain": 107,
+      "human_resources": 105,
+      "technology": 64,
+      "marketing": 62,
+      "general_management": 54,
+      "project_management": 32,
+      "business_development": 29,
+      "legal": 10,
+      "null": 9,
+      "research_development": 1
+    },
+    "non_engine_areas": {
+      "business_development": 29,
+      "project_management": 32,
+      "research_development": 1
+    },
+    "by_seniority": {
+      "manager": 259,
+      "director": 229,
+      "senior": 142,
+      "mid": 90,
+      "c_level": 82,
+      "junior": 20,
+      "null": 7,
+      "lead": 3,
+      "entry": 3,
+      "vp": 2,
+      "trainee": 1
+    },
+    "sin_presentation_area": 0,
+    "jobs_by_functional_area": {
+      "operations": 2,
+      "finance": 2,
+      "sales": 1,
+      "technology": 1,
+      "human_resources": 1
+    }
+  }
+}

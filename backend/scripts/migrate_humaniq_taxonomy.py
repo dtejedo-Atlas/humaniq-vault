@@ -88,10 +88,58 @@ def apply_presentation_backfill(db):
     return {"candidatos_actualizados": updated, "sin_resolver": dict(unresolved)}
 
 
+# Equivalencias inequívocas: clave histórica → (área de presentación, subárea, clave del motor)
+UNAMBIGUOUS_LEGACY = {
+    "logistics": ("cadena_suministro", "logistica", "supply_chain"),
+    "procurement": ("cadena_suministro", "compras", "supply_chain"),
+    "accounting": ("finanzas", "contabilidad", "finance"),
+    "talent_acquisition": ("recursos_humanos", "atraccion_talento", "human_resources"),
+    "quality": ("manufactura", "calidad", "operations"),
+    "maintenance": ("manufactura", "mantenimiento", "operations"),
+    "manufacturing": ("manufactura", "produccion", "operations"),
+    "engineering": ("ingenieria", None, "operations"),
+    "construction_management": ("proyectos_construccion", "direccion_obra", "operations"),
+    "customer_service": ("servicio_cliente", None, "operations"),
+    "planning": ("operaciones", "planeacion_operaciones", "operations"),
+    "commercial": ("ventas", None, "sales"),
+    "it_technology": ("tecnologia", None, "technology"),
+}
+
+# Requieren decisión del usuario: no se tocan.
+AMBIGUOUS_LEGACY = ("project_management", "business_development", "research_development")
+
+
+def apply_unambiguous_legacy(db):
+    """Migra sólo las claves históricas con equivalencia inequívoca."""
+    now = datetime.now(timezone.utc).isoformat()
+    changed = {}
+    for legacy, (area, subarea, engine) in UNAMBIGUOUS_LEGACY.items():
+        top = db.candidates.update_many(
+            {"functional_area": legacy, "is_deleted": {"$ne": True}},
+            {"$set": {"functional_area": engine, "presentation_area": area,
+                      "presentation_subarea": subarea, "taxonomy_version": CATALOG_VERSION,
+                      "updated_at": now}})
+        nested = db.candidates.update_many(
+            {"ai_classification.functional_area": legacy, "is_deleted": {"$ne": True}},
+            {"$set": {"ai_classification.functional_area": engine,
+                      "ai_classification.presentation_area": area,
+                      "ai_classification.presentation_subarea": subarea,
+                      "ai_classification.taxonomy_version": CATALOG_VERSION, "updated_at": now}})
+        jobs = db.jobs.update_many(
+            {"functional_area": legacy},
+            {"$set": {"functional_area": engine, "presentation_area": area,
+                      "presentation_subarea": subarea, "updated_at": now}})
+        if top.modified_count or nested.modified_count or jobs.modified_count:
+            changed[legacy] = {"clave_motor": engine, "candidatos": top.modified_count,
+                               "ai_classification": nested.modified_count, "vacantes": jobs.modified_count}
+    return changed
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply-it", action="store_true")
     parser.add_argument("--apply-presentation", action="store_true")
+    parser.add_argument("--apply-unambiguous", action="store_true")
     parser.add_argument("--out", default="/app/test_reports/humaniq_taxonomy_migration.json")
     args = parser.parse_args()
 
@@ -101,7 +149,12 @@ def main():
         report["it_to_technology"] = apply_it_fix(db)
     if args.apply_presentation:
         report["presentation_backfill"] = apply_presentation_backfill(db)
-    if args.apply_it or args.apply_presentation:
+    if args.apply_unambiguous:
+        report["unambiguous_legacy"] = apply_unambiguous_legacy(db)
+        report["pending_user_decision"] = {
+            key: db.candidates.count_documents({"functional_area": key, "is_deleted": {"$ne": True}})
+            for key in AMBIGUOUS_LEGACY}
+    if args.apply_it or args.apply_presentation or args.apply_unambiguous:
         report["after"] = inventory(db)
     Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(report, ensure_ascii=False, indent=2))

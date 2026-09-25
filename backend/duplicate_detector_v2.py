@@ -331,6 +331,93 @@ class CandidateMerger:
     def __init__(self, db):
         self.db = db
     
+    @staticmethod
+    def _note_key(note: Dict) -> tuple:
+        """Identidad de una nota para no duplicarla al fusionar."""
+        if note.get('id'):
+            return ('id', note['id'])
+        return ('text', note.get('note'), str(note.get('created_at')))
+
+    @staticmethod
+    def _cv_files(candidate: Dict) -> List[Dict]:
+        """CVs de una ficha usando el campo vigente `resume_files`, con respaldo al heredado."""
+        files = [
+            {
+                "file_key": item['file_path'],
+                "file_name": item.get('file_name') or 'cv.pdf',
+                "file_type": item.get('file_type') or 'application/pdf',
+                "uploaded_at": item.get('upload_date') or candidate.get('created_at'),
+            }
+            for item in (candidate.get('resume_files') or []) if item.get('file_path')
+        ]
+        if files:
+            return files
+        if candidate.get('resume_file_key'):
+            return [{
+                "file_key": candidate['resume_file_key'],
+                "file_name": candidate.get('resume_file_name') or 'cv.pdf',
+                "file_type": candidate.get('resume_file_type') or 'application/pdf',
+                "uploaded_at": candidate.get('created_at'),
+            }]
+        return []
+
+    @staticmethod
+    def _cv_version_doc(candidate_id: str, version: int, cv_file: Dict, origin: Dict,
+                        upload_source: str, is_current: bool, merged_from: Optional[str] = None) -> Dict:
+        return {
+            "id": str(uuid.uuid4()),
+            "candidate_id": candidate_id,
+            "version": version,
+            "file_key": cv_file['file_key'],
+            "file_name": cv_file['file_name'],
+            "file_type": cv_file['file_type'],
+            "file_size": None,
+            "uploaded_at": cv_file.get('uploaded_at'),
+            "uploaded_by": origin.get('created_by'),
+            "uploaded_by_name": origin.get('created_by_name'),
+            "upload_source": upload_source,
+            "parsed_snapshot": None,
+            "is_current": is_current,
+            "is_active": True,
+            "notes": None,
+            "merged_from_candidate_id": merged_from,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+
+    async def preserve_secondary_cv(self, primary: Dict, secondary: Dict) -> List[str]:
+        """Guarda el CV de la ficha absorbida como versión histórica del principal."""
+        secondary_files = self._cv_files(secondary)
+        if not secondary_files:
+            return ["El registro fusionado no tenía CV que conservar"]
+        
+        log = []
+        existing = await self.db.cv_versions.find(
+            {"candidate_id": primary['id']}, {"_id": 0, "file_key": 1, "version": 1}).to_list(500)
+        keys = {version.get('file_key') for version in existing}
+        next_version = max([version.get('version') or 0 for version in existing], default=0) + 1
+        
+        # Si el principal nunca tuvo historial, su CV vigente pasa a ser la versión 1
+        if not existing:
+            for cv_file in self._cv_files(primary):
+                if cv_file['file_key'] in keys:
+                    continue
+                await self.db.cv_versions.insert_one(self._cv_version_doc(
+                    primary['id'], next_version, cv_file, primary, "original", True))
+                keys.add(cv_file['file_key'])
+                log.append(f"CV vigente del principal registrado como versión {next_version}")
+                next_version += 1
+        
+        for cv_file in secondary_files:
+            if cv_file['file_key'] in keys:
+                log.append(f"CV del registro fusionado ya estaba en el historial: {cv_file['file_name']}")
+                continue
+            await self.db.cv_versions.insert_one(self._cv_version_doc(
+                primary['id'], next_version, cv_file, secondary, "merge", False, secondary['id']))
+            keys.add(cv_file['file_key'])
+            log.append(f"CV del registro fusionado guardado como versión histórica {next_version}: {cv_file['file_name']}")
+            next_version += 1
+        return log
+
     async def merge_candidates(
         self, 
         primary_id: str, 
@@ -428,36 +515,37 @@ class CandidateMerger:
                 merged_data['skills'] = list(primary_skills | secondary_skills)
                 merge_log.append(f"Skills agregados: {', '.join(new_skills)}")
         
-        # Merge notes
+        # Merge notes (lista de RecruiterNote: se conservan autor y fecha de ambas fichas)
         if merge_options.get('merge_notes'):
-            primary_notes = primary.get('notes', '') or ''
-            secondary_notes = secondary.get('notes', '') or ''
-            
-            if secondary_notes and secondary_notes not in primary_notes:
-                separator = "\n\n---[Notas del registro fusionado]---\n\n"
-                merged_data['notes'] = f"{primary_notes}{separator}{secondary_notes}"
-                merge_log.append("Notas combinadas")
+            primary_notes = primary.get('notes') or []
+            secondary_notes = secondary.get('notes') or []
+            if isinstance(primary_notes, list) and isinstance(secondary_notes, list):
+                existing_notes = {self._note_key(note) for note in primary_notes}
+                added_notes = [note for note in secondary_notes
+                               if self._note_key(note) not in existing_notes]
+                if added_notes:
+                    merged_data['notes'] = [*primary_notes, *added_notes]
+                    merge_log.append(
+                        f"{len(added_notes)} nota(s) del registro fusionado conservadas con autor y fecha")
+            else:
+                logger.warning(
+                    f"Notas en formato heredado (texto) en {primary_id}/{secondary_id}: no se fusionan")
+                merge_log.append("Notas NO fusionadas: formato heredado en texto, revisar manualmente")
+        
+        # Asignaciones a vacantes embebidas en el candidato
+        primary_jobs = primary.get('job_assignments') or []
+        secondary_jobs = secondary.get('job_assignments') or []
+        if secondary_jobs:
+            existing_jobs = {assignment.get('job_id') for assignment in primary_jobs}
+            added_jobs = [assignment for assignment in secondary_jobs
+                          if assignment.get('job_id') not in existing_jobs]
+            if added_jobs:
+                merged_data['job_assignments'] = [*primary_jobs, *added_jobs]
+                merge_log.append(f"{len(added_jobs)} asignación(es) a vacantes conservadas")
         
         # Handle CV versions
         if merge_options.get('keep_all_cvs'):
-            # Store secondary CV as a version
-            if secondary.get('resume_file_key'):
-                cv_version = {
-                    "id": str(uuid.uuid4()),
-                    "candidate_id": primary_id,
-                    "version": 0,  # Will be updated
-                    "file_key": secondary.get('resume_file_key'),
-                    "file_name": secondary.get('resume_file_name', 'cv_merged.pdf'),
-                    "file_type": secondary.get('resume_file_type', 'application/pdf'),
-                    "uploaded_at": secondary.get('created_at'),
-                    "uploaded_by": secondary.get('created_by'),
-                    "source": "merge",
-                    "merged_from_candidate_id": secondary_id,
-                    "is_current": False,
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                }
-                await self.db.cv_versions.insert_one(cv_version)
-                merge_log.append("CV del registro secundario guardado como versión histórica")
+            merge_log.extend(await self.preserve_secondary_cv(primary, secondary))
         
         # Update primary candidate
         merged_data['updated_at'] = datetime.now(timezone.utc).isoformat()

@@ -51,8 +51,7 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - UI: 5 dropdowns (industria, área de 15, subárea dependiente, seniority de 13, años) en ficha y bandeja. Corregida una carrera de arranque en `TaxonomyContext` (el provider hijo montaba antes de que AuthContext fijara la cabecera Authorization → 403 y «Fuera de catálogo» tras recarga).
 - Linter: borradas SOLO las primeras definiciones de ActivityLog, SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType y del prompt duplicado en taxonomy.py; variable del loop `status`→`candidate_status`. Ruff: F811/F402/F821/E722 limpios.
 
-### Datos migrados (base Atlas compartida)
-- `it`→`technology`: **64 candidatos** en el campo principal + 64 en `ai_classification`; 0 vacantes (la vacante afectada tiene `it_technology`).
+### Datos migrados (base Atlas compartida)- `it`→`technology`: **64 candidatos** en el campo principal + 64 en `ai_classification`; 0 vacantes (la vacante afectada tiene `it_technology`).
 - Backfill aditivo de presentación: **832 candidatos**, 0 sin resolver. `functional_area` no se tocó salvo el caso `it`.
 - Ángel Osvaldo Flores Reyna: fusionada `21e8a3ab` dentro de `ee7dd8a7` (N-a-1, auditoría registrada, secundaria con `deletion_type: merged`), 10 skills añadidos, reclasificado a finance/finanzas/contraloria/gerencia con 95% de confianza. Ambas fichas tenían 0 notas, 0 asignaciones y 0 historial, por lo que no había nada que perder.
 - **Pendiente de autorización:** 211 candidatos activos conservan claves históricas que el motor no reconoce (logistics 39, project_management 32, accounting 31, business_development 29, talent_acquisition 19, quality 14, construction_management 13, procurement 10, customer_service 9, manufacturing 7, maintenance 4, planning 2, research_development 1, engineering 1) y 2 vacantes (`it_technology`, `accounting`). Hoy puntúan 20/100 en el matching.
@@ -63,9 +62,19 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - `git diff` VACÍO en `backend/scoring/`, `job_matching_service.py`, `scoring_config.py` y `hybrid_search_service.py`. La lista protegida del test `test_protected_scoring_files_have_no_diff` dejó de incluir `atlas_service.py` porque el usuario pidió explícitamente cambiar ahí la normalización de clasificación.
 - Colapsos conocidos del seniority (13 presentación → 10 del enum): gerencia_jr/gerencia/gerencia_sr → manager; subdireccion/direccion → director. Los 13 niveles se conservan en `presentation_seniority`.
 
+### Deuda detectada y CORREGIDA (2026-09-25, segunda tanda)
+- `duplicate_detector_v2.merge_candidates`: las notas ahora se tratan como lista de `RecruiterNote` (se concatenan las de ambas fichas con autor, fecha e id, deduplicadas por id o texto+fecha); si una ficha tiene el formato heredado en texto NO se fusiona y queda avisado en el log de auditoría.
+- `keep_all_cvs` ahora lee el campo vigente `resume_files` (con respaldo al heredado `resume_file_key`) mediante `CandidateMerger.preserve_secondary_cv`: si el principal no tenía historial, su CV vigente se registra como versión 1 y el CV absorbido queda como versión histórica con `upload_source: merge` y `merged_from_candidate_id`. Idempotente: repetir la fusión no duplica versiones.
+- Se añadió la fusión de `job_assignments` embebidos (dedupe por `job_id`), que antes se perdían.
+- `tests/test_candidate_merge_preserves_data.py`: 11 pruebas en Mongo local con notas, asignaciones y CV distinto en ambas fichas.
+- `scripts/recover_merged_cv.py`: recuperó el CV de `21e8a3ab` como versión 2 histórica de Ángel (archivo verificado en storage, 227 430 bytes). `GET /api/candidates/{id}/cv-versions` devuelve las 2 versiones.
+
+### Claves históricas migradas (2026-09-25, segunda tanda)
+- Inequívocas aplicadas: **149 candidatos + 2 vacantes** → logistics 39 y procurement 10 → `supply_chain`; accounting 31 (+1 vacante) → `finance`; talent_acquisition 19 → `human_resources`; quality 14, construction_management 13, customer_service 9, manufacturing 7, maintenance 4, planning 2, engineering 1 → `operations`; it_technology (1 vacante) → `technology`. Todas conservan su área y subárea real en `presentation_area/subarea`.
+- **Pendientes de decisión del usuario (62 candidatos, 0 vacantes):** `project_management` 32 (administración vs operaciones), `business_development` 29 (el motor ya le da trato especial: 85 vs sales y 60 vs marketing, mapearlo a `sales` cambiaría resultados existentes), `research_development` 1 (ingeniería vs tecnología).
+
 ### Deuda detectada y NO corregida (informada)
-- `duplicate_detector_v2.merge_candidates` trata `notes` como texto aunque el modelo es lista: fusionar fichas con notas podría convertir la lista en string. No se disparó porque ambas fichas de Ángel tenían 0 notas.
-- `keep_all_cvs` lee el campo heredado `resume_file_key`, que ya no se usa: el CV de la ficha secundaria no se conserva como versión histórica.
+- Nada pendiente de los dos defectos del merge: ambos quedaron corregidos y con pruebas (ver sección anterior).
 
 ## Trabajo anterior — 2026-09-24: lectura segura de CV y eliminación de fallbacks locales
 **Autorización del usuario:** únicamente detener clasificación cuando no se puede leer el CV, reemplazar fallback local por reintentos remotos/error visible/marca persistente e inventariar referencias locales existentes SIN borrarlas ni migrarlas. Cinco F811 y un F402 siguen congelados. No scoring/matching/pesos.
