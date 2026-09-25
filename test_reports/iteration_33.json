@@ -1,0 +1,59 @@
+{
+  "summary": "Verificado el catálogo Humaniq (15/105/13) como capa de presentación, la normalización previa a 'fuera de catálogo', los nuevos campos presentation_* en PATCH manual y en Job create/update, el manejo de salud/sustentabilidad como engine_area null sin bloquear aprobación, el rechazo de valores realmente irreconocibles, la regresión de áreas legacy custom, y la UI (5 dropdowns con nombres reales, sin 'Fuera de catálogo' tras F5, subárea dependiente del área). Diff protegido VACÍO.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_humaniq_catalog.py",
+    "/app/backend/tests/test_humaniq_live_readonly.py",
+    "/app/backend/tests/test_humaniq_manual_and_jobs_isolated.py",
+    "/app/test_reports/pytest/iteration_33.xml",
+    "/app/test_reports/iteration_33_candidate.jpeg",
+    "/app/test_reports/iteration_33_review.jpeg"
+  ],
+  "action_items": [
+    "Ninguna acción requerida para las features testeadas: los 27 tests pasan y la UI en preview muestra correctamente las 15/12/13 opciones del catálogo Humaniq en la ficha de Ángel (finanzas/contraloria/gerencia/18 años)."
+  ],
+  "critical_code_review_comments": [
+    "server.py sigue seleccionando ATLAS_URI antes que MONGO_URL en el bootstrap (riesgo operativo preexistente ya conocido, sin autorización para cambiar).",
+    "models.py tiene bloques duplicados (ActivityLog, SmartFolder) preexistentes; no está en el alcance del ticket Humaniq."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_humaniq_live_readonly.py (nuevo)",
+    "/app/backend/tests/test_humaniq_manual_and_jobs_isolated.py (nuevo)",
+    "/app/test_reports/iteration_33.json"
+  ],
+  "success_rate": {
+    "backend": "100% (27 passed: 9 unit + 3 live readonly + 15 isolated)",
+    "frontend": "100% para las verificaciones scripted (ficha de candidato + reload F5 + bandeja Por Revisar)"
+  },
+  "test_credentials": "test_utf8@atlas.com / +OipyxbpGdvQIB9FNTF#D$ (admin) usadas para /api/taxonomy/humaniq y verificación read-only del candidato Ángel; ninguna escritura en Atlas.",
+  "seed_data_creation": "Ninguna en Atlas. Fixture isolated_db crea BDs Mongo LOCAL temporales con prefijo test_humaniq_* y las elimina en teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "El taxonomy endpoint expone las claves como {areas:[{key,label,engine_area,subareas:[{key,label}]}], seniority_levels:[{key,label,rank,engine_seniority}], version}. Sólo salud y sustentabilidad tienen engine_area=null. En la UI, el select de área muestra 16 opciones (15 + 'Sin dato') y la subárea de Finanzas muestra 13 (12 + 'Sin dato'). La bandeja Por Revisar en preview está vacía ('No hay clasificaciones pendientes.'), por lo que la validación en vivo del gating del botón Aprobar dentro de tarjetas del review no se pudo hacer con datos reales; queda cubierto en el backend con test_approval_not_blocked_for_salud y con los tests existentes en test_classification_review_isolated.py. Ángel Osvaldo Flores Reyna (ee7dd8a7-9611-4cf0-979c-0f8b6827224d) sigue en el estado esperado: functional_area=finance, presentation_area=finanzas, presentation_subarea=contraloria, presentation_seniority=gerencia; NO se modificó. Diff protegido (backend/scoring backend/job_matching_service.py backend/scoring_config.py backend/hybrid_search_service.py) VACÍO verificado con git.",
+  "protected_diff": "EMPTY (backend/scoring, backend/job_matching_service.py, backend/scoring_config.py, backend/hybrid_search_service.py)",
+  "verified_scenarios": [
+    "GET /api/taxonomy/humaniq → 15 areas, 105 subareas, 13 seniorities; engine_area null solo en salud y sustentabilidad; ranks 1..13.",
+    "PATCH manual acepta 'IT'→technology, 'Manufacturing'→operations, 'customer service'→operations, 'accounting'→finance sin 422 y rellena presentation_area.",
+    "PATCH manual acepta presentation_area/subarea/seniority y devuelve engine keys (finanzas→finance, gerencia→manager).",
+    "Subárea inválida para el área queda null; subárea válida (finanzas+contraloria) persiste.",
+    "presentation_area=salud → functional_area=null y approve-classification retorna 200 (no bloquea).",
+    "Valor realmente irreconocible ('zzz_not_in_any_catalog') → 422; 'astrología' → 200 con functional_area null (no contamina motor).",
+    "Legacy custom area (functional_areas collection) sigue aceptándose en PATCH manual.",
+    "POST /api/jobs con functional_area='manufactura' guarda functional_area='operations' y seniority 'gerencia'→'manager', conservando presentation_*.",
+    "POST /api/jobs con functional_area='Manufactura / Producción' se normaliza a 'operations'.",
+    "PUT /api/jobs con presentation_area='ventas', presentation_seniority='direccion' guarda 'sales' y 'director'.",
+    "UI ficha candidato: 5 dropdowns con data-testid; área muestra 15 opciones + 'Sin dato'; subárea de Finanzas muestra 12 + 'Sin dato'; valores actuales de Ángel mostrados con etiqueta en español; sin 'Fuera de catálogo' tras F5.",
+    "Ángel (ee7dd8a7-9611-4cf0-979c-0f8b6827224d) leído en preview y verificado state esperado."
+  ],
+  "not_verifiable_live": [
+    "Bandeja Por Revisar vacía en preview ('No hay clasificaciones pendientes.'); el gating live del botón Aprobar dentro de review cards no se pudo probar contra datos reales, pero la lógica del backend (approval_problem/validate_review_values) queda cubierta por los tests aislados y por test_approval_not_blocked_for_salud."
+  ]
+}

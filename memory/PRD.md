@@ -33,7 +33,41 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
-## Último trabajo — 2026-09-24: lectura segura de CV y eliminación de fallbacks locales
+## Último trabajo — 2026-09-25: catálogo Humaniq como capa de presentación
+**Autorización del usuario:** cargar `catalogo_humaniq.json` (15 áreas / 105 subáreas / 13 seniorities) como capa de presentación; arquitectura de dos campos; mapeo aprobado con Salud y ESG SIN equivalencia; normalizar salida del LLM antes de declarar «fuera de catálogo»; corregir `it`→`technology` en registros existentes; fusionar duplicados de Ángel Osvaldo Flores Reyna; corregir los 6 errores de linter borrando SOLO la primera definición de cada duplicado y renombrando la variable del loop. Scoring, pesos y matching intactos.
+
+### Claves técnicas reales del motor (documentado para no volver a suponer)
+- `affinity_matrices.py::FUNCTIONAL_AFFINITY` reconoce **9 áreas**: human_resources, finance, operations, supply_chain, marketing, sales, technology, legal, general_management. Sinónimos en código: `commercial`→sales y `business_development` con afinidades propias. Cualquier otro valor cae al fallback `return 20` en silencio.
+- `taxonomy.py::FUNCTIONAL_AREAS` (24 claves) es vocabulario de clasificación, NO del motor. `scoring/components.py` infiere 10 claves por título e incluye `engineering`, que tampoco existe en la matriz.
+- Seniority: `SeniorityLevel` (models.py) admite 10 valores; `SENIORITY_TO_INDEX` (job_matching_service.py) lista 13 pero intern/senior_manager/ceo no son almacenables en candidatos.
+
+### Implementado
+- `backend/humaniq_catalog.py` + `backend/data/catalogo_humaniq.json`: catálogo, `AREA_TO_ENGINE` (salud y sustentabilidad → None), `SENIORITY_TO_ENGINE`, índices separados de área y subárea, `resolve_area`/`resolve_seniority` (insensibles a idioma, acentos y mayúsculas), `normalize_classification`, `normalize_job_taxonomy`, `public_catalog`, `build_humaniq_prompt_section`.
+- Nunca se guarda un valor que el motor no reconoce: si no resuelve, `functional_area` queda null, se registra en `out_of_catalog` y el candidato cae a revisión; salud/ESG conservan `presentation_area` con `functional_area` null y no bloquean la aprobación.
+- Clasificación capa 1 (`atlas_service.classify_candidate`) y capa 2 (`classification_refinement`) usan el prompt del catálogo Humaniq y normalizan antes de penalizar confianza. Vacantes (`parse_job_description`, create_job, update_job) normalizan área y seniority a claves del motor.
+- Nuevos campos `presentation_area`, `presentation_subarea`, `presentation_seniority`, `taxonomy_version` en Candidate, AIClassification, Job/JobCreate/JobUpdate; propagados en classify, aprobación individual y masiva, corrección manual y payload de la bandeja.
+- `GET /api/taxonomy/humaniq` expone el catálogo con su clave del motor; `/api/taxonomy/lookup` incluye los nombres de las 9 claves técnicas para que la UI nunca muestre una key cruda.
+- Edición manual: `expand_presentation_fields` traduce presentación→motor; se conservan las áreas personalizadas creadas por admin y el 422 sólo cuando el valor no existe en ningún catálogo.
+- UI: 5 dropdowns (industria, área de 15, subárea dependiente, seniority de 13, años) en ficha y bandeja. Corregida una carrera de arranque en `TaxonomyContext` (el provider hijo montaba antes de que AuthContext fijara la cabecera Authorization → 403 y «Fuera de catálogo» tras recarga).
+- Linter: borradas SOLO las primeras definiciones de ActivityLog, SmartFolder, SmartFolderCreate, SmartFolderUpdate, FolderType y del prompt duplicado en taxonomy.py; variable del loop `status`→`candidate_status`. Ruff: F811/F402/F821/E722 limpios.
+
+### Datos migrados (base Atlas compartida)
+- `it`→`technology`: **64 candidatos** en el campo principal + 64 en `ai_classification`; 0 vacantes (la vacante afectada tiene `it_technology`).
+- Backfill aditivo de presentación: **832 candidatos**, 0 sin resolver. `functional_area` no se tocó salvo el caso `it`.
+- Ángel Osvaldo Flores Reyna: fusionada `21e8a3ab` dentro de `ee7dd8a7` (N-a-1, auditoría registrada, secundaria con `deletion_type: merged`), 10 skills añadidos, reclasificado a finance/finanzas/contraloria/gerencia con 95% de confianza. Ambas fichas tenían 0 notas, 0 asignaciones y 0 historial, por lo que no había nada que perder.
+- **Pendiente de autorización:** 211 candidatos activos conservan claves históricas que el motor no reconoce (logistics 39, project_management 32, accounting 31, business_development 29, talent_acquisition 19, quality 14, construction_management 13, procurement 10, customer_service 9, manufacturing 7, maintenance 4, planning 2, research_development 1, engineering 1) y 2 vacantes (`it_technology`, `accounting`). Hoy puntúan 20/100 en el matching.
+
+### Verificación
+- Suite backend: **13 failed / 160 passed / 32 skipped / 126 errors**, fallos y errores idénticos al baseline previo (requieren servidor/BD en vivo). 27 pruebas nuevas: `tests/test_humaniq_catalog.py`, `tests/test_humaniq_manual_and_jobs_isolated.py`, `tests/test_humaniq_live_readonly.py`.
+- Iteración 33 del agente de pruebas: 0 issues críticos y 0 menores; escrituras sólo en Mongo local aislado.
+- `git diff` VACÍO en `backend/scoring/`, `job_matching_service.py`, `scoring_config.py` y `hybrid_search_service.py`. La lista protegida del test `test_protected_scoring_files_have_no_diff` dejó de incluir `atlas_service.py` porque el usuario pidió explícitamente cambiar ahí la normalización de clasificación.
+- Colapsos conocidos del seniority (13 presentación → 10 del enum): gerencia_jr/gerencia/gerencia_sr → manager; subdireccion/direccion → director. Los 13 niveles se conservan en `presentation_seniority`.
+
+### Deuda detectada y NO corregida (informada)
+- `duplicate_detector_v2.merge_candidates` trata `notes` como texto aunque el modelo es lista: fusionar fichas con notas podría convertir la lista en string. No se disparó porque ambas fichas de Ángel tenían 0 notas.
+- `keep_all_cvs` lee el campo heredado `resume_file_key`, que ya no se usa: el CV de la ficha secundaria no se conserva como versión histórica.
+
+## Trabajo anterior — 2026-09-24: lectura segura de CV y eliminación de fallbacks locales
 **Autorización del usuario:** únicamente detener clasificación cuando no se puede leer el CV, reemplazar fallback local por reintentos remotos/error visible/marca persistente e inventariar referencias locales existentes SIN borrarlas ni migrarlas. Cinco F811 y un F402 siguen congelados. No scoring/matching/pesos.
 
 ### Implementado
