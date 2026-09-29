@@ -1,0 +1,316 @@
+{
+  "modo": "aplicado",
+  "rellenables": 36,
+  "sin_senal_clara": 456,
+  "excluidos_por_aprobacion_humana": 82,
+  "detalle": {
+    "finanzas/contraloria": 6,
+    "tecnologia/desarrollo_software": 5,
+    "marketing/growth": 3,
+    "finanzas/auditoria": 2,
+    "finanzas/contabilidad": 2,
+    "recursos_humanos/hrbp": 2,
+    "cadena_suministro/logistica": 2,
+    "recursos_humanos/desarrollo_organizacional": 2,
+    "ventas/ventas_corporativas": 2,
+    "cadena_suministro/compras": 2,
+    "servicio_cliente/soporte_posventa": 1,
+    "finanzas/fpa": 1,
+    "cadena_suministro/comercio_exterior": 1,
+    "marketing/brand_management": 1,
+    "marketing/comunicacion": 1,
+    "marketing/marketing_digital": 1,
+    "servicio_cliente/customer_success": 1,
+    "tecnologia/infraestructura": 1
+  },
+  "muestras": [
+    {
+      "nombre": "Miguel Amir Bernal Hernández",
+      "puesto": "Growth & Performance Marketing Strategy",
+      "area": "marketing",
+      "subarea": "growth",
+      "coincidencia": "growth performance",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "David Arturo Arenas González",
+      "puesto": "Gerente Senior de auditoría",
+      "area": "finanzas",
+      "subarea": "auditoria",
+      "coincidencia": "auditoria",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Erick Gabriel Morales Rivera",
+      "puesto": "Contralor",
+      "area": "finanzas",
+      "subarea": "contraloria",
+      "coincidencia": "contralor",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "German Arenas Luna",
+      "puesto": "Financial Controller",
+      "area": "finanzas",
+      "subarea": "contraloria",
+      "coincidencia": "controller",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Vicente Nava García",
+      "puesto": "Gerente de Contraloría Financiera",
+      "area": "finanzas",
+      "subarea": "contraloria",
+      "coincidencia": "contraloria",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Víctor Manuel Serrano Camacho",
+      "puesto": "Contralor / Director de Finanzas y Administración",
+      "area": "finanzas",
+      "subarea": "contraloria",
+      "coincidencia": "contralor",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Dimas Cucart Company",
+      "puesto": "Director Posventa & SAT Manager",
+      "area": "servicio_cliente",
+      "subarea": "soporte_posventa",
+      "coincidencia": "posventa",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Ariana Eréndira Vázquez Reséndiz",
+      "puesto": "Gerente de Contabilidad y Finanzas",
+      "area": "finanzas",
+      "subarea": "contabilidad",
+      "coincidencia": "contabilidad",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Miguel Amir Bernal Hernández",
+      "puesto": "Growth & Performance Marketing Strategy",
+      "area": "marketing",
+      "subarea": "growth",
+      "coincidencia": "growth performance",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "David Arturo Arenas González",
+      "puesto": "Gerente Senior de auditoría",
+      "area": "finanzas",
+      "subarea": "auditoria",
+      "coincidencia": "auditoria",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Eduardo Paredes Borjón",
+      "puesto": "Gerente Senior Planeación Financiera / Contralor",
+      "area": "finanzas",
+      "subarea": "fpa",
+      "coincidencia": "planeacion financiera",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Erick Gabriel Morales Rivera",
+      "puesto": "Contralor",
+      "area": "finanzas",
+      "subarea": "contraloria",
+      "coincidencia": "contralor",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Erick Gabriel Morales Rivera",
+      "puesto": "Contralor",
+      "area": "finanzas",
+      "subarea": "contraloria",
+      "coincidencia": "contralor",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Jose Eduardo Fajardo Monzón",
+      "puesto": "Desarrollador android",
+      "area": "tecnologia",
+      "subarea": "desarrollo_software",
+      "coincidencia": "desarrollador",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Alan Ríos Fajardo",
+      "puesto": "HR Business Partner",
+      "area": "recursos_humanos",
+      "subarea": "hrbp",
+      "coincidencia": "hr business partner",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Alejandro Ferruzca Sinecio",
+      "puesto": "Asesor Externo de Comercio Exterior",
+      "area": "cadena_suministro",
+      "subarea": "comercio_exterior",
+      "coincidencia": "comercio exterior",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "María de los Angeles García Pereyra",
+      "puesto": "Gerente de Marca Sr.",
+      "area": "marketing",
+      "subarea": "brand_management",
+      "coincidencia": "marca",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Antonio Gil Yáñez",
+      "puesto": "Director de Logística",
+      "area": "cadena_suministro",
+      "subarea": "logistica",
+      "coincidencia": "logistica",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Anyelo Emmanuelle Madrid Del Valle",
+      "puesto": "Gerente de Desarrollo Organizacional",
+      "area": "recursos_humanos",
+      "subarea": "desarrollo_organizacional",
+      "coincidencia": "desarrollo organizacional",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Carlos Backmann",
+      "puesto": "Gerente de Comunicación y Posicionamiento",
+      "area": "marketing",
+      "subarea": "comunicacion",
+      "coincidencia": "comunicacion",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "José Carlos Vargas Palacios",
+      "puesto": "Growth Marketing Manager",
+      "area": "marketing",
+      "subarea": "growth",
+      "coincidencia": "growth",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Daniella Betancourt Holguín",
+      "puesto": "Key Account Manager",
+      "area": "ventas",
+      "subarea": "ventas_corporativas",
+      "coincidencia": "key account",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "David Andrés Montiel Salgado",
+      "puesto": "Key Account Manager Ecommerce",
+      "area": "ventas",
+      "subarea": "ventas_corporativas",
+      "coincidencia": "key account",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Eduardo Flores Estrada",
+      "puesto": "Desarrollador Android",
+      "area": "tecnologia",
+      "subarea": "desarrollo_software",
+      "coincidencia": "desarrollador",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Edwin Rueda Espinosa",
+      "puesto": "Desarrollador de software para dispositivos móviles y web",
+      "area": "tecnologia",
+      "subarea": "desarrollo_software",
+      "coincidencia": "desarrollador",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Edwin Rueda Espinosa",
+      "puesto": "Desarrollador de software para dispositivos móviles y web",
+      "area": "tecnologia",
+      "subarea": "desarrollo_software",
+      "coincidencia": "desarrollador",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Fabricio Guzmán",
+      "puesto": "comprador senior",
+      "area": "cadena_suministro",
+      "subarea": "compras",
+      "coincidencia": "comprador",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Francisco Sánchez Hernández",
+      "puesto": "Coordinador Sr de Logística Inversa y Proyectos estratégicos",
+      "area": "cadena_suministro",
+      "subarea": "logistica",
+      "coincidencia": "logistica",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Gerardo Alfonso Zavala Alcázar",
+      "puesto": "Gerente de Marketing Digital",
+      "area": "marketing",
+      "subarea": "marketing_digital",
+      "coincidencia": "marketing digital",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Ángel Osvaldo Flores Reyna",
+      "puesto": "Gerente de Contabilidad y Finanzas",
+      "area": "finanzas",
+      "subarea": "contabilidad",
+      "coincidencia": "contabilidad",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Jacques Reulet",
+      "puesto": "Customer Success Manager",
+      "area": "servicio_cliente",
+      "subarea": "customer_success",
+      "coincidencia": "customer success",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Carlos Josué López Solano",
+      "puesto": "Backend Software Engineer",
+      "area": "tecnologia",
+      "subarea": "desarrollo_software",
+      "coincidencia": "software engineer",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Claudia Lomelí Lazcano",
+      "puesto": "Consultora Independiente en Desarrollo Organizacional",
+      "area": "recursos_humanos",
+      "subarea": "desarrollo_organizacional",
+      "coincidencia": "desarrollo organizacional",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Yolanda Oros",
+      "puesto": "Senior HR Business Partner Manager",
+      "area": "recursos_humanos",
+      "subarea": "hrbp",
+      "coincidencia": "hr business partner",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Elvia Arteaga Alvarado",
+      "puesto": "PM Infraestructura Senior Expert",
+      "area": "tecnologia",
+      "subarea": "infraestructura",
+      "coincidencia": "infraestructura",
+      "campo": "titulo"
+    },
+    {
+      "nombre": "Victoria Betanzo",
+      "puesto": "Supply Chain & Procurement Deputy Director",
+      "area": "cadena_suministro",
+      "subarea": "compras",
+      "coincidencia": "procurement",
+      "campo": "titulo"
+    }
+  ]
+}

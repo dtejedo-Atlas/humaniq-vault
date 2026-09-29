@@ -1,0 +1,152 @@
+{
+  "director de operaciones": {
+    "seniority": "11 → 9",
+    "area": "operations → operations",
+    "resultados": "30 → 30",
+    "identico": false,
+    "entraron": 1,
+    "salieron": 1,
+    "score_subio": 14,
+    "score_bajo": 4
+  },
+  "gerente de operaciones": {
+    "seniority": "11 → 7",
+    "area": "operations → operations",
+    "resultados": "30 → 30",
+    "identico": false,
+    "entraron": 11,
+    "salieron": 11,
+    "score_subio": 11,
+    "score_bajo": 0
+  },
+  "director de producción": {
+    "seniority": "11 → 9",
+    "area": "operations → operations",
+    "resultados": "30 → 30",
+    "identico": false,
+    "entraron": 9,
+    "salieron": 9,
+    "score_subio": 18,
+    "score_bajo": 0
+  },
+  "jefe de produccion": {
+    "seniority": "11 → 6",
+    "area": "technology → operations",
+    "resultados": "15 → 30",
+    "identico": false,
+    "entraron": 30,
+    "salieron": 15,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "operaciones logísticas": {
+    "seniority": "11 → None",
+    "area": "operations → operations",
+    "resultados": "30 → 30",
+    "identico": false,
+    "entraron": 12,
+    "salieron": 12,
+    "score_subio": 5,
+    "score_bajo": 6
+  },
+  "contabilidad": {
+    "seniority": "None → None",
+    "area": "finance → finance",
+    "resultados": "30 → 30",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "logística": {
+    "seniority": "None → None",
+    "area": "supply_chain → supply_chain",
+    "resultados": "7 → 7",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "CFO": {
+    "seniority": "11 → 11",
+    "area": "finance → finance",
+    "resultados": "22 → 22",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "CIO": {
+    "seniority": "11 → 11",
+    "area": "technology → technology",
+    "resultados": "16 → 16",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "VP de ventas": {
+    "seniority": "10 → 10",
+    "area": "sales → sales",
+    "resultados": "18 → 18",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "recursos humanos": {
+    "seniority": "None → None",
+    "area": "human_resources → human_resources",
+    "resultados": "23 → 23",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "marketing digital": {
+    "seniority": "None → None",
+    "area": "marketing → marketing",
+    "resultados": "13 → 13",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "ingeniería de producción": {
+    "seniority": "None → None",
+    "area": "operations → operations",
+    "resultados": "30 → 30",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "compras": {
+    "seniority": "None → None",
+    "area": "supply_chain → supply_chain",
+    "resultados": "6 → 6",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  },
+  "ventas": {
+    "seniority": "None → None",
+    "area": "sales → sales",
+    "resultados": "23 → 23",
+    "identico": true,
+    "entraron": 0,
+    "salieron": 0,
+    "score_subio": 0,
+    "score_bajo": 0
+  }
+}

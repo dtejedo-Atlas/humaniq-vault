@@ -98,6 +98,20 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - 380 tienen puesto actual; 491 tienen skills; 112 sin puesto (candidatos a quedar vacíos).
 - Costo estimado con Claude Sonnet 4.5: ~USD 1.30-1.60 con puesto+empresa+skills (~650 tokens in / 60 out por candidato); ~USD 6-7 si se manda el CV completo. Tiempo: ~20-25 min secuencial, ~5-7 min con 5 en paralelo.
 
+### Subáreas: primera pasada determinista aplicada (2026-09-29)
+- `scripts/infer_subareas.py` (etapa 1, sin coste): tokens por subárea contra el PUESTO únicamente. La versión que también usaba skills/resumen rellenaba 411 pero con mala precisión («Contralor» → FP&A, «Psicóloga Clínica» → Atracción de Talento), así que se restringió al puesto (`--use-skills` queda disponible pero no se usa).
+- Aplicado: **36 candidatos** con subárea inferida del puesto, 100% de las muestras correctas (Contralor→contraloria, Financial Controller→contraloria, HR Business Partner→hrbp, Desarrollador→desarrollo_software, Key Account Manager→ventas_corporativas...). Total con subárea: 255 → **291**.
+- Respeta las 4 reglas del usuario: sólo subárea, se excluyen las 82 clasificaciones aprobadas por personas, la subárea pertenece al área actual, y sin señal clara se deja vacía.
+- Etapa 2 pendiente de autorización: **456 candidatos** sin señal en el puesto (títulos genéricos tipo «Gerente de Administración y Finanzas»). Estimado con Claude Sonnet 4.5: ~USD 1.30-1.40 (puesto+empresa+skills) o ~USD 6 (CV completo).
+
+### Bug de keywords cortos: medido, NO aplicado (2026-09-29)
+- `scripts/measure_short_keyword_fix.py` simula en memoria el límite de palabra (no toca código de producción ni datos) y compara 15 consultas.
+- Resultado: **10 de 15 idénticas**. CFO→11, CIO→11, VP de ventas→10 siguen detectándose igual (el límite de palabra no rompe su función). Las 5 que cambian, todas a mejor: «director de operaciones» 11→9, «gerente de operaciones» 11→7, «director de producción» 11→9, «jefe de produccion» 11→6 y área technology→operations, «operaciones logísticas» 11→None.
+- Informe: `/app/test_reports/short_keyword_boundary_impact.json`. Esperando el OK del usuario porque cambia resultados de búsquedas existentes.
+
+### Duplicados detectados de paso (informado, no tocado)
+- «Erick Gabriel Morales Rivera» (gaboerick@gmail.com) tiene **3 fichas activas** (`5e700bc5`, `7c294b17`, `c41556f7`), dos creadas con 23 segundos de diferencia. Candidato claro para la fusión N-a-1 ya corregida.
+
 ### Deuda detectada y NO corregida (informada)
 - Nada pendiente de los dos defectos del merge: ambos quedaron corregidos y con pruebas (ver sección anterior).
 - La búsqueda de texto es sensible a acentos: corregido (ver sección de acentos). Queda pendiente de decisión el bug de keywords cortos dentro de palabras en la pasada literal.
