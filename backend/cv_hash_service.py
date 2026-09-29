@@ -109,6 +109,23 @@ class CVHashService:
         )
         return result.modified_count
 
+    async def reactivate_candidate(self, candidate_id: str) -> int:
+        """Al restaurar una ficha, reactiva sus hashes salvo que otro CV activo ya tenga el mismo."""
+        reactivated = 0
+        docs = await self.db.cv_hashes.find(
+            {"candidate_id": candidate_id, "active": False}, {"_id": 0, "file_path": 1}
+        ).to_list(length=None)
+        for doc in docs:
+            try:
+                await self.db.cv_hashes.update_one(
+                    {"candidate_id": candidate_id, "file_path": doc["file_path"]},
+                    {"$set": {"active": True}},
+                )
+                reactivated += 1
+            except Exception:
+                logger.info("Hash de %s no reactivado: ya existe un CV activo idéntico", candidate_id)
+        return reactivated
+
     async def transfer_candidate(self, from_id: str, to_id: str) -> Dict:
         """Tras una fusión, los hashes del secundario pasan al primario (o se desactivan si ya existen)."""
         moved, deactivated = 0, 0

@@ -34,10 +34,15 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import IdenticalCVTab from '../components/IdenticalCVTab';
+import { useAuth } from '../contexts/AuthContext';
+import { duplicatesAPI } from '../api';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
 
 const DuplicatesPage = () => {
+  const { user } = useAuth();
+  const canDelete = ['admin', 'super_admin'].includes(user?.role);
+  const [deleting, setDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [duplicateGroups, setDuplicateGroups] = useState([]);
@@ -135,8 +140,41 @@ const DuplicatesPage = () => {
     }
   };
 
-  const loadOrphanRecords = async () => {
-    setLoadingOrphans(true);
+  const handleDeleteCandidates = async (ids, label) => {
+    if (!canDelete) {
+      toast.error('Solo administradores pueden eliminar fichas');
+      return;
+    }
+    if (ids.length === 0) {
+      toast.error('No hay fichas para eliminar');
+      return;
+    }
+    if (!window.confirm(`Se eliminarán ${ids.length} ficha(s) de ${label}. Es recuperable desde Papelera. ¿Continuar?`)) return;
+
+    setDeleting(true);
+    try {
+      const res = await duplicatesAPI.deleteCandidates(ids);
+      if (res.data.deleted_count > 0) {
+        toast.success(res.data.message);
+      }
+      if (res.data.blocked?.length > 0) {
+        const names = res.data.blocked.map((b) => b.full_name || b.candidate_id).join(', ');
+        toast.warning(`No se eliminaron ${res.data.blocked.length} ficha(s) con notas, asignaciones o historial: ${names}`, {
+          description: 'Usa "Fusionar" para conservar su información en la ficha principal.',
+          duration: 8000,
+        });
+      }
+      setSelectedGroup(null);
+      setPrimaryCandidateId(null);
+      loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar fichas');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const loadOrphanRecords = async () => {    setLoadingOrphans(true);
     try {
       const res = await axios.get(`${API_BASE}/api/duplicates/orphan-records`);
       setOrphanRecords(res.data);
@@ -406,13 +444,26 @@ const DuplicatesPage = () => {
                           <span className="font-medium text-slate-900">
                             {candidate.full_name}
                           </span>
-                          {primaryCandidateId === candidate.id ? (
-                            <Badge className="bg-green-600">Principal</Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-slate-500">
-                              Se fusionará
-                            </Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {primaryCandidateId === candidate.id ? (
+                              <Badge className="bg-green-600">Principal</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-slate-500">
+                                Se fusionará
+                              </Badge>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!canDelete || deleting}
+                              title={canDelete ? 'Eliminar esta ficha' : 'Solo administradores pueden eliminar'}
+                              className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={(e) => { e.stopPropagation(); handleDeleteCandidates([candidate.id], candidate.full_name); }}
+                              data-testid={`delete-candidate-${candidate.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
                           <div className="flex items-center gap-1">
@@ -443,6 +494,21 @@ const DuplicatesPage = () => {
                   >
                     <Merge className="w-4 h-4 mr-2" />
                     Fusionar {selectedGroup.candidates.length} Candidatos
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                    disabled={!canDelete || deleting || !primaryCandidateId}
+                    title={canDelete ? 'Elimina las fichas sobrantes y conserva la principal' : 'Solo administradores pueden eliminar'}
+                    onClick={() => handleDeleteCandidates(
+                      selectedGroup.candidates.filter((c) => c.id !== primaryCandidateId).map((c) => c.id),
+                      `el grupo ${selectedGroup.match_value}`
+                    )}
+                    data-testid="delete-group-extras-btn"
+                  >
+                    {deleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                    Eliminar grupo (sobrantes)
                   </Button>
                 </div>
               )}

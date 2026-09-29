@@ -129,10 +129,18 @@ export const seedAPI = {
 
 // Jobs / Vacantes
 export const jobsAPI = {
-  getAll: (status = null) => {
-    const params = status ? { status } : {};
+  getAll: (status = null, includeArchived = false) => {
+    const params = {};
+    if (status) params.status = status;
+    if (includeArchived) params.include_archived = true;
     return axios.get(`${API_BASE}/jobs`, { params });
   },
+  archive: (id, reason = null) => axios.post(`${API_BASE}/jobs/${id}/archive`, { reason }),
+  reactivate: (id) => axios.post(`${API_BASE}/jobs/${id}/reactivate`),
+  getExpiring: () => axios.get(`${API_BASE}/jobs/expiring`),
+  getSimilarArchived: (params) => axios.get(`${API_BASE}/jobs/similar-archived`, { params }),
+  reuseCandidates: (id, sourceJobId, candidateIds) =>
+    axios.post(`${API_BASE}/jobs/${id}/reuse-candidates`, { source_job_id: sourceJobId, candidate_ids: candidateIds }),
   getById: (id) => axios.get(`${API_BASE}/jobs/${id}`),
   create: (data) => axios.post(`${API_BASE}/jobs`, data),
   update: (id, data) => axios.put(`${API_BASE}/jobs/${id}`, data),
@@ -154,6 +162,17 @@ export const jobsAPI = {
       timeout: 60000 // 60s timeout for AI parsing
     });
   }
+};
+
+// Papelera y duplicados
+export const trashAPI = {
+  getDeleted: () => axios.get(`${API_BASE}/trash/candidates`),
+  restore: (id) => axios.post(`${API_BASE}/candidates/${id}/restore`),
+};
+
+export const duplicatesAPI = {
+  deleteCandidates: (candidateIds, reason = null) =>
+    axios.post(`${API_BASE}/duplicates/delete-candidates`, { candidate_ids: candidateIds, reason }),
 };
 
 // Users (Admin)

@@ -4,8 +4,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Checkbox } from './ui/checkbox';
 import { Alert, AlertDescription } from './ui/alert';
-import { Loader2, Trash2, CheckCircle2, AlertTriangle, Merge, FileCheck, ExternalLink } from 'lucide-react';
-import { toast } from 'sonner';
+import { Loader2, Trash2, CheckCircle2, AlertTriangle, Merge, FileCheck, ExternalLink } from 'lucide-react';import { toast } from 'sonner';
 import axios from 'axios';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
@@ -21,7 +20,7 @@ const formatDate = (value) => {
   return new Date(value).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' });
 };
 
-const MemberRow = ({ member, isKeep }) => (
+const MemberRow = ({ member, isKeep, onDelete, canDelete, working }) => (
   <div className={`p-3 rounded-lg border text-sm ${isKeep ? 'border-emerald-300 bg-emerald-50/60' : 'border-slate-200'}`}>
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -36,6 +35,19 @@ const MemberRow = ({ member, isKeep }) => (
           <Badge className="bg-emerald-600">Se conserva</Badge>
         ) : (
           <Badge variant="outline" className="text-slate-500">Sobrante</Badge>
+        )}
+        {!isKeep && onDelete && (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={!canDelete || working}
+            title={canDelete ? 'Eliminar esta ficha' : 'Solo administradores pueden eliminar'}
+            className="h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => onDelete(member)}
+            data-testid={`identical-cv-delete-member-${member.candidate_id}`}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
         )}
         <a
           href={`/candidates/${member.candidate_id}`}
@@ -112,8 +124,26 @@ export const IdenticalCVTab = () => {
     }
   };
 
-  const mergeGroup = async (group) => {
-    if (!window.confirm(`Se fusionarán ${group.extras.length} fichas en ${group.keep.name}. Los CVs se conservan como versiones. ¿Continuar?`)) return;
+  const deleteMember = async (member) => {
+    if (!window.confirm(`¿Eliminar la ficha de ${member.name}? Es recuperable desde Papelera.`)) return;
+    setWorking(true);
+    try {
+      const res = await axios.post(`${API_BASE}/api/duplicates/delete-candidates`, { candidate_ids: [member.candidate_id] });
+      if (res.data.deleted_count > 0) {
+        toast.success(res.data.message);
+      }
+      if (res.data.blocked?.length > 0) {
+        toast.warning('La ficha tiene notas, asignaciones o historial: fusiónala en lugar de eliminarla', { duration: 8000 });
+      }
+      await load();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al eliminar la ficha');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const mergeGroup = async (group) => {    if (!window.confirm(`Se fusionarán ${group.extras.length} fichas en ${group.keep.name}. Los CVs se conservan como versiones. ¿Continuar?`)) return;
     setWorking(true);
     try {
       const res = await axios.post(`${API_BASE}/api/candidates/merge-multiple`, {
@@ -259,7 +289,14 @@ export const IdenticalCVTab = () => {
                     <div className="grid gap-2">
                       <MemberRow member={group.keep} isKeep />
                       {group.extras.map((member) => (
-                        <MemberRow key={member.candidate_id} member={member} isKeep={false} />
+                        <MemberRow
+                          key={member.candidate_id}
+                          member={member}
+                          isKeep={false}
+                          canDelete={data?.can_delete}
+                          working={working}
+                          onDelete={deleteMember}
+                        />
                       ))}
                     </div>
                   </div>

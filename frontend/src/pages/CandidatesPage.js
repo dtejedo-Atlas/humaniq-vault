@@ -16,24 +16,30 @@ import { Search, Filter, Eye, Mail, Phone, MapPin, Building2, Briefcase, ArrowUp
 import { candidatesAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate } from '../utils/helpers';
 import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
 import { AreaSubareaFilter } from '../components/AreaSubareaFilter';
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { getIndustryOptions, getIndustryName, getPresentationAreaName, getPresentationSubareaName } = useTaxonomy();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({
-    status: '',
+    status: searchParams.get('status') || '',
     industry: '',
     presentation_area: '',
     presentation_subarea: '',
     seniority: ''
   });
+  const quickFilters = {
+    placed: searchParams.get('placed') === 'true',
+    unassigned: searchParams.get('unassigned') === 'true',
+    created_from: searchParams.get('created_from') || '',
+  };
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
 
@@ -58,6 +64,9 @@ const CandidatesPage = () => {
       const params = { 
         search, 
         ...filters,
+        ...(quickFilters.placed ? { placed: true } : {}),
+        ...(quickFilters.unassigned ? { unassigned: true } : {}),
+        ...(quickFilters.created_from ? { created_from: quickFilters.created_from } : {}),
         sort_by: sortBy,
         sort_order: sortOrder
       };

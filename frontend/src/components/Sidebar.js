@@ -24,6 +24,7 @@ import {
   PlusCircle,
   FolderPlus,
   GitMerge,
+  Trash2,
   AlertCircle,
   KeyRound
 } from 'lucide-react';
@@ -121,6 +122,7 @@ const Sidebar = ({ mobileOpen = false }) => {
   const bottomNavItems = [
     { path: '/jobs', icon: Briefcase, label: 'Vacantes' },
     { path: '/duplicates', icon: GitMerge, label: 'Duplicados', roles: ['super_admin', 'admin', 'recruiter'] },
+    { path: '/trash', icon: Trash2, label: 'Papelera', roles: ['super_admin', 'admin'] },
     { path: '/users', icon: UserCog, label: 'Usuarios', roles: ['super_admin', 'admin'] },
     { path: '/change-password', icon: KeyRound, label: 'Cambiar contraseña' },
     { path: '/admin', icon: Settings, label: 'Admin', roles: ['super_admin'] }

@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
-import { Plus, Briefcase, Loader2, Trash2, Eye, MapPin, Building2, Home, Building } from 'lucide-react';
+import { Plus, Briefcase, Loader2, Trash2, Eye, MapPin, Building2, Home, Building, Archive, RotateCcw } from 'lucide-react';
 import { jobsAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
@@ -28,14 +28,17 @@ const JobsPage = () => {
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [similar, setSimilar] = useState({ open: false, jobId: null, jobs: [], selected: [] });
 
   useEffect(() => {
     loadJobs();
-  }, []);
+  }, [showArchived]);
 
   const loadJobs = async () => {
+    setLoading(true);
     try {
-      const response = await jobsAPI.getAll();
+      const response = await jobsAPI.getAll(showArchived ? 'archived' : null);
       setJobs(response.data);
     } catch (error) {
       console.error('Error loading jobs:', error);
@@ -48,15 +51,78 @@ const JobsPage = () => {
   const handleCreateJob = async (jobData) => {
     setCreating(true);
     try {
-      await jobsAPI.create(jobData);
+      const res = await jobsAPI.create(jobData);
       toast.success('Vacante creada correctamente');
       setCreateDialogOpen(false);
       loadJobs();
+      const similarRes = await jobsAPI.getSimilarArchived({
+        title: jobData.title,
+        presentation_area: jobData.presentation_area,
+        presentation_subarea: jobData.presentation_subarea,
+        functional_area: jobData.functional_area,
+        exclude_job_id: res.data.id,
+      });
+      if (similarRes.data.total > 0) {
+        setSimilar({ open: true, jobId: res.data.id, jobs: similarRes.data.jobs, selected: [] });
+      }
     } catch (error) {
       console.error('Error creating job:', error);
       toast.error('Error al crear vacante');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const toggleReuse = (candidateId, sourceJobId) => {
+    setSimilar((prev) => {
+      const exists = prev.selected.find((s) => s.candidateId === candidateId);
+      return {
+        ...prev,
+        selected: exists
+          ? prev.selected.filter((s) => s.candidateId !== candidateId)
+          : [...prev.selected, { candidateId, sourceJobId }],
+      };
+    });
+  };
+
+  const handleReuseCandidates = async () => {
+    const bySource = similar.selected.reduce((acc, s) => {
+      acc[s.sourceJobId] = [...(acc[s.sourceJobId] || []), s.candidateId];
+      return acc;
+    }, {});
+    try {
+      let total = 0;
+      for (const [sourceJobId, ids] of Object.entries(bySource)) {
+        const res = await jobsAPI.reuseCandidates(similar.jobId, sourceJobId, ids);
+        total += res.data.assigned.length;
+      }
+      toast.success(`${total} candidatos reutilizados en la nueva vacante`);
+      setSimilar({ open: false, jobId: null, jobs: [], selected: [] });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al reutilizar candidatos');
+    }
+  };
+
+  const handleArchive = async (job, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Archivar "${job.title}"? Conserva candidatos, etapas y notas.`)) return;
+    try {
+      await jobsAPI.archive(job.id);
+      toast.success('Vacante archivada');
+      loadJobs();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al archivar');
+    }
+  };
+
+  const handleReactivate = async (job, e) => {
+    e.stopPropagation();
+    try {
+      await jobsAPI.reactivate(job.id);
+      toast.success('Vacante reactivada');
+      loadJobs();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al reactivar');
     }
   };
 
@@ -79,12 +145,14 @@ const JobsPage = () => {
       paused: 'bg-yellow-100 text-yellow-800',
       closed: 'bg-gray-100 text-gray-800',
       draft: 'bg-blue-100 text-blue-800',
+      archived: 'bg-slate-200 text-slate-700',
     };
     const labels = {
       active: 'Activa',
       paused: 'Pausada',
       closed: 'Cerrada',
       draft: 'Borrador',
+      archived: 'Archivada',
     };
     return <Badge className={colors[status] || colors.draft}>{labels[status] || status}</Badge>;
   };
@@ -133,11 +201,78 @@ const JobsPage = () => {
             <p className="text-slate-600 mt-1">Gestiona vacantes y encuentra candidatos compatibles</p>
           </div>
           
-          <Button data-testid="create-job-button" onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Nueva Vacante
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showArchived ? 'default' : 'outline'}
+              onClick={() => setShowArchived((v) => !v)}
+              data-testid="toggle-archived-jobs"
+            >
+              <Archive className="w-4 h-4 mr-2" />
+              {showArchived ? 'Ver activas' : 'Ver archivadas'}
+            </Button>
+            <Button data-testid="create-job-button" onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nueva Vacante
+            </Button>
+          </div>
         </div>
+
+        {/* Reutilizar candidatos de vacantes archivadas similares */}
+        <Dialog open={similar.open} onOpenChange={(open) => setSimilar((prev) => ({ ...prev, open }))}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="similar-archived-dialog">
+            <DialogHeader>
+              <DialogTitle>Vacantes archivadas similares</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-slate-600">
+              Encontramos vacantes archivadas parecidas. Selecciona candidatos para reutilizarlos en la nueva vacante.
+            </p>
+            <div className="space-y-4">
+              {similar.jobs.map((job) => (
+                <div key={job.id} className="border border-slate-200 rounded-lg p-3" data-testid={`similar-job-${job.id}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-medium text-slate-900 truncate">{job.title}</p>
+                      <p className="text-xs text-slate-500">{job.company || 'Sin empresa'} · {job.match_reasons.join(' · ')}</p>
+                    </div>
+                    <Badge variant="outline">{job.candidates.length} candidatos</Badge>
+                  </div>
+                  <div className="mt-2 space-y-1">
+                    {job.candidates.length === 0 && <p className="text-xs text-slate-400">Sin candidatos asignados</p>}
+                    {job.candidates.map((cand) => (
+                      <label
+                        key={cand.id}
+                        className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer"
+                        data-testid={`reuse-candidate-${cand.id}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={!!similar.selected.find((s) => s.candidateId === cand.id)}
+                          onChange={() => toggleReuse(cand.id, job.id)}
+                        />
+                        <span className="truncate">
+                          {cand.full_name}
+                          {cand.current_title ? ` — ${cand.current_title}` : ''}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSimilar({ open: false, jobId: null, jobs: [], selected: [] })}>
+                Omitir
+              </Button>
+              <Button
+                disabled={similar.selected.length === 0}
+                onClick={handleReuseCandidates}
+                data-testid="reuse-candidates-confirm"
+              >
+                Reutilizar {similar.selected.length} candidatos
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Create Job Dialog with Wizard */}
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
@@ -236,6 +371,29 @@ const JobsPage = () => {
                         <Eye className="w-4 h-4 mr-1" />
                         Ver Matches
                       </Button>
+                      {job.status === 'archived' ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleReactivate(job, e)}
+                          data-testid={`reactivate-job-${job.id}`}
+                          className="text-cyan-700 hover:bg-cyan-50"
+                        >
+                          <RotateCcw className="w-4 h-4 mr-1" />
+                          Reactivar
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleArchive(job, e)}
+                          data-testid={`archive-job-${job.id}`}
+                          className="text-slate-600 hover:bg-slate-100"
+                        >
+                          <Archive className="w-4 h-4 mr-1" />
+                          Archivar
+                        </Button>
+                      )}
                       <Button 
                         variant="ghost" 
                         size="sm"

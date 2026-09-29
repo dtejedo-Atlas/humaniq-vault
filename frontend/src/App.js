@@ -22,6 +22,7 @@ import AdminPage from './pages/AdminPage';
 import ValidationPage from './pages/ValidationPage';
 import UsersPage from './pages/UsersPage';
 import DuplicatesPage from './pages/DuplicatesPage';
+import TrashPage from './pages/TrashPage';
 import ClassificationReviewPage from './pages/ClassificationReviewPage';
 import AuthCallback from './pages/AuthCallback';
 import SetPasswordPage from './pages/SetPasswordPage';
@@ -198,6 +199,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <DuplicatesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/trash"
+        element={
+          <ProtectedRoute>
+            <TrashPage />
           </ProtectedRoute>
         }
       />

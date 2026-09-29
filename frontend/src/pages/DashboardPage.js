@@ -8,7 +8,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer,
   AreaChart, Area, PieChart, Pie, Cell, CartesianGrid,
 } from 'recharts';
-import { dashboardAPI } from '../api';
+import { dashboardAPI, jobsAPI } from '../api';
 import { toast } from 'sonner';
 import Layout from '../components/Layout';
 
@@ -46,18 +46,28 @@ const timeAgo = (iso) => {
 
 const formatArea = (a) => (a || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-const KpiCard = ({ icon: Icon, label, value, accent, testId }) => (
-  <div data-testid={testId} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-1">
-    <div className="flex items-center justify-between">
-      <span className="text-[11px] uppercase tracking-wider text-slate-400">{label}</span>
-      <Icon className={`w-4 h-4 ${accent || 'text-cyan-400'}`} />
-    </div>
-    <span className={`text-3xl font-bold ${accent || 'text-white'}`}>{value}</span>
-  </div>
-);
+const KpiCard = ({ icon: Icon, label, value, accent, testId, to }) => {
+  const content = (
+    <>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wider text-slate-400">{label}</span>
+        <Icon className={`w-4 h-4 ${accent || 'text-cyan-400'}`} />
+      </div>
+      <span className={`text-3xl font-bold ${accent || 'text-white'}`}>{value}</span>
+    </>
+  );
+  const className = 'bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-1 text-left hover:border-cyan-700 transition-colors';
+  if (!to) {
+    return <div data-testid={testId} className={className}>{content}</div>;
+  }
+  return (
+    <Link to={to} data-testid={testId} className={className}>{content}</Link>
+  );
+};
 
 export default function DashboardPage() {
   const [data, setData] = useState(null);
+  const [expiring, setExpiring] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -69,6 +79,9 @@ export default function DashboardPage() {
         toast.error('Error al cargar el dashboard operativo');
       })
       .finally(() => setLoading(false));
+    jobsAPI.getExpiring()
+      .then((res) => setExpiring(res.data))
+      .catch(() => setExpiring(null));
   }, []);
 
   if (loading) {
@@ -89,6 +102,7 @@ export default function DashboardPage() {
   }
 
   const { kpis, jobs_board, recent_activity, action_inbox, charts } = data;
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const caliberData = charts.by_caliber.filter((c) => c.count > 0).map((c) => ({ ...c, name: CALIBER_LABELS[c.caliber] }));
   const areaData = charts.by_functional_area.map((a) => ({ ...a, name: formatArea(a.area) }));
 
@@ -105,13 +119,42 @@ export default function DashboardPage() {
 
       {/* ZONA 1: KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="kpi-row">
-        <KpiCard icon={Users} label="Candidatos activos" value={kpis.total_candidates_active} testId="kpi-candidates" />
-        <KpiCard icon={Briefcase} label="Vacantes activas" value={kpis.total_jobs_active} testId="kpi-jobs" />
-        <KpiCard icon={TrendingUp} label="Nuevos este mes" value={kpis.candidates_this_month} testId="kpi-new-month" />
-        <KpiCard icon={Clock} label="Días prom. abierta" value={kpis.avg_days_jobs_open} testId="kpi-days-open" />
-        <KpiCard icon={AlertCircle} label="Por revisar" value={kpis.pending_classifications_count} accent={kpis.pending_classifications_count > 0 ? 'text-orange-400' : 'text-slate-500'} testId="kpi-pending" />
-        <KpiCard icon={Lock} label="Colocados" value={kpis.placed_candidates_count} accent="text-cyan-400" testId="kpi-placed" />
+        <KpiCard icon={Users} label="Candidatos activos" value={kpis.total_candidates_active} testId="kpi-candidates" to="/candidates" />
+        <KpiCard icon={Briefcase} label="Vacantes activas" value={kpis.total_jobs_active} testId="kpi-jobs" to="/jobs" />
+        <KpiCard icon={TrendingUp} label="Nuevos este mes" value={kpis.candidates_this_month} testId="kpi-new-month" to={`/candidates?created_from=${monthStart}`} />
+        <KpiCard icon={Clock} label="Días prom. abierta" value={kpis.avg_days_jobs_open} testId="kpi-days-open" to="/jobs" />
+        <KpiCard icon={AlertCircle} label="Por revisar" value={kpis.pending_classifications_count} accent={kpis.pending_classifications_count > 0 ? 'text-orange-400' : 'text-slate-500'} testId="kpi-pending" to="/review" />
+        <KpiCard icon={Lock} label="Colocados" value={kpis.placed_candidates_count} accent="text-cyan-400" testId="kpi-placed" to="/candidates?placed=true" />
       </div>
+
+      {/* Aviso de caducidad de vacantes */}
+      {expiring && (expiring.expiring.length > 0 || expiring.expired.length > 0) && (
+        <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl p-4" data-testid="jobs-expiring-alert">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertCircle className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-semibold text-amber-200">
+              Vacantes por caducar ({expiring.archive_after_days} días sin actividad)
+            </h3>
+          </div>
+          <div className="space-y-1">
+            {[...expiring.expired, ...expiring.expiring].slice(0, 6).map((job) => (
+              <Link
+                key={job.id}
+                to={`/jobs/${job.id}`}
+                className="flex items-center justify-between text-xs text-slate-300 hover:text-amber-200 py-0.5"
+                data-testid={`expiring-job-${job.id}`}
+              >
+                <span className="truncate">{job.title}</span>
+                <span className={job.days_until_archive === 0 ? 'text-orange-400 font-semibold' : 'text-amber-300'}>
+                  {job.days_until_archive === 0
+                    ? 'se archiva en el próximo barrido'
+                    : `se archiva en ${job.days_until_archive} días`}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* ZONA 2: Tablero de vacantes */}
@@ -164,7 +207,7 @@ export default function DashboardPage() {
                 <span>Clasificaciones por revisar</span>
                 <span className={`font-bold ${action_inbox.pending_classifications > 0 ? 'text-orange-400' : 'text-slate-500'}`}>{action_inbox.pending_classifications}</span>
               </Link>
-              <Link to="/candidates" className="flex items-center justify-between text-slate-300 hover:text-cyan-300 py-1" data-testid="inbox-unassigned-link">
+              <Link to="/candidates?unassigned=true" className="flex items-center justify-between text-slate-300 hover:text-cyan-300 py-1" data-testid="inbox-unassigned-link">
                 <span>{action_inbox.unassigned_scope === 'team' ? 'Candidatos sin vacante (equipo)' : 'Mis candidatos sin vacante'}</span>
                 <span className="font-bold text-slate-400">{action_inbox.my_unassigned_candidates}</span>
               </Link>

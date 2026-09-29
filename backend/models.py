@@ -474,6 +474,7 @@ class JobStatus(str, Enum):
     PAUSED = "paused"
     CLOSED = "closed"
     DRAFT = "draft"
+    ARCHIVED = "archived"
 
 class WorkScheme(str, Enum):
     """Esquema de trabajo"""
@@ -565,6 +566,13 @@ class Job(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str                               # ID del usuario
+    
+    # Caducidad y archivo
+    last_activity_at: Optional[datetime] = None
+    archived_at: Optional[datetime] = None
+    archived_by: Optional[str] = None
+    archive_reason: Optional[str] = None
+    auto_archived: Optional[bool] = None
     
     # Embedding para búsqueda semántica
     embedding: Optional[List[float]] = None

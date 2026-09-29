@@ -1,0 +1,8 @@
+crons:
+  - name: archive-stale-jobs
+    description: "Archiva automáticamente las vacantes con 90 días sin actividad"
+    cron: "0 7 * * *"
+    endpoint: "{{BASE_URL}}/api/cron/archive-stale-jobs"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    method: POST
+    enabled: true

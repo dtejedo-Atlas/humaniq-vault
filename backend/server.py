@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header, Query, Response
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header, Query, Response, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -49,7 +49,9 @@ from resume_storage_state import storage_issue
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
 from cv_hash_service import CVHashService, compute_hashes
+from job_lifecycle_service import JobLifecycleService, ARCHIVE_AFTER_DAYS
 from pymongo.errors import DuplicateKeyError
+import hmac
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
@@ -92,6 +94,7 @@ print(f"[STARTUP] Connected to {db_type} - Database: {db_name}")
 duplicate_detector = DuplicateDetector(db)
 duplicate_detector_v2 = DuplicateDetectorV2(db)
 cv_hash_service = CVHashService(db)
+job_lifecycle_service = JobLifecycleService(db)
 candidate_merger = CandidateMerger(db)
 cv_version_service = CVVersionService(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
@@ -582,6 +585,9 @@ async def get_candidates(
     presentation_subarea: Optional[str] = None,
     seniority: Optional[SeniorityLevel] = None,
     search: Optional[str] = None,
+    placed: Optional[bool] = None,
+    unassigned: Optional[bool] = None,
+    created_from: Optional[str] = None,
     use_semantic: bool = True,
     sort_by: str = Query(default="created_at", description="Campo para ordenar: created_at, industry, full_name, seniority"),
     sort_order: str = Query(default="desc", description="Orden: asc o desc"),
@@ -640,6 +646,15 @@ async def get_candidates(
         query['presentation_subarea'] = presentation_subarea.strip()
     if seniority:
         query['seniority'] = seniority.value if hasattr(seniority, 'value') else str(seniority)
+    if placed:
+        query['$or'] = [
+            {"is_restricted": True, "restriction_info.category": "placed_by_humaniq"},
+            {"job_assignments": {"$elemMatch": {"stage": "placed"}}},
+        ]
+    if unassigned:
+        query['$and'] = [{"$or": [{"job_assignments": {"$exists": False}}, {"job_assignments": {"$size": 0}}]}]
+    if created_from and created_from.strip():
+        query['created_at'] = {"$gte": created_from.strip()}
     
     # Determinar orden
     sort_direction = 1 if sort_order == 'asc' else -1
@@ -964,11 +979,14 @@ async def restore_candidate(
         {"id": candidate_id},
         {
             "$set": {"updated_at": now},
-            "$unset": {"is_deleted": "", "deleted_at": "", "deleted_by": "", "deleted_by_name": ""}
+            "$unset": {"is_deleted": "", "deleted_at": "", "deleted_by": "", "deleted_by_name": "",
+                       "deletion_type": "", "deletion_reason": "", "duplicate_of": ""}
         }
     )
     
     logger.info(f"Candidate {candidate_id} restored by {current_user.email}")
+    
+    await cv_hash_service.reactivate_candidate(candidate_id)
     
     return {"message": "Candidato restaurado exitosamente", "candidate_id": candidate_id}
 
@@ -2801,11 +2819,11 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
     
     # ========== JOB METRICS ==========
     # Total active jobs
-    total_jobs = await db.jobs.count_documents({"status": "open"})
+    total_jobs = await db.jobs.count_documents({"status": "active"})
     
-    # Get all open jobs with their shortlist counts
+    # Get all active jobs with their shortlist counts
     jobs_cursor = db.jobs.find(
-        {"status": "open"},
+        {"status": "active"},
         {"_id": 0, "id": 1, "title": 1, "company_name": 1, "shortlist": 1, "created_at": 1}
     )
     jobs_list = await jobs_cursor.to_list(100)
@@ -3497,6 +3515,130 @@ async def delete_identical_cv_extras(
         "skipped": skipped,
         "unique_index": index_result,
     }
+
+
+class DeleteCandidatesRequest(PydanticBaseModel):
+    candidate_ids: List[str]
+    reason: Optional[str] = None
+
+
+@api_router.post("/duplicates/delete-candidates")
+async def delete_duplicate_candidates(
+    request: DeleteCandidatesRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Soft delete de fichas duplicadas. Las fichas con notas, asignaciones o historial se bloquean."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo admins pueden eliminar fichas")
+    if not request.candidate_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe especificar al menos una ficha")
+
+    now = datetime.now(timezone.utc).isoformat()
+    deleted, blocked = [], []
+
+    for candidate_id in request.candidate_ids:
+        cand = await db.candidates.find_one(
+            {"id": candidate_id, "is_deleted": {"$ne": True}},
+            {"_id": 0, "id": 1, "full_name": 1, "notes": 1, "job_assignments": 1}
+        )
+        if not cand:
+            blocked.append({"candidate_id": candidate_id, "full_name": None, "reason": "no_encontrada"})
+            continue
+
+        notes = cand.get("notes")
+        note_count = len(notes) if isinstance(notes, list) else (1 if notes else 0)
+        assignment_count = len(cand.get("job_assignments") or [])
+        assignment_count += await db.assignments.count_documents({"candidate_id": candidate_id})
+        version_count = await db.cv_versions.count_documents({"candidate_id": candidate_id})
+
+        if note_count or assignment_count or version_count:
+            blocked.append({
+                "candidate_id": candidate_id,
+                "full_name": cand.get("full_name"),
+                "reason": "tiene_datos_propios",
+                "notes": note_count,
+                "assignments": assignment_count,
+                "cv_versions": version_count,
+            })
+            continue
+
+        await db.candidates.update_one({"id": candidate_id}, {"$set": {
+            "is_deleted": True,
+            "deleted_at": now,
+            "deleted_by": current_user.id,
+            "deleted_by_name": current_user.name,
+            "deletion_type": "duplicate_manual",
+            "deletion_reason": request.reason or "Duplicado eliminado desde la vista de duplicados",
+            "updated_at": now,
+        }})
+        await cv_hash_service.deactivate_candidate(candidate_id)
+        deleted.append({"candidate_id": candidate_id, "full_name": cand.get("full_name")})
+
+    if deleted:
+        await db.cleanup_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "action": "duplicate_manual_delete",
+            "candidate_ids": [d["candidate_id"] for d in deleted],
+            "deleted_count": len(deleted),
+            "reason": request.reason,
+            "performed_by": current_user.id,
+            "performed_at": now,
+        })
+        logger.info(f"Duplicate manual delete: {len(deleted)} fichas por {current_user.email}")
+
+    return {
+        "success": True,
+        "message": f"{len(deleted)} fichas eliminadas (recuperables desde Papelera)",
+        "deleted_count": len(deleted),
+        "deleted": deleted,
+        "blocked": blocked,
+    }
+
+
+DELETION_REASON_LABELS = {
+    "identical_cv_cleanup": "CV idéntico (limpieza de sobrantes)",
+    "duplicate_manual": "Duplicado eliminado manualmente",
+    "orphan_cleanup": "Registro huérfano",
+    "merged": "Fusionada en otra ficha",
+}
+
+
+@api_router.get("/trash/candidates")
+async def get_deleted_candidates(
+    limit: int = 200,
+    current_user: User = Depends(get_current_user)
+):
+    """Papelera: fichas eliminadas (soft delete) con fecha, autor y motivo. Solo admins."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo admins pueden ver la papelera")
+
+    docs = await db.candidates.find(
+        {"is_deleted": True},
+        {"_id": 0, "id": 1, "full_name": 1, "email": 1, "current_title": 1, "current_company": 1,
+         "deleted_at": 1, "deleted_by": 1, "deleted_by_name": 1, "deletion_type": 1,
+         "deletion_reason": 1, "duplicate_of": 1, "merged_into": 1}
+    ).sort("deleted_at", -1).to_list(limit)
+
+    users = {u["id"]: (u.get("name") or u.get("email"))
+             for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1, "email": 1}).to_list(200)}
+
+    items = []
+    for doc in docs:
+        deletion_type = doc.get("deletion_type") or ("merged" if doc.get("merged_into") else None)
+        items.append({
+            "candidate_id": doc["id"],
+            "full_name": doc.get("full_name"),
+            "email": doc.get("email"),
+            "current_title": doc.get("current_title"),
+            "current_company": doc.get("current_company"),
+            "deleted_at": doc.get("deleted_at"),
+            "deleted_by": doc.get("deleted_by_name") or users.get(doc.get("deleted_by"), "Sistema"),
+            "deletion_type": deletion_type,
+            "reason": doc.get("deletion_reason") or DELETION_REASON_LABELS.get(deletion_type, "Sin motivo registrado"),
+            "kept_candidate_id": doc.get("duplicate_of") or doc.get("merged_into"),
+        })
+
+    return {"total": len(items), "candidates": items}
 
 
 @api_router.get("/duplicates/merge-history")
@@ -4653,17 +4795,128 @@ async def create_job(
 @api_router.get("/jobs", response_model=List[Job])
 async def list_jobs(
     status: Optional[str] = None,
+    include_archived: bool = False,
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """Listar vacantes"""
+    """Listar vacantes. Las archivadas se excluyen salvo que se pidan explícitamente."""
     await get_current_user(credentials)
     
     query = {}
     if status:
         query["status"] = status
+    elif not include_archived:
+        query["status"] = {"$ne": "archived"}
     
-    jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
     return jobs
+
+
+@api_router.get("/jobs/expiring")
+async def get_expiring_jobs(current_user: User = Depends(get_current_user)):
+    """Vacantes por caducar (aviso 7 días antes de los 90) y ya caducadas."""
+    return await job_lifecycle_service.inactivity_report()
+
+
+@api_router.get("/jobs/similar-archived")
+async def get_similar_archived_jobs(
+    title: Optional[str] = None,
+    presentation_area: Optional[str] = None,
+    presentation_subarea: Optional[str] = None,
+    functional_area: Optional[str] = None,
+    exclude_job_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Vacantes archivadas similares con sus candidatos asignados, para reutilizarlos."""
+    matches = await job_lifecycle_service.similar_archived(
+        title=title, presentation_area=presentation_area,
+        presentation_subarea=presentation_subarea, functional_area=functional_area,
+        exclude_job_id=exclude_job_id,
+    )
+    return {"total": len(matches), "jobs": matches}
+
+
+class ArchiveJobRequest(PydanticBaseModel):
+    reason: Optional[str] = None
+
+
+@api_router.post("/jobs/{job_id}/archive")
+async def archive_job(
+    job_id: str,
+    request: ArchiveJobRequest,
+    current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Archiva una vacante. Conserva candidatos, etapas y notas."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1, "status": 1})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    if job.get("status") == "archived":
+        raise HTTPException(status_code=400, detail="La vacante ya está archivada")
+    
+    await job_lifecycle_service.archive(job_id, actor=current_user.id, reason=request.reason)
+    await log_activity(current_user, "job_archived", "job", job_id, job.get("title"))
+    return {"message": "Vacante archivada", "job_id": job_id}
+
+
+@api_router.post("/jobs/{job_id}/reactivate")
+async def reactivate_job(
+    job_id: str,
+    current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Reactiva una vacante archivada."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1, "status": 1})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    if job.get("status") != "archived":
+        raise HTTPException(status_code=400, detail="La vacante no está archivada")
+    
+    await job_lifecycle_service.reactivate(job_id, actor=current_user.id)
+    await log_activity(current_user, "job_reactivated", "job", job_id, job.get("title"))
+    return {"message": "Vacante reactivada", "job_id": job_id}
+
+
+class ReuseCandidatesRequest(PydanticBaseModel):
+    source_job_id: str
+    candidate_ids: List[str]
+
+
+@api_router.post("/jobs/{job_id}/reuse-candidates")
+async def reuse_candidates_from_archived(
+    job_id: str,
+    request: ReuseCandidatesRequest,
+    current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Asigna a esta vacante candidatos que venían de una vacante archivada."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    assigned, skipped = [], []
+    for candidate_id in request.candidate_ids:
+        cand = await db.candidates.find_one(
+            {"id": candidate_id, "is_deleted": {"$ne": True}},
+            {"_id": 0, "full_name": 1, "job_assignments": 1}
+        )
+        if not cand:
+            skipped.append({"candidate_id": candidate_id, "reason": "no_encontrado"})
+            continue
+        if any(a.get("job_id") == job_id for a in (cand.get("job_assignments") or [])):
+            skipped.append({"candidate_id": candidate_id, "reason": "ya_asignado"})
+            continue
+        await db.candidates.update_one({"id": candidate_id}, {"$push": {"job_assignments": {
+            "job_id": job_id, "stage": "new", "assigned_by": current_user.name,
+            "assigned_at": now, "updated_at": now, "reused_from_job_id": request.source_job_id,
+        }}})
+        await log_activity(current_user, "candidate_assigned", "candidate", candidate_id,
+                           cand.get("full_name"), {"job_id": job_id, "job_title": job.get("title"),
+                                                   "reused_from": request.source_job_id})
+        assigned.append({"candidate_id": candidate_id, "full_name": cand.get("full_name")})
+    
+    return {
+        "message": f"{len(assigned)} candidatos reutilizados en la vacante",
+        "assigned": assigned,
+        "skipped": skipped,
+    }
 
 
 @api_router.get("/jobs/{job_id}", response_model=Job)
@@ -6105,6 +6358,31 @@ async def get_backup_status(current_user: User = Depends(get_current_user)):
 @api_router.get("/")
 async def root():
     return {"message": "Atlas Talent Vault API", "version": "1.0.0"}
+
+
+
+# ============= CRON: CADUCIDAD DE VACANTES =============
+
+@api_router.post("/cron/archive-stale-jobs")
+async def cron_archive_stale_jobs(payload: dict = Body(default={}), authorization: Optional[str] = Header(default=None)):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    secret = os.environ['WEBHOOK_CRON_SECRET']
+    token = (authorization or "").removeprefix("Bearer ").strip()
+    if not token or not hmac.compare_digest(token, secret):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autorizado")
+    
+    run_id = payload.get("run_id") or str(uuid.uuid4())
+    already = await db.cron_runs.find_one({"run_id": run_id}, {"_id": 0, "run_id": 1})
+    if already:
+        return {"accepted": True, "duplicate": True, "run_id": run_id}
+    
+    await db.cron_runs.insert_one({
+        "run_id": run_id,
+        "task": "archive-stale-jobs",
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    })
+    asyncio.create_task(job_lifecycle_service.auto_archive())
+    return {"accepted": True, "run_id": run_id, "archive_after_days": ARCHIVE_AFTER_DAYS}
 
 
 # Include the router in the main app
