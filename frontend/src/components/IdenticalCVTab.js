@@ -96,7 +96,11 @@ export const IdenticalCVTab = () => {
     setWorking(true);
     try {
       const res = await axios.post(`${API_BASE}/api/duplicates/identical-cv/delete-extras`, { group_keys: groupKeys });
-      toast.success(res.data.message);
+      if (res.data.deleted_count === 0) {
+        toast.warning(`No se eliminó ninguna ficha (${res.data.skipped?.length || 0} grupos omitidos)`);
+      } else {
+        toast.success(res.data.message);
+      }
       if (res.data.skipped?.length) {
         toast.warning(`${res.data.skipped.length} grupos omitidos por seguridad`);
       }

@@ -230,7 +230,8 @@ class CVHashService:
                 status = "safe"
 
             groups.append({
-                "group_key": key,
+                "group_key": min(f["file_path"] for f in files),
+                "file_paths": sorted(f["file_path"] for f in files),
                 "status": status,
                 "match": "file" if len({f["sha256_file"] for f in files}) == 1 else "text",
                 "keep": keep,

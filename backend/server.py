@@ -3437,12 +3437,13 @@ async def delete_identical_cv_extras(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe especificar al menos un grupo")
 
     groups = {g["group_key"]: g for g in await cv_hash_service.identical_groups()}
+    by_path = {path: g for g in groups.values() for path in g["file_paths"]}
     deleted_ids = []
     skipped = []
     filled = {}
 
     for key in request.group_keys:
-        group = groups.get(key)
+        group = groups.get(key) or by_path.get(key)
         if not group:
             skipped.append({"group_key": key, "reason": "grupo_no_encontrado"})
             continue
