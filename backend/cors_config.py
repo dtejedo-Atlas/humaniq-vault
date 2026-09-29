@@ -1,11 +1,30 @@
 """Fail closed: credentialed CORS must use explicit origins from configuration."""
+import logging
 import os
 from urllib.parse import urlsplit
 from starlette.middleware.cors import CORSMiddleware
 
+logger = logging.getLogger(__name__)
+
+# Respaldo explícito cuando la clave gestionada CORS_ORIGINS llega como comodín ("*"),
+# que nunca es utilizable con credenciales. Se puede sustituir con HUMANIQ_CORS_ORIGINS.
+FALLBACK_ORIGINS = (
+    'https://atlas-recruiting-ai.emergent.host',
+    'https://atlas-recruiting-ai.preview.emergentagent.com',
+)
+
 
 def get_cors_origins():
-    values = [origin.strip().rstrip('/') for origin in os.environ['CORS_ORIGINS'].split(',') if origin.strip()]
+    raw = os.environ.get('HUMANIQ_CORS_ORIGINS')
+    if not (raw and raw.strip()):
+        raw = os.environ['CORS_ORIGINS']
+        if raw.strip().strip('/') == '*':
+            logger.warning(
+                'CORS_ORIGINS llegó como comodín; se usan los orígenes explícitos de respaldo. '
+                'Defina HUMANIQ_CORS_ORIGINS para controlarlos.'
+            )
+            return list(FALLBACK_ORIGINS)
+    values = [origin.strip().rstrip('/') for origin in raw.split(',') if origin.strip()]
     if not values:
         raise RuntimeError('CORS_ORIGINS debe contener los orígenes autorizados explícitos')
     for origin in values:

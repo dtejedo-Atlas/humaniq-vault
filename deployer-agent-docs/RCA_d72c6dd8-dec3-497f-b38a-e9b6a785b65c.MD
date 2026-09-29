@@ -1,38 +1,34 @@
-# RCA — atlas-recruiting-ai redeploy failure (run d72c6dd8-dec3-497f-b38a-e9b6a785b65c)
+# RCA — atlas-recruiting-ai (Humaniq Talent Vault) — deploy fallido d72c6dd8
 
-## Symptom
-- Envelope: `failed_step: deploy_k8s` / "deployment failed to become ready: timed out waiting for the condition".
-- nginx logged repeated `connect() failed (111: Connection refused)` to `http://127.0.0.1:8001/health`, then `Backend died, shutting down nginx...`.
-- The K8s "deploy timeout" is a downstream symptom — the real failure is the **backend process crashing on startup**, so the pod never became ready and health checks never passed.
+## Veredicto
+Fallo de arranque del backend por un **secreto de producción obsoleto**: `CORS_ORIGINS` está guardado en el store de secretos con el valor **`*`** (comodín). `cors_config.py` es fail-closed y aborta en la línea 15 ("no se permiten comodines con credenciales"). El backend muere en el import → nginx da `connection refused` en `127.0.0.1:8001/health` → el health check nunca pasa → `deployment failed to become ready` (timeout). El run fallido nunca se promovió; sigue en vivo el run exitoso de julio (`40c45d80`).
 
-## Root cause (verified)
-The FastAPI backend crashes during import:
-```
-RuntimeError: CORS_ORIGINS contiene un origen no válido; no se permiten comodines con credenciales
-  File "/app/backend/cors_config.py", line 15, in get_cors_origins
-  File "/app/backend/server.py", line 6116, in <module>
-    allow_origins=get_cors_origins(),
-```
-MongoDB connected fine (`[STARTUP] Connected to MongoDB Atlas`); the crash is purely the CORS config validation.
+**NO es un problema de código.** `cors_config.py` funciona por diseño y el `backend/.env` del preview está limpio (sin comodines). El problema es puramente de configuración de secretos en producción.
 
-`backend/cors_config.py` `get_cors_origins()` is intentionally fail-closed: it reads `os.environ['CORS_ORIGINS']`, splits on commas, and rejects the whole set if ANY origin contains `*`, lacks an http/https scheme, or carries a path/query/userinfo — because `allow_credentials=True` (server.py line ~6113) forbids wildcard origins.
+## Evidencia
+- Traceback del pod fallido: `RuntimeError: CORS_ORIGINS contiene un origen no válido; no se permiten comodines con credenciales`, en `cors_config.py:15` (la comprobación de comodín, ANTES de la línea 25). Precedido de `[STARTUP] Connected to MongoDB Atlas - Database: atlas_talent_vault` → Mongo conecta bien; el único fallo es CORS.
+- `list_secrets` (run activo/en vivo 40c45d80) con comparación `equals`:
+  - `CORS_ORIGINS`: existe, `is_empty=false`. `matches_expected=false` contra el valor limpio del .env; `matches_expected=TRUE` contra `"*"`. → **El valor guardado es exactamente `*`.**
+  - `CORS_PREVIEW_PROXY_ORIGIN` y `CORS_PREVIEW_PUBLIC_ORIGIN`: **NO aparecen** en el store del run en vivo → son claves nuevas añadidas en preview, aún no promovidas ("Añadido, no está en vivo aún").
 
-The value being validated is the **production `CORS_ORIGINS` deployment secret**, which is invalid:
-- The preview `backend/.env` value is CLEAN and valid: `https://atlas-recruiting-ai.emergent.host,https://atlas-recruiting-ai.preview.emergentagent.com`.
-- `list_secrets` (equals-check against that clean value) returned `CORS_ORIGINS matches_expected: false` — the stored production value DIFFERS from the valid preview value and contains a wildcard/malformed origin that trips the validator.
-- On redeploy, pre-existing production secret values are NOT overwritten by preview `.env`, so the stale/bad production value persisted and the newer `cors_config.py` validation now rejects it.
+## Respuestas a las 3 preguntas
 
-## Why this is not a manifest or source-code bug
-- Build succeeded; manifests are not implicated.
-- `cors_config.py` behaves as designed (security fail-closed). No code change is required.
-- The eph sandbox has no production secrets injected, so this exact crash cannot be reproduced there — diagnosis is from the failing run's logs + a secret equals-comparison, not an in-pod repro.
+### 1) ¿Existe CORS_ORIGINS en producción? ¿Valor? ¿Fuente?
+Sí, existe como **secreto guardado** en producción. Valor = `*` (comodín), NO coincide con el .env limpio. **Fuente: secreto persistido de un deploy anterior**, no el `backend/.env` que viaja con el código (ese está limpio) ni inyección de plataforma. Regla clave: en un redeploy los valores de secretos **preexistentes NO se sobrescriben**, por eso tu `.env` limpio nunca reemplazó el `*` guardado. Esto es el bloqueante (línea 15).
 
-## Fix (User — Secrets)
-Update the production `CORS_ORIGINS` secret in **Deployment Panel → Secrets** to a comma-separated list of explicit, credentialed-safe origins with NO wildcards, e.g.:
-```
-https://atlas-recruiting-ai.emergent.host,https://atlas-recruiting-ai.preview.emergentagent.com
-```
-Rules the value must satisfy (per cors_config.py): each entry must be `http(s)://host[:port]` only — no `*`, no trailing path/query/fragment, no user:pass. Save, then redeploy. Re-running the pipeline without changing this secret will fail identically.
+Nota importante: aunque el panel "no te muestre" CORS_ORIGINS, el store de secretos **sí lo contiene** (confirmado por metadata). Hay que buscarlo/editarlo en la pestaña Secretos.
 
-## Note
-`CORS_PREVIEW_PUBLIC_ORIGIN` / `CORS_PREVIEW_PROXY_ORIGIN` exist in preview `.env` but are absent from the production secret store; since `PreviewAwareCORSMiddleware` reads both via optional `os.environ.get` and both are unset, that path is skipped and is not the cause.
+### 2) ¿Existen los dos CORS_PREVIEW_* en producción? ¿En vivo o pendientes?
+En el run en vivo NO existen todavía. Coinciden con lo que ves en el panel: **añadidos en preview, pendientes** — solo pasan a estar en vivo en el próximo deploy exitoso. No son la causa del crash: el backend murió en la línea 15 (comodín) antes de llegar a la comprobación de la línea 25 (par preview presente/ausente + subconjunto). Con el par presente y el valor limpio, la línea 25 pasará (`CORS_PREVIEW_PUBLIC_ORIGIN` está incluido en el CORS_ORIGINS limpio).
+
+### 3) Acciones exactas en el panel de Secretos
+1. **Editar** el secreto `CORS_ORIGINS` (pestaña Secretos → editar valor). Cambiar `*` por el valor exacto:
+   `https://atlas-recruiting-ai.emergent.host,https://atlas-recruiting-ai.preview.emergentagent.com`
+   (Un redeploy por sí solo NO lo arregla: los secretos preexistentes no se sobrescriben; hay que editarlo en la UI.)
+2. `CORS_PREVIEW_PROXY_ORIGIN` y `CORS_PREVIEW_PUBLIC_ORIGIN`: no requieren acción en la UI (no se pueden añadir desde ahí). Ya están añadidos en preview y se promoverán solos en el próximo deploy. Verifica que sus valores sean:
+   - `CORS_PREVIEW_PUBLIC_ORIGIN` = `https://atlas-recruiting-ai.preview.emergentagent.com`
+   - `CORS_PREVIEW_PROXY_ORIGIN` = `https://atlas-recruiting-ai.cluster-2.preview.emergentcf.cloud`
+3. Nada que eliminar. Guardar el cambio de `CORS_ORIGINS` y **redesplegar**. Tras el deploy: línea 15 pasa (sin comodín), línea 25 pasa (par presente + subconjunto correcto) → el backend arranca.
+
+## Alcance / cautela
+`list_secrets` solo lee el run en vivo (`40c45d80`, julio), no el run fallido `d72c6dd8`. Pero `CORS_ORIGINS` es un secreto persistente que se arrastra sin cambios a cada run (no se sobrescribe), por lo que el `*` observado es el mismo valor que recibió el pod fallido. Inferencia bien fundamentada, coherente con el traceback (línea 15 = comodín).
