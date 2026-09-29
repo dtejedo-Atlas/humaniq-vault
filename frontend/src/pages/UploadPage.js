@@ -75,6 +75,9 @@ const UploadPage = () => {
             reviewStatus: data.review_status,
             reviewMessage: data.review_message,
             storageIssue: data.cv_storage_issue,
+            identicalCv: data.identical_cv === true,
+            existingCandidate: data.existing_candidate,
+            message: data.message,
             processingTime: data.processing_time_ms,
             duplicates: data.duplicates,
             isDuplicate
@@ -86,6 +89,8 @@ const UploadPage = () => {
             toast.warning(`CV procesado con advertencias: ${file.name}`);
           } else if (isDuplicate) {
             toast.info(`Posible duplicado detectado: ${file.name}`);
+          } else if (data.identical_cv) {
+            toast.warning(data.message || `CV ya cargado: ${file.name}`);
           } else {
             toast.error(`Error procesando ${file.name}`);
           }
@@ -360,6 +365,22 @@ const UploadPage = () => {
                       </div>
                     </div>
                     {job.review_status === 'manual_capture' && <p data-testid={`batch-job-manual-capture-${job.job_id}`} role="alert" className="mt-2 text-sm font-medium text-amber-800">No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».</p>}
+                    {job.errors?.some(error => error.type === 'identical_cv') && (
+                      <div data-testid={`batch-job-identical-cv-${job.job_id}`} role="alert" className="mt-2 text-sm text-amber-800">
+                        <p className="font-medium">{job.errors.find(error => error.type === 'identical_cv').message}</p>
+                        {job.errors.find(error => error.type === 'identical_cv').candidate_id && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2"
+                            onClick={() => navigate(`/candidates/${job.errors.find(error => error.type === 'identical_cv').candidate_id}`)}
+                            data-testid={`batch-job-identical-cv-link-${job.job_id}`}
+                          >
+                            Ver ficha de {job.errors.find(error => error.type === 'identical_cv').candidate_name}
+                          </Button>
+                        )}
+                      </div>
+                    )}
                     {job.errors?.some(error => error.type === 'storage_upload_failed') && (
                       <div data-testid={`batch-job-storage-error-${job.job_id}`} role="alert" className="mt-2 text-sm text-red-800">
                         <p>{job.errors.find(error => error.type === 'storage_upload_failed').message}</p>
@@ -530,6 +551,20 @@ const UploadPage = () => {
                       >
                         Ver Perfil
                       </Button>
+                    )}
+                    {result.identicalCv && result.existingCandidate && (
+                      <div data-testid={`upload-result-identical-cv-${index}`} role="alert" className="mt-3 text-sm text-amber-800">
+                        <p className="font-medium">{result.message}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={() => navigate(`/candidates/${result.existingCandidate.candidate_id}`)}
+                          data-testid={`upload-result-identical-cv-link-${index}`}
+                        >
+                          Ver ficha de {result.existingCandidate.candidate_name}
+                        </Button>
+                      </div>
                     )}
                     {result.reviewStatus === 'manual_capture' && <p data-testid={`upload-result-manual-capture-${index}`} role="alert" className="mt-3 text-sm font-medium text-amber-800">{result.reviewMessage || 'No se pudo leer bien este archivo. Requiere captura manual en «Por Revisar».'}</p>}
                     {result.storageIssue && <p data-testid={`upload-result-storage-error-${index}`} role="alert" className="mt-3 text-sm font-medium text-red-800">{result.storageIssue.message}</p>}

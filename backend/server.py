@@ -48,6 +48,8 @@ from resume_read_safety import readable_resume, mark_manual_capture, ResumeReadE
 from resume_storage_state import storage_issue
 from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
+from cv_hash_service import CVHashService, compute_hashes
+from pymongo.errors import DuplicateKeyError
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
@@ -89,6 +91,7 @@ print(f"[STARTUP] Connected to {db_type} - Database: {db_name}")
 # Initialize services
 duplicate_detector = DuplicateDetector(db)
 duplicate_detector_v2 = DuplicateDetectorV2(db)
+cv_hash_service = CVHashService(db)
 candidate_merger = CandidateMerger(db)
 cv_version_service = CVVersionService(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
@@ -244,6 +247,10 @@ async def startup():
         logger.info("✓ Smart Folders initialized")
     except Exception as e:
         logger.error(f"✗ Smart Folders initialization failed: {e}")
+
+    # Índice único de hashes de CV (se crea cuando ya no hay CVs idénticos activos)
+    index_result = await cv_hash_service.ensure_indexes()
+    logger.info(f"CV hash unique index: {index_result}")
 
 
 # ============= DEPENDENCY FUNCTIONS =============
@@ -1220,6 +1227,22 @@ async def upload_resume(
     
     result.stage_reached = ProcessingStage.TEXT_EXTRACTION
     
+    # ===== ETAPA 1B: CV YA CARGADO (hash SHA-256 idéntico) =====
+    cv_hashes = compute_hashes(file_data, file.content_type)
+    existing_cv = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+    if existing_cv:
+        result.status = "duplicate_blocked"
+        result.processing_time_ms = int((time.time() - start_time) * 1000)
+        response = result.to_response()
+        response["duplicate_blocked"] = True
+        response["identical_cv"] = True
+        response["existing_candidate"] = existing_cv
+        response["message"] = f"CV ya cargado (candidato {existing_cv['candidate_name']})"
+        response["actions"] = {
+            "view_candidate": f"/candidates/{existing_cv['candidate_id']}"
+        }
+        return response
+    
     # ===== ETAPA 2: EXTRACCIÓN DE TEXTO =====
     extracted_text = ""
     try:
@@ -1485,6 +1508,31 @@ async def upload_resume(
             candidate.cv_storage_issue = storage_issue(file.filename, e)
             candidate.resume_files = []
         
+        if candidate.resume_files:
+            try:
+                await cv_hash_service.register(
+                    candidate_id=candidate_id,
+                    candidate_name=candidate.full_name,
+                    file_path=candidate.resume_files[0].file_path,
+                    file_name=file.filename,
+                    file_type=file.content_type,
+                    uploaded_by=current_user.id,
+                    hashes=cv_hashes,
+                )
+            except DuplicateKeyError:
+                owner = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+                result.status = "duplicate_blocked"
+                result.processing_time_ms = int((time.time() - start_time) * 1000)
+                response = result.to_response()
+                response["duplicate_blocked"] = True
+                response["identical_cv"] = True
+                response["existing_candidate"] = owner
+                response["message"] = (
+                    f"CV ya cargado (candidato {owner['candidate_name']})" if owner
+                    else "CV ya cargado en el sistema"
+                )
+                return response
+        
         result.stage_reached = ProcessingStage.EMBEDDING_GENERATION
         
         # ===== ETAPA 8: GENERACIÓN DE EMBEDDINGS =====
@@ -1627,6 +1675,34 @@ async def upload_resume(
                 "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}
             }
         )
+        
+        try:
+            await cv_hash_service.register(
+                candidate_id=candidate_id,
+                candidate_name=None,
+                file_path=resume_file.file_path,
+                file_name=file.filename,
+                file_type=file.content_type,
+                uploaded_by=current_user.id,
+                hashes=cv_hashes,
+            )
+        except DuplicateKeyError:
+            await db.candidates.update_one(
+                {"id": candidate_id},
+                {"$pull": {"resume_files": {"file_path": resume_file.file_path}}}
+            )
+            owner = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+            result.status = "duplicate_blocked"
+            result.processing_time_ms = int((time.time() - start_time) * 1000)
+            response = result.to_response()
+            response["duplicate_blocked"] = True
+            response["identical_cv"] = True
+            response["existing_candidate"] = owner
+            response["message"] = (
+                f"CV ya cargado (candidato {owner['candidate_name']})" if owner
+                else "CV ya cargado en el sistema"
+            )
+            return response
     
     # ===== RESULTADO FINAL =====
     result.stage_reached = ProcessingStage.COMPLETED
@@ -1792,6 +1868,22 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     job.current_stage = "ai_parsing"
     await background_processor.persist_job(job)
     _t = time.time()
+    
+    # 1B. CV ya cargado (hash SHA-256 idéntico)
+    cv_hashes = compute_hashes(file_data, content_type, text=extracted_text)
+    existing_cv = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+    if existing_cv:
+        result["status"] = "duplicate_blocked"
+        result["errors"].append({
+            "type": "identical_cv",
+            "stage": "duplicate_detection",
+            "message": f"CV ya cargado (candidato {existing_cv['candidate_name']})",
+            "candidate_id": existing_cv['candidate_id'],
+            "candidate_name": existing_cv['candidate_name'],
+            "recoverable": False
+        })
+        result["existing_candidate"] = existing_cv
+        return result
     
     # 2. Parsing con AI
     parsed_data = {}
@@ -1971,6 +2063,32 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         candidate.resume_files = []
         result['errors'].append({'type': 'storage_upload_failed', 'stage': 'storage',
                                  'message': candidate.cv_storage_issue['message'], 'recoverable': False})
+    
+    if candidate.resume_files:
+        try:
+            await cv_hash_service.register(
+                candidate_id=candidate_id,
+                candidate_name=candidate.full_name,
+                file_path=candidate.resume_files[0].file_path,
+                file_name=file_name,
+                file_type=content_type,
+                uploaded_by=user_id,
+                hashes=cv_hashes,
+            )
+        except DuplicateKeyError:
+            owner = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+            result["status"] = "duplicate_blocked"
+            result["errors"].append({
+                "type": "identical_cv",
+                "stage": "duplicate_detection",
+                "message": (f"CV ya cargado (candidato {owner['candidate_name']})" if owner
+                            else "CV ya cargado en el sistema"),
+                "candidate_id": owner['candidate_id'] if owner else None,
+                "candidate_name": owner['candidate_name'] if owner else None,
+                "recoverable": False
+            })
+            result["existing_candidate"] = owner
+            return result
     
     job.stage_timings["storage"] = int((time.time() - _t) * 1000)
     job.progress = 85
@@ -2986,6 +3104,8 @@ async def merge_candidates(
         
         logger.info(f"Candidates merged: {request.secondary_candidate_id} -> {request.primary_candidate_id} by {current_user.email}")
         
+        await cv_hash_service.transfer_candidate(request.secondary_candidate_id, request.primary_candidate_id)
+        
         return {
             "success": True,
             "message": "Candidatos fusionados exitosamente",
@@ -3051,6 +3171,9 @@ async def merge_multiple_candidates(
         )
         
         logger.info(f"Multiple candidates merged: {request.secondary_candidate_ids} -> {request.primary_candidate_id} by {current_user.email}")
+        
+        for sid in request.secondary_candidate_ids:
+            await cv_hash_service.transfer_candidate(sid, request.primary_candidate_id)
         
         return {
             "success": True,
@@ -3255,9 +3378,9 @@ async def cleanup_orphan_records(
                 )
                 if result.modified_count > 0:
                     deleted_count += 1
+                    await cv_hash_service.deactivate_candidate(cid)
             except Exception as e:
                 errors.append({"id": cid, "error": str(e)})
-        
         # Create audit log
         await db.cleanup_audit_log.insert_one({
             "id": str(uuid.uuid4()),
@@ -3280,6 +3403,99 @@ async def cleanup_orphan_records(
     except Exception as e:
         logger.error(f"Error cleaning up orphans: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.get("/duplicates/identical-cv")
+async def get_identical_cv_groups(current_user: User = Depends(get_current_user)):
+    """Grupos de fichas cuyo CV es idéntico (mismo hash de archivo o de texto normalizado)."""
+    groups = await cv_hash_service.identical_groups()
+    summary = {"safe": 0, "merge_required": 0, "manual_review": 0, "extras": 0}
+    for g in groups:
+        summary[g["status"]] += 1
+        summary["extras"] += len(g["extras"])
+    return {
+        "total_groups": len(groups),
+        "summary": summary,
+        "groups": groups,
+        "can_delete": current_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+    }
+
+
+class IdenticalCVCleanupRequest(PydanticBaseModel):
+    group_keys: List[str]
+
+
+@api_router.post("/duplicates/identical-cv/delete-extras")
+async def delete_identical_cv_extras(
+    request: IdenticalCVCleanupRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Soft delete de las fichas sobrantes de grupos con CV idéntico. Solo admins."""
+    if current_user.role not in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo admins pueden eliminar fichas sobrantes")
+    if not request.group_keys:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe especificar al menos un grupo")
+
+    groups = {g["group_key"]: g for g in await cv_hash_service.identical_groups()}
+    deleted_ids = []
+    skipped = []
+    filled = {}
+
+    for key in request.group_keys:
+        group = groups.get(key)
+        if not group:
+            skipped.append({"group_key": key, "reason": "grupo_no_encontrado"})
+            continue
+        if group["status"] != "safe":
+            skipped.append({"group_key": key, "reason": group["status"]})
+            continue
+
+        keep_id = group["keep"]["candidate_id"]
+        extra_ids = [m["candidate_id"] for m in group["extras"]]
+
+        updates = await cv_hash_service.fill_missing_from_extras(keep_id, extra_ids)
+        if updates:
+            filled[keep_id] = sorted(updates.keys())
+
+        for eid in extra_ids:
+            result = await db.candidates.update_one(
+                {"id": eid, "is_deleted": {"$ne": True}},
+                {"$set": {
+                    "is_deleted": True,
+                    "deleted_at": datetime.now(timezone.utc).isoformat(),
+                    "deletion_type": "identical_cv_cleanup",
+                    "deleted_by": current_user.id,
+                    "duplicate_of": keep_id,
+                }}
+            )
+            if result.modified_count > 0:
+                await cv_hash_service.deactivate_candidate(eid)
+                deleted_ids.append(eid)
+
+        await db.cleanup_audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "action": "identical_cv_cleanup",
+            "group_key": key,
+            "kept_candidate_id": keep_id,
+            "candidate_ids": extra_ids,
+            "fields_filled": filled.get(keep_id, []),
+            "deleted_count": len(extra_ids),
+            "performed_by": current_user.id,
+            "performed_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    index_result = await cv_hash_service.ensure_indexes()
+    logger.info(f"Identical CV cleanup: {len(deleted_ids)} fichas eliminadas por {current_user.email}")
+
+    return {
+        "success": True,
+        "message": f"{len(deleted_ids)} fichas sobrantes eliminadas (recuperables)",
+        "deleted_count": len(deleted_ids),
+        "deleted_ids": deleted_ids,
+        "fields_filled": filled,
+        "skipped": skipped,
+        "unique_index": index_result,
+    }
 
 
 @api_router.get("/duplicates/merge-history")
@@ -3428,10 +3644,37 @@ async def update_candidate_cv(
         file_data = await file.read()
         file_size = len(file_data)
         
+        # CV ya cargado (hash SHA-256 idéntico): las versiones con hash distinto entran normal
+        cv_hashes = compute_hashes(file_data, file.content_type)
+        existing_cv = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+        if existing_cv:
+            raise HTTPException(
+                status_code=409,
+                detail=f"CV ya cargado (candidato {existing_cv['candidate_name']})"
+            )
+        
         # Upload new CV to storage
         storage_result = await asyncio.to_thread(storage_service.upload_resume,
             file_data, candidate_id, file.filename, file.content_type
         )
+        
+        try:
+            await cv_hash_service.register(
+                candidate_id=candidate_id,
+                candidate_name=candidate.get('full_name'),
+                file_path=storage_result['storage_path'],
+                file_name=file.filename,
+                file_type=file.content_type,
+                uploaded_by=user.id,
+                hashes=cv_hashes,
+            )
+        except DuplicateKeyError:
+            owner = await cv_hash_service.find_owner(cv_hashes['sha256_file'])
+            raise HTTPException(
+                status_code=409,
+                detail=(f"CV ya cargado (candidato {owner['candidate_name']})" if owner
+                        else "CV ya cargado en el sistema")
+            )
         
         # Extract and parse new CV
         parsed_snapshot = None
@@ -3533,6 +3776,8 @@ async def update_candidate_cv(
             'cv_storage_issue': issue, 'updated_at': datetime.now(timezone.utc).isoformat(),
         }})
         raise HTTPException(503, issue['message']) from e
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error updating CV: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error actualizando CV: {str(e)}")

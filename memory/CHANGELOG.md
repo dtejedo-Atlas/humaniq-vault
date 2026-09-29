@@ -65,3 +65,23 @@
 | vguerrero@hqts.com.mx | recruiter |
 
 **Adicional 2026-07-16:** `admin@atlas.com` también desactivada (cuenta huérfana de pruebas de marzo).
+
+## 2026-09-29 — Pestaña "CV idénticos" (Fase 0 + Fase 1)
+- Backup previo de Atlas: `/app/backups/backup_atlas_talent_vault_20260929_013814.archive.gz` (8.01 MB).
+- Nuevo `backend/cv_hash_service.py`: SHA-256 de archivo y de texto extraído normalizado (hash de texto solo si >= 300 chars), colección `cv_hashes` (`active` marca CVs de fichas vivas).
+- Backfill de 849 CVs (`scripts/cv_hash_backfill.py`): 3 errores de descarga (archivos ausentes en object storage, rutas legacy `uploads/resumes/...`) y 21 sin hash de texto.
+- Detección: 150 grupos con CV idéntico / 185 fichas sobrantes (146 por hash de archivo, 4 por hash de texto). Informe en `/app/test_reports/identical_cv_groups.json`.
+- Endpoints: `GET /api/duplicates/identical-cv`, `POST /api/duplicates/identical-cv/delete-extras` (solo admin, soft delete + `cleanup_audit_log`, copia campos faltantes a la ficha conservada). Conserva la ficha con clasificación aprobada por humano; si ninguna, la más antigua.
+- Prevención en carga (los 3 flujos: individual, batch, update-cv): si el hash de archivo ya existe en cualquier candidato → bloqueo "CV ya cargado (candidato X)" sin crear ficha; `DuplicateKeyError` capturado con el mismo mensaje.
+- Índice único global `uniq_active_sha256_file` (parcial sobre `active: true`): se intenta crear en cada arranque y tras cada limpieza; hoy NO se crea porque quedan 185 sobrantes activos pendientes de aprobación del usuario.
+- Fusiones N-a-1 ahora transfieren los hashes al candidato primario; la limpieza de huérfanos desactiva los hashes.
+- Frontend: `components/IdenticalCVTab.js` + pestañas en `pages/DuplicatesPage.js` (selección por grupo, "Seleccionar todos", eliminación en lote, botón "Fusionar N-a-1" para grupos con datos propios, "Revisar manual" sin borrado en lote).
+- Corregido nombre mal parseado de la ficha `7ba8279c` → "Eliot Roaro".
+- Pruebas: `backend/tests/test_identical_cv_flow.py` (grupo sintético: detección, soft delete, copia de campos, desactivación de hash y auditoría) y prueba manual de bloqueo al re-subir un CV existente (candidato Bernardo Baader).
+- `git diff` vacío en `backend/scoring/` y `job_matching_service.py`.
+- NADA eliminado: las 185 fichas sobrantes siguen activas esperando aprobación del usuario en la pestaña.
+
+## 2026-09-29 (tarde) — Aviso con enlace + verificación de limpieza
+- **La limpieza de sobrantes NO se ejecutó**: `cleanup_audit_log` no tiene ningún registro `identical_cv_cleanup`, 848 candidatos activos (sin cambios), 147 hashes de archivo con 2+ CVs activos y 181 CVs sobrantes. Índice `uniq_active_sha256_file` NO creado (solo `_id_`). Probable causa: los clics se hicieron en la app desplegada (producción), que aún no tiene este código; el preview sí lo tiene.
+- Aviso inteligente: `existing_candidate` y `message` expuestos al frontend; botón "Ver ficha de {nombre}" en resultados de carga individual (`upload-result-identical-cv-link-{i}`) y en jobs de lote (`batch-job-identical-cv-link-{job_id}`). Los errores `identical_cv` del lote ahora incluyen `candidate_id`/`candidate_name`. Verificado en UI re-subiendo el CV de Bernardo Baader.
+- Barrido por nombre (`scripts/duplicates_sweep_by_email.py`, solo lectura, estado actual SIN limpieza aplicada): 162 grupos / 368 fichas / 206 sobrantes → mismo email 155, emails distintos 1, sin email 6. Informe: `/app/test_reports/duplicates_sweep_by_email.json`.

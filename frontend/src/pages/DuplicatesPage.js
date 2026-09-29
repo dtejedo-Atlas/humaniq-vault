@@ -32,6 +32,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
+import IdenticalCVTab from '../components/IdenticalCVTab';
 
 const API_BASE = process.env.REACT_APP_BACKEND_URL || '';
 
@@ -301,6 +303,13 @@ const DuplicatesPage = () => {
         )}
 
         {/* Duplicate Groups */}
+        <Tabs defaultValue="similar" className="w-full">
+          <TabsList>
+            <TabsTrigger value="similar" data-testid="tab-similar-duplicates">Posibles duplicados</TabsTrigger>
+            <TabsTrigger value="identical" data-testid="tab-identical-cv">CV idénticos</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="similar" className="mt-6">
         <div className="grid grid-cols-2 gap-6">
           {/* List */}
           <Card>
@@ -440,6 +449,12 @@ const DuplicatesPage = () => {
             </CardContent>
           </Card>
         </div>
+          </TabsContent>
+
+          <TabsContent value="identical" className="mt-6">
+            <IdenticalCVTab />
+          </TabsContent>
+        </Tabs>
 
         {/* Merge Dialog */}
         <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
