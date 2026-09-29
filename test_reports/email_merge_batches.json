@@ -1,0 +1,157 @@
+{
+  "grupos_totales": 21,
+  "grupos_fusionados": 21,
+  "fichas_desactivadas": 23,
+  "candidatos_activos_antes": 663,
+  "candidatos_activos_despues": 640,
+  "saltados": [],
+  "detalle": [
+    {
+      "batch": 1,
+      "nombre": "Alicia Verónica Anaya López",
+      "primary": "16e1b054-f262-45f4-ad3f-6c469ff38c1f",
+      "secundarias": 2,
+      "total_merged": 2
+    },
+    {
+      "batch": 1,
+      "nombre": "Ernesto Suárez Fernández",
+      "primary": "071af264-d97e-4932-9bdc-3929b27ed591",
+      "secundarias": 2,
+      "total_merged": 2
+    },
+    {
+      "batch": 1,
+      "nombre": "Publio César Rendón Hernández",
+      "primary": "5b268db5-4395-4365-95dc-fc56a8d7646e",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 1,
+      "nombre": "Jaime Novoa Hernández",
+      "primary": "f50780f7-0d0c-4996-b0e0-ac1f96c86684",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 1,
+      "nombre": "Victor Manuel Serrano Camacho",
+      "primary": "a252c600-c5e9-4af9-93ee-44ea6b39da34",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 2,
+      "nombre": "Andrea Ortiz Torres",
+      "primary": "c077f76b-8b07-4bcb-8fec-b311df06da3e",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 2,
+      "nombre": "Ángel Méndez Sánchez",
+      "primary": "04ade258-bae7-4622-a1ee-3c24e2507329",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 2,
+      "nombre": "Berenice Gómora Camargo",
+      "primary": "99b9ca71-80b8-4239-b318-de664cf2c6fd",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 2,
+      "nombre": "Carlos Eduardo Díaz Jaramillo",
+      "primary": "d01f65c5-99a4-4cf3-93bb-b1b2c19b5c32",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 2,
+      "nombre": "Carlos Francisco Manzano Hermosillo",
+      "primary": "0f7c9914-4e92-4647-b080-12d68b659456",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 3,
+      "nombre": "César Noel Macías Sánchez",
+      "primary": "e5262b08-93c8-4b8b-a176-110722a39c7f",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 3,
+      "nombre": "Cristina Isabel Lopez Miranda",
+      "primary": "915685fe-76ed-4a48-972b-43a86b331573",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 3,
+      "nombre": "David Alejandro Cisneros Sifuentes",
+      "primary": "0fd098ad-6a52-4687-992b-88bcf57fab37",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 3,
+      "nombre": "David Montiel Salgado",
+      "primary": "3b70454f-17d2-45c8-a3c8-3976a9380eee",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 3,
+      "nombre": "Diego Adrián Orcajo Castelán",
+      "primary": "48a18ccc-aa45-4dca-8069-de7a784f99ba",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 4,
+      "nombre": "Estrella M. León Aparicio",
+      "primary": "9dd9039b-6391-46a3-89b1-f4da58eb8546",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 4,
+      "nombre": "Fernando López Tapia",
+      "primary": "6fe3aff5-ba5f-48ac-b456-102834352e4a",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 4,
+      "nombre": "Fernando Lizárraga González",
+      "primary": "352341e7-2a9d-4541-b6fb-88ddfbaaf897",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 4,
+      "nombre": "Fernando Sealtiel Marín Parra",
+      "primary": "b60a5817-f39f-47bd-b2d5-eecfbe03b7cc",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 4,
+      "nombre": "Carlos Leal Trujillo",
+      "primary": "117a0c11-b7e8-4e4b-be4f-2ca85925fd76",
+      "secundarias": 1,
+      "total_merged": 1
+    },
+    {
+      "batch": 5,
+      "nombre": "Humberto David Hernández Pérez",
+      "primary": "e76b9e48-5650-4d08-9a02-ac736f2e304e",
+      "secundarias": 1,
+      "total_merged": 1
+    }
+  ]
+}

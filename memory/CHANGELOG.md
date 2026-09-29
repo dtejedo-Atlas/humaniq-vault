@@ -103,3 +103,10 @@
 - Pruebas: `backend/tests/test_duplicates_trash_jobs_cycle.py` 10/10 OK; testing agent de frontend 100% (KPIs, alerta de caducidad, archivar/reactivar, botones de eliminar con confirmación, CV idénticos, papelera con búsqueda y restaurar). El diálogo de archivadas similares se validó por backend (no en UI: no había vacantes archivadas reales).
 - `git diff` vacío en `backend/scoring/`, `job_matching_service.py` y `affinity_matrices.py`.
 - Pendiente de tu aprobación: fusión N-a-1 de los 21 grupos con mismo email, en tandas de 5. Ninguna fusión ejecutada.
+
+## 2026-09-29 (fusión por email) — 21 grupos fusionados N-a-1
+- Backup previo: `/app/backups/backup_atlas_talent_vault_20260929_233815.archive.gz` (8.27 MB).
+- Script `scripts/merge_email_duplicates.py` (tandas de 5): 21/21 grupos fusionados, 23 fichas secundarias desactivadas, 0 saltados. Candidatos activos 663 → 640; papelera 274 → 297.
+- Principal = ficha más antigua; `keep_all_cvs=True`: los 21 principales conservan CVs históricos (versiones o múltiples archivos). Notas y asignaciones preservadas por `CandidateMerger`.
+- Sin tocar: 1 grupo con emails distintos y 1 grupo sin email (quedan listados para revisión manual).
+- Barrido final por nombre: 2 grupos / 4 fichas / 2 sobrantes. Informe: `/app/test_reports/email_merge_batches.json`.
