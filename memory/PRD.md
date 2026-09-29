@@ -112,6 +112,14 @@ Construir una aplicación web full-stack lista para producción para una firma d
 ### Duplicados detectados de paso (informado, no tocado)
 - «Erick Gabriel Morales Rivera» (gaboerick@gmail.com) tiene **3 fichas activas** (`5e700bc5`, `7c294b17`, `c41556f7`), dos creadas con 23 segundos de diferencia. Candidato claro para la fusión N-a-1 ya corregida.
 
+### Subáreas con IA + límite de palabra + fusión de Erick + barrido (2026-09-29, quinta tanda)
+- **Subáreas con IA** (`scripts/infer_subareas_ai.py`, Claude Sonnet 4.5 vía Emergent LLM key, 5 en paralelo): 456 procesados → **438 rellenados**, 16 sin subárea clara, 2 descartados por confianza < 0.7, 0 errores. Se guarda `subarea_source: ai` y `subarea_confidence`. Total con subárea: 291 → **727** de 827 con área.
+- **Incidente detectado y corregido**: la pasada por puesto había sobrescrito la subárea que la clasificación del CV completo dedujo para Ángel (contraloría → contabilidad). Se restauró a `contraloria` y ambos scripts ahora excluyen a quien ya tenga `ai_classification.presentation_subarea` (nunca se sobrescribe lo deducido del CV, que es más rico que el título). Sólo Ángel estaba afectado.
+- **Límite de palabra aplicado** en `query_parser._contains` para keywords de ≤3 caracteres, en ambas pasadas. Verificación en vivo con `scripts/measure_short_keyword_fix.py`: **las 15 consultas coinciden exactamente con la simulación previa**. CFO→11, CIO→11, VP de ventas→10 intactos; «director de operaciones» 11→9, «gerente de operaciones» 11→7, «director de producción» 11→9, «jefe de produccion» 11→6 y área technology→operations, «operaciones logísticas» 11→None. Snapshot de acentos: 14 de 15 idénticas, cambia sólo «director de operaciones» (el arreglo aprobado).
+- **Erick Gabriel Morales Rivera**: 3 fichas → 1 (principal `5e700bc5`, la más antigua). CVs: v1 vigente + v2 y v3 históricas con `upload_source: merge`. 36 skills (+2 del merge). 0 notas y 0 asignaciones en las tres fichas, nada que perder.
+- **Barrido de duplicados** (`scripts/duplicates_sweep.py`, solo lectura): **161 grupos** con 2+ fichas activas, 366 fichas implicadas, **205 sobrantes** si se fusionaran. Distribución: 137 grupos de 2, 12 de 3, 8 de 4, 3 de 5 y 1 de 9 (`TEST_Carga Paralela 0`, datos de prueba de carga). Detalle completo en `/app/test_reports/duplicates_sweep.json`. NO se fusionó nada: el usuario lo revisa.
+- Suite: 13 failed / 176 passed / 32 skipped — igual al baseline. `git diff` vacío en `scoring/`, `job_matching_service.py` y `scoring_config.py`.
+
 ### Deuda detectada y NO corregida (informada)
 - Nada pendiente de los dos defectos del merge: ambos quedaron corregidos y con pruebas (ver sección anterior).
 - La búsqueda de texto es sensible a acentos: corregido (ver sección de acentos). Queda pendiente de decisión el bug de keywords cortos dentro de palabras en la pasada literal.

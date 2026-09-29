@@ -94,8 +94,11 @@ def infer_subarea(candidate, use_skills=False):
 
 
 def run(db, apply_changes, use_skills=False):
+    # Nunca se sobrescribe una subárea existente, ni la que ya dedujo la clasificación
+    # del CV completo (más rica que el título): sólo se rellenan las realmente vacías.
     query = {**ACTIVE, "presentation_area": {"$ne": None},
-             "$or": [{"presentation_subarea": None}, {"presentation_subarea": {"$exists": False}}]}
+             "$or": [{"presentation_subarea": None}, {"presentation_subarea": {"$exists": False}}],
+             "ai_classification.presentation_subarea": None}
     projection = {"_id": 0, "id": 1, "full_name": 1, "presentation_area": 1, "current_title": 1,
                   "skills": 1, "ai_summary": 1, "ai_classification.approved_by_recruiter": 1}
     now = datetime.now(timezone.utc).isoformat()

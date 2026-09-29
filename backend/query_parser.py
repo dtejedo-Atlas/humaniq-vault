@@ -184,12 +184,11 @@ def parse_query(query: str) -> Dict[str, Any]:
 def _contains(keyword: str, text: str, strict_short: bool = False) -> bool:
     """Coincidencia de keyword en texto.
 
-    En la pasada sin acentos (strict_short=True) los keywords de 3 caracteres o
-    menos (CFO, CIO, VP, RH...) exigen límite de palabra para que normalizar
-    acentos no introduzca falsos positivos ('cio' dentro de 'produccion').
-    La pasada literal conserva el comportamiento histórico sin cambios.
+    Los keywords de 3 caracteres o menos (CFO, CIO, VP, RH) exigen límite de
+    palabra: 'cio' no debe colarse dentro de 'operaciones' ni de 'produccion'.
+    El parámetro strict_short se conserva por compatibilidad de llamadas.
     """
-    if strict_short and len(keyword) <= 3:
+    if len(keyword) <= 3:
         return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
     return keyword in text
 

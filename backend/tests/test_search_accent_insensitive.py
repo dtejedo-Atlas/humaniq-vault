@@ -41,17 +41,20 @@ def test_no_cambia_lo_que_ya_funcionaba():
     assert parse_query("logística")["area_funcional"] == "supply_chain"
     assert parse_query("CFO")["seniority_index"] == 11
     assert parse_query("director de operaciones")["area_funcional"] == "operations"
-    assert parse_query("ingeniería de producción")["seniority_index"] is None
     assert parse_query("java")["area_funcional"] is None
 
 
-def test_keywords_cortos_no_se_cuelan_en_la_pasada_sin_acentos():
-    # Al normalizar acentos, 'cio' NO debe convertir 'producción' en C-Level (nivel 11)
+def test_keywords_cortos_exigen_limite_de_palabra():
+    # 'cio' ya no se cuela dentro de palabras (aprobado por el usuario 2026-09-29)
     assert parse_query("ingeniería de producción")["seniority_index"] is None
-    assert parse_query("dirección de producción")["seniority_index"] == 9
-    # Deuda preexistente, fuera de este alcance: en la pasada literal 'cio' sigue
-    # colándose dentro de palabras sin acento ('produccion', 'operaciones').
-    assert parse_query("produccion")["seniority_index"] == 11
+    assert parse_query("director de producción")["seniority_index"] == 9
+    assert parse_query("produccion")["seniority_index"] is None
+    assert parse_query("director de operaciones")["seniority_index"] == 9
+    assert parse_query("gerente de operaciones")["seniority_index"] == 7
+    # Y los keywords cortos legítimos siguen funcionando
+    assert parse_query("CFO")["seniority_index"] == 11
+    assert parse_query("CIO")["seniority_index"] == 11
+    assert parse_query("VP de ventas")["seniority_index"] == 10
 
 
 def test_keyword_score_insensible_a_acentos():
