@@ -1,0 +1,298 @@
+{
+  "nombres_corregidos": 15,
+  "nombres_saltados": [],
+  "fichas_qa_eliminadas": 22,
+  "cvs_purgados": 22,
+  "errores_purga": [],
+  "candidatos_activos": 617,
+  "detalle_nombres": [
+    {
+      "candidate_id": "4391381b-5356-4e34-a26d-3a9e6b974828",
+      "antes": "Desconocido",
+      "despues": "Ricardo Domínguez Castrejón",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "9ddb7005-fda7-4b33-acde-ee892ff1cd77",
+      "antes": "Cv María José Coca Candia",
+      "despues": "María José Coca Candia",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "7d7dabba-099a-4c2a-ae1c-143f91f28643",
+      "antes": "Cv Juan Fernando Villaseñor",
+      "despues": "Juan Fernando Villaseñor Lopez",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "c493b5ee-e7ec-44e9-a2cf-e3c07544f708",
+      "antes": "Cv Giovanny Robles",
+      "despues": "Mohamet Giovanny Robles Díaz",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "28263f81-3d75-4627-b923-8def9815ebdb",
+      "antes": "Cv Jose Antonio Aboytes",
+      "despues": "José Antonio Aboytes López",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "ea50bda4-a5f1-4789-a5a0-8794feaa9654",
+      "antes": "Cv Eric Sierra",
+      "despues": "Eric Sierra González",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "a55795c9-eae1-46ca-ac16-ca7726984ac1",
+      "antes": "Cv Jose Antonio Gachuz",
+      "despues": "José Antonio Gachuz Osorio",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "2b523f12-ee32-4fdd-949a-8450b3450931",
+      "antes": "Cv Juan Carlos San Juan",
+      "despues": "Juan Carlos San Juan San Agustín",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "a9d2321c-2251-46cb-b6cc-f015f6bf98fe",
+      "antes": "Candidato - curriculum_ing_ricardo[1].docx",
+      "despues": "Ricardo Rojas Jiménez",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "8ee7879e-4773-46cf-9e61-1c81898a510e",
+      "antes": "Cv Agus Hdez",
+      "despues": "Agustín Hernández Chávez",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "5d2563af-8865-4867-8dc1-636041216362",
+      "antes": "Brenda",
+      "despues": "Brenda Peña Delgado",
+      "campos": [
+        "full_name",
+        "full_name_normalized",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "81ab5daf-7120-40d8-bdaa-3318a5ee1559",
+      "antes": "Cv Eckehard K Ramirez Torres",
+      "despues": "Eckehard K. Ramirez Torres",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "116c4975-c808-4ed0-aed3-48e0e009c4ad",
+      "antes": "Cv Eduardo Téllez Hernández",
+      "despues": "Eduardo Téllez Hernández",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "9e42150c-a7c6-4979-9427-324ed1b169f7",
+      "antes": "Evagar",
+      "despues": "Eva Patricia Garza Rodríguez",
+      "campos": [
+        "full_name",
+        "full_name_normalized",
+        "updated_at"
+      ]
+    },
+    {
+      "candidate_id": "b758dbcc-6dc3-47d1-b5ac-084658d49ef5",
+      "antes": "Candidato - CV Gabriela Palacios (1).docx",
+      "despues": "Gabriela Palacios Novelo",
+      "campos": [
+        "email",
+        "full_name",
+        "full_name_normalized",
+        "phone",
+        "updated_at"
+      ]
+    }
+  ],
+  "detalle_qa": [
+    {
+      "candidate_id": "e223c4a0-0ed5-427a-b47c-1d9d15347dd2",
+      "full_name": "TEST_Repro Lote Prod",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "5948e1b7-f088-43ec-8a6f-fc91017c6875",
+      "full_name": "TEST_Carga Paralela 0",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "ead5d219-8798-495e-a3f9-6f67ded89c6a",
+      "full_name": "TEST_Carga Paralela 1",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "956cbbda-3424-416c-9c03-f2caaff6a0a4",
+      "full_name": "TEST_Carga Paralela 2",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "2df1dad2-0e84-4402-80ad-2ebb574b66ab",
+      "full_name": "TEST_Carga Paralela 3",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "d72bda7e-17b7-49cc-998b-fe9f36da5ce9",
+      "full_name": "TEST_Carga Paralela 4",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "f84af3de-faae-48bc-b9f1-6067be5ecf19",
+      "full_name": "Bruno Batch694cc47f Salazar",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "9c4d2cb8-3175-41a0-a2b6-fb36dfc0d1e8",
+      "full_name": "Ana Batch694cc47f Ramírez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "75e12df5-1d90-4c4d-a699-bc2c1b07c5ab",
+      "full_name": "Carla Batch694cc47f Gómez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "e1103bd6-02ed-4813-babe-eb370b926786",
+      "full_name": "Daniel Batch694cc47f Núñez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "ec8813db-fc4f-4950-a8ef-8b6caf174888",
+      "full_name": "Carla Batch2b051712 Gómez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "02412e18-7421-4d69-a202-f238d14aeb18",
+      "full_name": "Bruno Batch2b051712 Salazar",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "0820be6f-4dc6-4bf5-8daa-a40e0709141a",
+      "full_name": "Ana Batch2b051712 Ramírez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "f74b7b8a-bc82-43bc-a58d-7340983ef488",
+      "full_name": "Daniel Batch2b051712 Núñez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "b3cd68ce-23f0-4856-8fba-ca4e477b73e7",
+      "full_name": "Ana Batch0f2dfd26 Ramírez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "b8c3b42f-4f3d-4510-bb16-f5338e719c55",
+      "full_name": "Bruno Batch0f2dfd26 Salazar",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "8031a7fe-73e5-4a07-a450-733be22a10a9",
+      "full_name": "Carla Batch0f2dfd26 Gómez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "4e64ed0b-e1dc-4491-ab11-ab916269dc26",
+      "full_name": "Daniel Batch0f2dfd26 Núñez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "43b3cf7f-8b82-4f0c-abe3-b2170e6031d7",
+      "full_name": "Carla Batch31e815fc Gómez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "ddbdbb35-1860-4644-9ec7-9ef3900452f8",
+      "full_name": "Bruno Batch31e815fc Salazar",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "effc94ff-4e52-40c2-bc9c-bc575eb518d9",
+      "full_name": "Ana Batch31e815fc Ramírez",
+      "cvs_purgados": 1
+    },
+    {
+      "candidate_id": "aea41e89-1105-4775-b664-8f6ac4a96476",
+      "full_name": "Daniel Batch31e815fc Núñez",
+      "cvs_purgados": 1
+    }
+  ]
+}

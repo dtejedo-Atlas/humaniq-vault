@@ -50,6 +50,7 @@ from duplicate_detector import DuplicateDetector, DuplicateSuggestion
 from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
 from cv_hash_service import CVHashService, compute_hashes
 from job_lifecycle_service import JobLifecycleService, ARCHIVE_AFTER_DAYS
+from name_quality import suspicious_name_issues, SUSPICIOUS_NAME_MESSAGE
 from pymongo.errors import DuplicateKeyError
 import hmac
 from embedding_service import embedding_service
@@ -1456,6 +1457,12 @@ async def upload_resume(
             return result.to_response()
         
         # ===== ETAPA 6: CLASIFICACIÓN CON AI =====
+        name_issues = suspicious_name_issues(candidate.full_name)
+        if name_issues:
+            candidate.review_status = 'manual_capture'
+            candidate.review_message = SUSPICIOUS_NAME_MESSAGE
+            candidate.name_quality_issues = name_issues
+            warnings.append(SUSPICIOUS_NAME_MESSAGE)
         if not extracted_text or len(extracted_text.strip()) < 50:
             candidate.review_status = 'manual_capture'
             candidate.review_message = MANUAL_MESSAGE
@@ -1484,6 +1491,10 @@ async def upload_resume(
                 recoverable=True
             )
             warnings.append("Clasificación AI no disponible")
+        
+        if name_issues:
+            candidate.review_status = 'manual_capture'
+            candidate.review_message = SUSPICIOUS_NAME_MESSAGE
         
         # Generar resumen con Atlas
         try:
@@ -2005,6 +2016,13 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         return result
     
     candidate.cv_extraction = {key: value for key, value in extraction_details.items() if key != 'text'}
+    name_issues = suspicious_name_issues(candidate.full_name)
+    if name_issues:
+        candidate.review_status = 'manual_capture'
+        candidate.review_message = SUSPICIOUS_NAME_MESSAGE
+        candidate.name_quality_issues = name_issues
+        result['review_status'] = 'manual_capture'
+        result['warnings'].append(SUSPICIOUS_NAME_MESSAGE)
     if not extraction_details['readable']:
         candidate.review_status = 'manual_capture'
         candidate.review_message = MANUAL_MESSAGE
@@ -2047,6 +2065,10 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
         })
     
     # Resumen (misma etapa, corre en paralelo con la clasificación)
+    if name_issues:
+        candidate.review_status = 'manual_capture'
+        candidate.review_message = SUSPICIOUS_NAME_MESSAGE
+        result['review_status'] = 'manual_capture'
     try:
         if summary_task:
             candidate.ai_summary = await summary_task
@@ -5418,6 +5440,29 @@ async def get_operational_dashboard(current_user: User = Depends(get_current_use
         "my_stale_jobs": my_stale_jobs[:10],
     }
     
+    # ===== alerta de duplicados nuevos =====
+    week_ago = (now - timedelta(days=7)).isoformat()
+    try:
+        dup_groups = await duplicate_detector_v2.get_all_duplicate_groups()
+    except Exception as e:
+        logger.error(f"Duplicates alert failed: {e}")
+        dup_groups = []
+    new_dup_groups = [
+        g for g in dup_groups
+        if any(str(c.get("created_at") or "") >= week_ago for c in (g.get("candidates") or []))
+    ]
+    identical_groups = await cv_hash_service.identical_groups()
+    duplicates_alert = {
+        "groups": len(dup_groups),
+        "records": sum(g.get("count", 0) for g in dup_groups),
+        "new_groups_7d": len(new_dup_groups),
+        "identical_cv_groups": len(identical_groups),
+        "new_names": [
+            (g.get("candidates") or [{}])[0].get("full_name")
+            for g in new_dup_groups[:5]
+        ],
+    }
+    
     # ===== charts =====
     by_area = []
     async for row in db.candidates.aggregate([
@@ -5462,6 +5507,7 @@ async def get_operational_dashboard(current_user: User = Depends(get_current_use
         "jobs_board": jobs_board,
         "recent_activity": logs,
         "action_inbox": action_inbox,
+        "duplicates_alert": duplicates_alert,
         "charts": {"by_functional_area": by_area, "new_by_week": new_by_week, "by_caliber": by_caliber},
     }
 

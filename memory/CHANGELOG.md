@@ -110,3 +110,13 @@
 - Principal = ficha más antigua; `keep_all_cvs=True`: los 21 principales conservan CVs históricos (versiones o múltiples archivos). Notas y asignaciones preservadas por `CandidateMerger`.
 - Sin tocar: 1 grupo con emails distintos y 1 grupo sin email (quedan listados para revisión manual).
 - Barrido final por nombre: 2 grupos / 4 fichas / 2 sobrantes. Informe: `/app/test_reports/email_merge_batches.json`.
+
+## 2026-10-01 — Casos restantes, calidad de nombres y alerta de duplicados
+- Backup previo: `/app/backups/backup_atlas_talent_vault_20261001_010639.archive.gz` (8.30 MB).
+- Carlos Sunderland Silva fusionado N-a-1 con principal `397044de` (Commercial Director); 2 CVs como versiones + nota con el correo alterno `carlos@stillworksbrands.com`.
+- Fichas "No especificado" corregidas como personas independientes: `aa5ee578` → César Reynoso Chávez (+ email y teléfono del CV) y `8e54901a` → Javier Gamero Compeán.
+- **Barrido de calidad de nombres** (`scripts/name_quality_scan.py` + `name_fix_proposals.py` con lectura del CV y parseo AI): 37 fichas detectadas → 15 nombres reales corregidos (acentos preferidos del CV cuando la IA los perdía) y 22 fichas sintéticas de QA eliminadas (soft delete) con sus 22 CVs purgados. Activos: 639 → **617**. Barrido final: 0 nombres sospechosos.
+- `storage_service.delete_object()`: el object storage de la plataforma **no soporta DELETE (405)**, así que la purga sobrescribe el objeto con 0 bytes (contenido irrecuperable) y se quita la referencia de la ficha.
+- **Validación al cargar** (`name_quality.py`): si el nombre resulta placeholder, nombre de archivo, con caracteres inválidos, una sola palabra, todo mayúsculas/minúsculas o demasiadas palabras → la ficha entra a "Por Revisar" con `review_status='manual_capture'`, mensaje "Nombre dudoso" y `name_quality_issues`. Aplicado en carga individual y en lote, y re-aplicado después de la clasificación AI para que no la sobrescriba. Verificado end-to-end subiendo un CV sin nombre legible.
+- **Alerta de duplicados en el dashboard**: `duplicates_alert` en `GET /api/dashboard/operational` (grupos, fichas, nuevos de 7 días, grupos de CV idéntico) + filas en "Mi bandeja" con badge naranja de nuevos. Hoy: 3 grupos / 6 fichas / 0 nuevos / 0 CV idénticos.
+- `git diff` vacío en `scoring/`, `job_matching_service.py` y `affinity_matrices.py`.

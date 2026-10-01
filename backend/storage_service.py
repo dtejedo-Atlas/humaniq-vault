@@ -74,6 +74,12 @@ class StorageService:
         return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
     
     @staticmethod
+    def delete_object(path: str) -> bool:
+        """El almacenamiento no expone DELETE (405): el objeto se purga sobrescribiéndolo con 0 bytes."""
+        StorageService.put_object(path, b'', 'application/octet-stream')
+        return True
+    
+    @staticmethod
     def upload_resume(file_data: bytes, candidate_id: str, filename: str, content_type: str) -> dict:
         """Upload resume to storage with proper path structure"""
         ext = filename.split(".")[-1] if "." in filename else "bin"

@@ -299,6 +299,7 @@ class Candidate(BaseModel):
     ai_summary: Optional[str] = None
     ai_classification: Optional[AIClassification] = None
     review_status: Optional[str] = None
+    name_quality_issues: List[str] = []
     review_message: Optional[str] = None
     cv_extraction: Optional[Dict] = None
     cv_storage_issue: Optional[Dict] = None

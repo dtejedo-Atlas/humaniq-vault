@@ -101,7 +101,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { kpis, jobs_board, recent_activity, action_inbox, charts } = data;
+  const { kpis, jobs_board, recent_activity, action_inbox, charts, duplicates_alert } = data;
   const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
   const caliberData = charts.by_caliber.filter((c) => c.count > 0).map((c) => ({ ...c, name: CALIBER_LABELS[c.caliber] }));
   const areaData = charts.by_functional_area.map((a) => ({ ...a, name: formatArea(a.area) }));
@@ -211,8 +211,26 @@ export default function DashboardPage() {
                 <span>{action_inbox.unassigned_scope === 'team' ? 'Candidatos sin vacante (equipo)' : 'Mis candidatos sin vacante'}</span>
                 <span className="font-bold text-slate-400">{action_inbox.my_unassigned_candidates}</span>
               </Link>
-              {action_inbox.my_stale_jobs.length > 0 && (
-                <div className="pt-1 border-t border-slate-800">
+              <Link to="/duplicates" className="flex items-center justify-between text-slate-300 hover:text-cyan-300 py-1" data-testid="inbox-duplicates-link">
+                <span className="flex items-center gap-2">
+                  Duplicados por revisar
+                  {duplicates_alert?.new_groups_7d > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300" data-testid="duplicates-new-badge">
+                      {duplicates_alert.new_groups_7d} nuevos
+                    </span>
+                  )}
+                </span>
+                <span className={`font-bold ${duplicates_alert?.groups > 0 ? 'text-orange-400' : 'text-slate-500'}`}>
+                  {duplicates_alert?.groups ?? 0}
+                </span>
+              </Link>
+              {duplicates_alert?.identical_cv_groups > 0 && (
+                <Link to="/duplicates" className="flex items-center justify-between text-slate-400 hover:text-cyan-300 py-1 text-xs" data-testid="inbox-identical-cv-link">
+                  <span>CV idénticos detectados</span>
+                  <span className="font-bold text-orange-400">{duplicates_alert.identical_cv_groups}</span>
+                </Link>
+              )}
+              {action_inbox.my_stale_jobs.length > 0 && (                <div className="pt-1 border-t border-slate-800">
                   <p className="text-xs text-orange-400 mb-1">Mis vacantes sin actividad:</p>
                   {action_inbox.my_stale_jobs.map((j) => (
                     <Link key={j.id} to={`/jobs/${j.id}`} className="flex items-center text-xs text-slate-300 hover:text-cyan-300 py-0.5">
