@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-focused E2E of Humaniq Talent Vault matching UI (Phases 1-4). Verified against the production preview with admin creds. All critical flows pass: Job detail /jobs/a5a9ceb5-... loads match-v3-card with 50 result cards, each with HMS, action badge, quick actions (view-cv/download-cv/view-profile), contact chips with copy. v3-snapshot-date and 'Actualizar matching' button present. On job load only GET /unified-matches and GET /ai-match-review are called (NO POST /match or /match-v3). cv-viewer-sheet opens with iframe blob: src and header 'CV · Efraín Mendoza Wicab'; closes on Escape. download-cv fires real download (Efraín_Mendoza_Wicab_Resume 2026.pdf). Back navigation: from job -> candidate-back-button says 'Volver a vacante: Director Comercial'; from /search -> 'Volver a búsqueda'; direct open /candidates/<id> -> 'Volver'. Back from job does NOT trigger POST match calls. Scorecard: scorecard-industries-block shows [telecommunications, technology, fintech] + requirement 'Obligatoria'; added retail -> saved -> reload persisted -> removed -> saved OK (toast 'Configuración de matching guardada'). AI Match Review has 3 finalists (ai-review-candidate-*). coverage-summary shows 'Telecomunicaciones: 26 · Tecnología: 120 · Fintech: 23 · requisito: obligatoria'. AI refine panel: existing criterion 'que haya manejado equipos de más de 20 vendedores' present with chip and counts; DELETE criterion reorders list to v3 order; re-run cached criterion completes in ~8s with ai-refine-progress bar and chips 'top 30 · US$0.029'. Regression: /jobs, /candidates, /admin (has 'Afinar con IA' task) all load; candidate-detail download-CV also works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Back navigation scroll restore (job -> candidate -> back)", "issue": "scrollY before navigation was 800 but after Back it restored to ~1878. The user returns to the correct job but scroll position is not exactly the previous value. May be anchoring to clicked element or match-v3-card instead of saving window.scrollY.", "affected_selectors": ["candidate-back-button"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/it35_job.jpeg"],
+  "action_items": [
+    "(Low) Review navigation.js restoreScroll: ensure window.scrollY is captured at click time (currently restored scrollY=1878 vs saved=800 in test). User still lands on correct job/vacante area so this is a UX polish, not functional.",
+    "(Info) Cached AI criterion re-run showed cost US$0.029 not US$0 even though task description noted 'ambos en caché, costo 0' — probably because the DELETE invalidated per-candidate cache. If zero-cost on reuse is required, verify ai_refine_service cache keying (job_id/criterion/cv_version).",
+    "(Info) /candidates list page did not expose <a href=/candidates/...> links in DOM (searched via querySelector). Navigation might rely on onClick router.push; not blocking but makes crawling harder."
+  ],
+  "critical_code_review_comments": [
+    "match-v3-result-card data-testid is NOT suffixed with candidate id (all cards share the same testid). Child elements (view-cv-<id>, etc.) are suffixed. Consider adding -<id> to the card itself for scoped selection; prevents strict-mode violations when AI Match Review finalists duplicate quick actions. Testing workaround: scope by [data-testid='match-v3-results'] get_by_test_id('view-cv-<id>').",
+    "First candidate appearing in both match-v3-results AND ai-review-candidate causes duplicate data-testid values (view-cv-<id> appears 2x on page). This creates Playwright strict mode violations; UI itself works."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not retested (per request)", "frontend": "100% (all requested flows verified)"},
+  "test_credentials": "test_utf8@atlas.com / +OipyxbpGdvQIB9FNTF#D$ (admin)",
+  "seed_data_creation": "Added industry 'retail' to job a5a9ceb5-6a43-4547-bd30-7966a96959b5 scorecard, verified persistence, then removed it. Added+deleted an AI criterion (cached text) during flow. State restored to original (3 industries, no retail; one AI criterion 'que haya manejado equipos de más de 20 vendedores' re-created with cost US$0.029).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Phase 1-4 matching UI validated end-to-end on /jobs/a5a9ceb5-6a43-4547-bd30-7966a96959b5. match-v3-result-card testid is NOT ID-suffixed; use [data-testid='match-v3-results'] get_by_test_id('view-cv-<id>') to disambiguate from AI Match Review finalist cards which duplicate the same quick-action testids. Cached AI criteria tested: 'que haya manejado equipos de más de 20 vendedores'. The other cached one not tested: 'que tenga experiencia en telecomunicaciones'. 'Buscar en toda la base' NOT exercised (per instructions, cost ~US$5). AI Match Review not regenerated. Minor scroll-restore discrepancy noted (saved 800 -> restored 1878).",
+  "rca of the issue": "N/A - no blocking issues found. Scroll-restore mismatch likely due to restoreScroll saving/measuring at a different timing than window.scrollY — may want to inspect frontend/src/utils/navigation.js openCandidate() to confirm it reads window.scrollY synchronously before router.push."
+}

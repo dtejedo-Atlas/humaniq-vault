@@ -294,7 +294,7 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
               const isOpen = expanded[r.candidate_id];
               const hecPct = Math.round((r.confidence_score || 0) * 100);
               return (
-                <Card key={r.candidate_id} className="border" data-testid="match-v3-result-card">
+                <Card key={r.candidate_id} className="border" data-testid={`match-v3-result-card-${r.candidate_id}`}>
                   <Collapsible open={isOpen} onOpenChange={() => toggleExpanded(r.candidate_id)}>
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-4">

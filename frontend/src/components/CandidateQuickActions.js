@@ -35,11 +35,12 @@ const CopyChip = ({ icon: Icon, value, label, href, testId }) => {
   );
 };
 
-export const CandidateQuickActions = ({ candidate, originLabel = 'vacante', compact = false }) => {
+export const CandidateQuickActions = ({ candidate, originLabel = 'vacante', compact = false, idPrefix = '' }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [viewerOpen, setViewerOpen] = useState(false);
   const id = candidate.candidate_id || candidate.id;
+  const t = (name) => `${idPrefix}${name}-${id}`;
   const name = candidate.candidate_name || candidate.name || candidate.full_name;
   const hasCv = candidate.has_cv !== false;
   const linkedin = candidate.linkedin_url;
@@ -51,18 +52,18 @@ export const CandidateQuickActions = ({ candidate, originLabel = 'vacante', comp
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2" data-testid={`quick-actions-${id}`} onClick={(e) => e.stopPropagation()}>
-      <CopyChip icon={Mail} value={candidate.email} label="Email" href={candidate.email ? `mailto:${candidate.email}` : null} testId={`contact-email-${id}`} />
-      <CopyChip icon={Phone} value={candidate.phone} label="Teléfono" href={candidate.phone ? `tel:${candidate.phone}` : null} testId={`contact-phone-${id}`} />
-      <CopyChip icon={Linkedin} value={linkedin ? linkedin.replace(/^https?:\/\/(www\.)?/i, '') : null} label="LinkedIn" href={linkedinHref} testId={`contact-linkedin-${id}`} />
+    <div className="flex flex-wrap items-center gap-2" data-testid={t('quick-actions')} onClick={(e) => e.stopPropagation()}>
+      <CopyChip icon={Mail} value={candidate.email} label="Email" href={candidate.email ? `mailto:${candidate.email}` : null} testId={t('contact-email')} />
+      <CopyChip icon={Phone} value={candidate.phone} label="Teléfono" href={candidate.phone ? `tel:${candidate.phone}` : null} testId={t('contact-phone')} />
+      <CopyChip icon={Linkedin} value={linkedin ? linkedin.replace(/^https?:\/\/(www\.)?/i, '') : null} label="LinkedIn" href={linkedinHref} testId={t('contact-linkedin')} />
       <span className="flex items-center gap-1 ml-auto">
-        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={!hasCv} onClick={(e) => { e.stopPropagation(); setViewerOpen(true); }} data-testid={`view-cv-${id}`}>
+        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={!hasCv} onClick={(e) => { e.stopPropagation(); setViewerOpen(true); }} data-testid={t('view-cv')}>
           <Eye className="w-3.5 h-3.5 mr-1" /> Ver CV
         </Button>
-        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={!hasCv} onClick={download} data-testid={`download-cv-${id}`}>
+        <Button variant="outline" size="sm" className="h-7 px-2 text-xs" disabled={!hasCv} onClick={download} data-testid={t('download-cv')}>
           <Download className="w-3.5 h-3.5 mr-1" /> {compact ? '' : 'Descargar CV'}
         </Button>
-        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-700" onClick={(e) => { e.stopPropagation(); openCandidate(navigate, location, id, originLabel); }} data-testid={`view-profile-${id}`}>
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-blue-700" onClick={(e) => { e.stopPropagation(); openCandidate(navigate, location, id, originLabel); }} data-testid={t('view-profile')}>
           <UserRound className="w-3.5 h-3.5 mr-1" /> Perfil
         </Button>
       </span>

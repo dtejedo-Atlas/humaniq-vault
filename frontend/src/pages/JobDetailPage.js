@@ -139,7 +139,10 @@ const JobDetailPage = () => {
 
   const handleUnifiedLoaded = (count) => {
     setUnifiedCount(count);
-    restoreScroll(location.state?.restoreScrollY ?? savedView.current?.scrollY);
+    const y = location.state?.restoreScrollY ?? savedView.current?.scrollY;
+    // Dos pasadas: al llegar la lista y cuando el resto de tarjetas (análisis IA, scorecard) ya ocupó su alto
+    restoreScroll(y);
+    setTimeout(() => restoreScroll(y), 700);
   };
 
   const getSeniorityLabel = (value) => {

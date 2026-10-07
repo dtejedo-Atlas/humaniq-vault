@@ -140,7 +140,7 @@ export const AIMatchReview = ({ jobId, hasMatches }) => {
 
                 {item.verdict && <p className="text-sm text-slate-700">{item.verdict}</p>}
 
-                <CandidateQuickActions candidate={item} originLabel="terna IA" compact />
+                <CandidateQuickActions candidate={item} originLabel="terna IA" compact idPrefix="review-" />
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <Bullets icon={CheckCircle2} title="Fortalezas" items={item.strengths} tone="text-emerald-700" />

@@ -33,6 +33,36 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
+## Último trabajo — 2026-10-07: ajustes al matching (Fases 0-4)
+**Contexto:** la vacante "Director Comercial" (Diri Telecom) pedía Telecom/Tecnología/Fintech y el top 5 no tenía esa industria. Causas raíz: IA comparaba una sola industria vs una sola; IA pesaba 0.10; la terna IA salía del motor v2 con campos resumen; los no-negociables `custom` del scorecard nunca se evaluaban.
+**Reglas del usuario:** v2 (`job_matching_service.py`) intacto; flag `MATCHING_ENGINE_VERSION=compare` sin cambios; backup antes de backfills; no inventar años; todo en español.
+
+### Fase 1 — UX (hecho, probado)
+- `components/CandidateQuickActions.js` + `CVViewerSheet.js`: Ver CV (Sheet lateral, blob autenticado), Descargar CV, contacto con copiar. Prop `idPrefix` evita testids duplicados (terna IA usa `review-`).
+- `utils/navigation.js`: `openCandidate` guarda origen en `location.state`; `backTarget` → "Volver a <origen>" (fallback `/candidates`); scroll/estado en `sessionStorage`. Aplicado en vacante, Búsqueda, Carpetas y Candidatos.
+- Snapshots por vacante en `job_match_snapshots` (v2 y v3): `GET /api/jobs/{id}/match-snapshot?engine=`; `POST /match` y `/match-v3` los guardan. Botón "Actualizar matching".
+- Fix: descarga de CV en ficha/exports usaba `localStorage.token` (inexistente) → `atlas_token`.
+
+### Fase 2 — Motor v3.1 (aplicado con OK del usuario, opción b)
+- `JobScorecard.target_industries: List[str]` + `industry_requirement: obligatoria|preferente|indiferente` (UI en `JobScorecardConfig.js`). Sin lista → `job.industry` único objetivo.
+- `backend/industry_trajectory.py` (nuevo): IA = 0.65·proporción ponderada por recencia (10 años, piso 0.4) + 0.35·transferibilidad actual; evidencia (empresa, industria, años); empleo actual ausente del CV: usa `current_start_date` si existe, si no 1 año marcado "sin fecha" y CI ≤ 0.6; dedupe de empleos repetidos. Knockout `industry` (importante, K×0.5) solo si obligatoria.
+- `scoring/components.py::calculate_ia` y `scoring/knockouts.py::evaluate_industry_knockout` usan ese módulo. Pesos nuevos en `scoring/config_v3.py` (executive: ER .17 FA .15 SA .14 IA .17 SK .08 ED .07 CC .08 TR .05 SM .04 LO .03 CQ .02; c_level/managerial/operational análogos, operational SK .22).
+- Backfill `company_industry` con Claude Sonnet 5.5 (`scripts/enrich_company_industry.py`): 4,047/4,414 empleos con industria. Backup previo: `/root/backups/candidates_20261007_2222.json` + colección `candidates_backup_20261007_2222`.
+- Tests: `scoring/tests/test_industry_trajectory.py` (103 tests de scoring pasan), `tests/test_phase1_phase2_matching.py`.
+- Pendiente de OK del usuario: umbrales de acción (con los pesos nuevos nadie llega a "Revisar" ≥75 en Director Comercial; propuesta Entrevistar ≥80, Revisar ≥68, Backup 58-67).
+
+### Fase 3 — Afinar con IA (hecho, probado)
+- `backend/ai_refine_service.py`: criterio en lenguaje natural evaluado contra el texto completo del CV (`cv_fulltext`, caché por candidato/archivo) de los top N del snapshot v3 (configurable) o toda la base. Cumple/Parcial/No cumple con cita textual, empresa y periodo; sin cita → "No cumple (sin evidencia)". Caché en `ai_criteria_evaluations` por (candidato, criterio normalizado, cv_key). Asíncrono con progreso (`/ai-refine/{id}/status`), costo estimado por consulta (`MODEL_PRICING` en `ai_model_config.py`), tarea `criteria_refine` configurable en Admin (default Sonnet 5.5). Límite de capacidad: `enforce_upload_capacity`.
+- Endpoints: `GET /jobs/{id}/unified-matches`, `POST /jobs/{id}/ai-refine`, `GET .../ai-refine/{cid}/status`, `DELETE .../ai-refine/{cid}`, `POST .../ai-refine/{cid}/save-as-requirement {as_type: skill|knockout}`, `GET .../ai-refine/estimate?scope=all`, `GET /jobs/{id}/industry-coverage`.
+- UI: `components/AIRefinePanel.js` dentro de `MatchV3Results.js`.
+
+### Fase 4 — Una sola lista (hecho, probado)
+- `MatchV3Results.js` es la lista única (v3 capa 1 + criterios IA capa 2); se quitó la lista v2 de `JobDetailPage.js` (el backend v2 sigue intacto). Orden: criterios cumplidos → HMS; muestra `v3 #n` y "subió por: …". Banner de cobertura por industria si < 3 candidatos.
+- La terna de `AIMatchReview` sale de la lista unificada (`review(source_results=…)`, `source: unified_v3_ai`) y lee trayectoria con industrias + citas de criterios.
+- Tests: `tests/test_phase3_phase4_refine.py`; testing agent `test_reports/iteration_35.json` (frontend 100%).
+- Scripts de diagnóstico/simulación: `scripts/cv_text_cache.py`, `scripts/industry_scan.py`, `scripts/simulate_phase2.py`, `scripts/phase2_report.py`; reportes en `test_reports/industry_scan*.json`, `phase2_simulation.json`, `phase2_applied_report.json`.
+
+
 ## Último trabajo — 2026-09-25: catálogo Humaniq como capa de presentación
 **Autorización del usuario:** cargar `catalogo_humaniq.json` (15 áreas / 105 subáreas / 13 seniorities) como capa de presentación; arquitectura de dos campos; mapeo aprobado con Salud y ESG SIN equivalencia; normalizar salida del LLM antes de declarar «fuera de catálogo»; corregir `it`→`technology` en registros existentes; fusionar duplicados de Ángel Osvaldo Flores Reyna; corregir los 6 errores de linter borrando SOLO la primera definición de cada duplicado y renombrando la variable del loop. Scoring, pesos y matching intactos.
 
