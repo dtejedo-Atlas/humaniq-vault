@@ -160,12 +160,19 @@ class AIMatchReviewService:
         shortlist = []
         for brief in briefs:
             item = by_candidate.get(brief["candidate_id"], {})
+            cand = by_id.get(brief["candidate_id"]) or {}
             shortlist.append({
                 "candidate_id": brief["candidate_id"],
                 "name": brief["name"],
                 "current_title": brief["current_title"],
+                "current_company": brief["current_company"],
+                "email": cand.get("email"),
+                "phone": cand.get("phone"),
+                "linkedin_url": cand.get("linkedin_url"),
+                "has_cv": bool(cand.get("resume_files")),
                 "rank": brief["rank"],
-                "match_score": brief["match_score"],                "fit": item.get("fit"),
+                "match_score": brief["match_score"],
+                "fit": item.get("fit"),
                 "verdict": item.get("verdict"),
                 "strengths": item.get("strengths") or [],
                 "gaps": item.get("gaps") or [],

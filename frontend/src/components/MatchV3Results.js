@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import CandidateQuickActions from './CandidateQuickActions';
+import { loadViewState, saveViewState } from '../utils/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -86,11 +88,12 @@ const KNOCKOUT_STATUS_CONFIG = {
   no_cumple_fatal: { color: 'bg-red-500', label: 'No cumple (fatal)' },
 };
 
-const MatchV3Results = ({ jobId }) => {
+const MatchV3Results = ({ jobId, jobTitle }) => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
+  const [snapshotAt, setSnapshotAt] = useState(null);
   const [processType, setProcessType] = useState(null);
-  const [expanded, setExpanded] = useState({});
+  const [expanded, setExpanded] = useState(() => loadViewState(`v3:${jobId}`)?.expanded || {});
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportOptions, setExportOptions] = useState({
@@ -99,6 +102,25 @@ const MatchV3Results = ({ jobId }) => {
     includeContact: false,
     clientName: '',
   });
+
+  useEffect(() => {
+    saveViewState(`v3:${jobId}`, { expanded });
+  }, [expanded, jobId]);
+
+  // Último matching v3 guardado: no recalcula al volver a la vacante
+  useEffect(() => {
+    let cancelled = false;
+    jobsAPI.getMatchSnapshot(jobId, 'v3')
+      .then((res) => {
+        if (cancelled) return;
+        const data = res.data;
+        setResults(data.results || []);
+        setSnapshotAt(data.snapshot_at || null);
+        if (data.results?.length > 0) setProcessType(data.results[0].process_type);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [jobId]);
 
   const handleExport = async () => {
     setExporting(true);
@@ -147,6 +169,7 @@ const MatchV3Results = ({ jobId }) => {
       const data = response.data;
       const v3Results = data.engine === 'compare' ? data.v3 : data.results;
       setResults(v3Results || []);
+      setSnapshotAt(data.snapshot_at || new Date().toISOString());
       if (v3Results?.length > 0) {
         setProcessType(v3Results[0].process_type);
       }
@@ -179,6 +202,11 @@ const MatchV3Results = ({ jobId }) => {
             <CardDescription>
               Humaniq Match Score (HMS) con desglose de 11 componentes
               {processType && ` — proceso: ${processType}`}
+              {snapshotAt && (
+                <span className="block text-xs text-slate-400 mt-0.5" data-testid="v3-snapshot-date">
+                  Último cálculo: {new Date(snapshotAt).toLocaleString('es-MX')}
+                </span>
+              )}
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -196,7 +224,7 @@ const MatchV3Results = ({ jobId }) => {
             )}
             <Button onClick={runMatchV3} disabled={loading} variant="outline" size="sm" data-testid="run-match-v3-btn">
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {results ? 'Re-ejecutar' : 'Ejecutar Matching v3'}
+              {results ? 'Actualizar matching' : 'Ejecutar Matching v3'}
             </Button>
           </div>
         </div>
@@ -240,8 +268,13 @@ const MatchV3Results = ({ jobId }) => {
                               </Badge>
                             </div>
                             {r.current_title && (
-                              <p className="text-sm text-slate-600 truncate">{r.current_title}</p>
+                              <p className="text-sm text-slate-600 truncate">
+                                {r.current_title}{r.current_company ? ` @ ${r.current_company}` : ''}
+                              </p>
                             )}
+                            <div className="mt-2">
+                              <CandidateQuickActions candidate={r} originLabel={`vacante: ${jobTitle || ''}`} compact />
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-4 flex-shrink-0">

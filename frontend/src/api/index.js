@@ -153,6 +153,8 @@ export const jobsAPI = {
   saveScorecard: (id, data) => axios.put(`${API_BASE}/jobs/${id}/scorecard`, data),
   matchV3: (id, limit = 50) =>
     axios.post(`${API_BASE}/jobs/${id}/match-v3`, null, { params: { limit }, timeout: 300000 }),
+  getMatchSnapshot: (id, engine = 'v2') =>
+    axios.get(`${API_BASE}/jobs/${id}/match-snapshot`, { params: { engine } }),
   // Ingesta Inteligente - Parse Job Description from PDF/DOCX
   parseJD: (file) => {
     const formData = new FormData();
@@ -244,7 +246,7 @@ export const exportsAPI = {
   getExport: (exportId) => axios.get(`${API_BASE}/exports/${exportId}`),
   listExports: (limit = 50) => axios.get(`${API_BASE}/exports`, { params: { limit } }),
   downloadExport: (exportId) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('atlas_token');
     return `${API_BASE}/exports/${exportId}/download?token=${token}`;
   }
 };

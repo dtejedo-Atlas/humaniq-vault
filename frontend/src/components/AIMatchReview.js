@@ -5,6 +5,7 @@ import { Badge } from './ui/badge';
 import { Loader2, Sparkles, AlertTriangle, CheckCircle2, HelpCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { aiAPI } from '../api';
+import CandidateQuickActions from './CandidateQuickActions';
 
 const FIT_STYLES = {
   alto: 'bg-emerald-100 text-emerald-800 border-emerald-300',
@@ -138,6 +139,8 @@ export const AIMatchReview = ({ jobId, hasMatches }) => {
                 </div>
 
                 {item.verdict && <p className="text-sm text-slate-700">{item.verdict}</p>}
+
+                <CandidateQuickActions candidate={item} originLabel="terna IA" compact />
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <Bullets icon={CheckCircle2} title="Fortalezas" items={item.strengths} tone="text-emerald-700" />

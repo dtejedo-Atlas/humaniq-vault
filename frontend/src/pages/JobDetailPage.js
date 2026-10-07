@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import Layout from '../components/Layout';
+import CandidateQuickActions from '../components/CandidateQuickActions';
+import { openCandidate, saveViewState, loadViewState, restoreScroll } from '../utils/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -100,16 +102,18 @@ const formatLanguageReq = (req) => {
 const JobDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const { user } = useAuth();
   const isTechnical = user?.role === 'admin' || user?.role === 'super_admin';
   
+  const savedView = useRef(loadViewState(location.pathname));
   const [job, setJob] = useState(null);
   const [matches, setMatches] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [expandedCards, setExpandedCards] = useState({});
+  const [expandedCards, setExpandedCards] = useState(savedView.current?.expandedCards || {});
   
   // Export state
   const [showExportDialog, setShowExportDialog] = useState(false);
@@ -128,12 +132,20 @@ const JobDetailPage = () => {
     loadJob();
   }, [id]);
 
+  // Persistir estado de vista (tarjetas abiertas + scroll) para que "Volver" desde una ficha lo restaure
+  useEffect(() => {
+    const persist = () => saveViewState(location.pathname, { expandedCards, scrollY: window.scrollY });
+    window.addEventListener('scroll', persist, { passive: true });
+    persist();
+    return () => window.removeEventListener('scroll', persist);
+  }, [expandedCards, location.pathname]);
+
   const loadJob = async () => {
     try {
       const response = await jobsAPI.getById(id);
       setJob(response.data);
-      // Auto-load matches
-      loadMatches();
+      // Primero el último matching guardado; solo recalcula si no existe
+      loadMatches(false);
     } catch (error) {
       console.error('Error loading job:', error);
       toast.error('Error al cargar vacante');
@@ -143,9 +155,18 @@ const JobDetailPage = () => {
     }
   };
 
-  const loadMatches = async () => {
+  const loadMatches = async (force = true) => {
     setLoadingMatches(true);
     try {
+      if (!force) {
+        try {
+          const snap = await jobsAPI.getMatchSnapshot(id, 'v2');
+          setMatches(snap.data);
+          const y = location.state?.restoreScrollY ?? savedView.current?.scrollY;
+          restoreScroll(y);
+          return;
+        } catch (_) { /* sin snapshot: calcular */ }
+      }
       const response = await jobsAPI.getMatches(id, 50, 50);
       setMatches(response.data);
     } catch (error) {
@@ -406,7 +427,7 @@ const JobDetailPage = () => {
         <JobScorecardConfig jobId={id} />
 
         {/* Matching v3 Results (vista técnica) — solo admin/super_admin */}
-        {isTechnical && <MatchV3Results jobId={id} />}
+        {isTechnical && <MatchV3Results jobId={id} jobTitle={job?.title} />}
 
         <AIMatchReview jobId={id} hasMatches={(matches?.results?.length || 0) > 0} />
 
@@ -421,6 +442,11 @@ const JobDetailPage = () => {
                 {matches && (
                   <CardDescription>
                     {matches.matched_candidates} de {matches.total_candidates} candidatos superan el {matches.threshold_used}% de compatibilidad
+                    {matches.snapshot_at && (
+                      <span className="block text-xs text-slate-400 mt-0.5" data-testid="v2-snapshot-date">
+                        Último cálculo: {new Date(matches.snapshot_at).toLocaleString('es-MX')}
+                      </span>
+                    )}
                   </CardDescription>
                 )}
               </div>
@@ -437,9 +463,9 @@ const JobDetailPage = () => {
                     Exportar Shortlist
                   </Button>
                 )}
-                <Button onClick={loadMatches} disabled={loadingMatches} variant="outline" size="sm">
+                <Button onClick={() => loadMatches(true)} disabled={loadingMatches} variant="outline" size="sm" data-testid="refresh-matching-button">
                   {loadingMatches && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Actualizar
+                  Actualizar matching
                 </Button>
               </div>
             </div>
@@ -557,6 +583,10 @@ const JobDetailPage = () => {
                                   </span>
                                 )}
                               </div>
+
+                              <div className="mt-3">
+                                <CandidateQuickActions candidate={candidate} originLabel={`vacante: ${job?.title || ''}`} />
+                              </div>
                             </div>
                           </div>
 
@@ -657,7 +687,8 @@ const JobDetailPage = () => {
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => navigate(`/candidates/${candidate.candidate_id}`)}
+                              onClick={() => openCandidate(navigate, location, candidate.candidate_id, `vacante: ${job?.title || ''}`)}
+                              data-testid={`view-full-profile-${candidate.candidate_id}`}
                             >
                               Ver Perfil Completo
                             </Button>

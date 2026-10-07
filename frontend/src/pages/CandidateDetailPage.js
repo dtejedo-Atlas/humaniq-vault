@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { backTarget } from '../utils/navigation';
 import Layout from '../components/Layout';
 import { CandidateNote } from '../components/CandidateNote';
 import { CandidateClassificationFields } from '../components/CandidateClassificationFields';
@@ -96,6 +97,9 @@ const COMPANY_CALIBER_CONFIG = {
 const CandidateDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const back = backTarget(location);
+  const goBack = () => navigate(back.to, { state: back.restore ? { restoreScrollY: back.scrollY } : undefined });
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const { user: currentUser } = useAuth();
   const [candidate, setCandidate] = useState(null);
@@ -434,9 +438,9 @@ const CandidateDetailPage = () => {
 
         {/* Header Actions */}
         <div className="flex flex-col xl:flex-row items-start justify-between gap-4">
-          <Button data-testid="candidate-back-button" variant="outline" onClick={() => navigate('/candidates')}>
+          <Button data-testid="candidate-back-button" variant="outline" onClick={goBack} title={back.label ? `Volver a ${back.label}` : 'Volver'}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver
+            {back.restore && back.label ? `Volver a ${back.label}` : 'Volver'}
           </Button>
           <div data-testid="candidate-header-actions" className="flex min-w-0 max-w-full flex-wrap gap-2 xl:justify-end">
             {/* Descargar CV Original */}
@@ -444,7 +448,7 @@ const CandidateDetailPage = () => {
               <Button 
                 variant="outline"
                 onClick={() => {
-                  const token = localStorage.getItem('token');
+                  const token = localStorage.getItem('atlas_token');
                   const url = candidatesAPI.downloadCV(id);
                   // Crear link temporal con auth header
                   fetch(url, {

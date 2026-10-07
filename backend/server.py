@@ -1044,19 +1044,39 @@ async def log_activity(user, action: str, entity_type: str, entity_id: str = Non
 
 
 async def enrich_results_with_flags(results: list):
-    """Agrega is_placed y notes_count a resultados de matching (solo lectura)"""
+    """Agrega is_placed, notes_count y datos de contacto/CV a resultados de matching (solo lectura)"""
     ids = [r.get("candidate_id") for r in results if r.get("candidate_id")]
     if not ids:
         return
     docs = await db.candidates.find(
         {"id": {"$in": ids}},
-        {"_id": 0, "id": 1, "is_restricted": 1, "restriction_info": 1, "job_assignments": 1, "notes": 1}
+        {"_id": 0, "id": 1, "is_restricted": 1, "restriction_info": 1, "job_assignments": 1, "notes": 1,
+         "email": 1, "phone": 1, "linkedin_url": 1, "resume_files": 1, "current_company": 1}
     ).to_list(len(ids))
     flags = {d["id"]: d for d in docs}
     for r in results:
         fd = flags.get(r.get("candidate_id"), {})
         r["is_placed"] = candidate_is_placed(fd)
         r["notes_count"] = len(fd.get("notes") or [])
+        r["email"] = fd.get("email")
+        r["phone"] = fd.get("phone")
+        r["linkedin_url"] = fd.get("linkedin_url")
+        r["has_cv"] = bool(fd.get("resume_files"))
+        if not r.get("current_company"):
+            r["current_company"] = fd.get("current_company")
+
+
+async def save_match_snapshot(job_id: str, engine: str, payload: dict, actor: Optional[str]):
+    """Guarda el último resultado de matching por vacante para no recalcular al volver."""
+    doc = {
+        "job_id": job_id,
+        "engine": engine,
+        "payload": payload,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_by": actor,
+    }
+    await db.job_match_snapshots.update_one({"job_id": job_id, "engine": engine}, {"$set": doc}, upsert=True)
+    return doc["created_at"]
 
 @api_router.post("/candidates/{candidate_id}/restrict")
 async def mark_candidate_restricted(
@@ -5131,8 +5151,28 @@ async def match_job_candidates(
     
     user_for_log = await get_current_user(credentials)
     await log_activity(user_for_log, "matching_run", "job", job_id, job.get("title"), {"engine": "v2"})
+    try:
+        result["snapshot_at"] = await save_match_snapshot(job_id, "v2", result, user_for_log.name)
+    except Exception as e:
+        logger.warning(f"No se pudo guardar snapshot v2: {e}")
     
     return result
+
+
+@api_router.get("/jobs/{job_id}/match-snapshot")
+async def get_match_snapshot(
+    job_id: str,
+    engine: str = Query(default="v2", pattern="^(v2|v3)$"),
+    current_user: User = Depends(get_current_user)
+):
+    """Último resultado de matching guardado para la vacante (sin recalcular). 404 si no existe."""
+    snap = await db.job_match_snapshots.find_one({"job_id": job_id, "engine": engine}, {"_id": 0})
+    if not snap:
+        raise HTTPException(status_code=404, detail="Sin matching guardado para esta vacante")
+    payload = snap.get("payload") or {}
+    payload["snapshot_at"] = snap.get("created_at")
+    payload["snapshot_by"] = snap.get("created_by")
+    return payload
 
 
 @api_router.get("/jobs/{job_id}/matches", response_model=JobMatchResponse)
@@ -5197,11 +5237,17 @@ async def match_job_candidates_v3(
     user_v3 = await get_current_user(credentials)
     await log_activity(user_v3, "matching_run", "job", job_id, job.get("title"), {"engine": "v3"})
 
+    v3_payload = {"engine": "v3", "job_id": job_id, "total_evaluated": len(candidates), "results": results}
+    try:
+        v3_payload["snapshot_at"] = await save_match_snapshot(job_id, "v3", v3_payload, user_v3.name)
+    except Exception as e:
+        logger.warning(f"No se pudo guardar snapshot v3: {e}")
+
     if engine_version == "compare":
         v2_result = await job_matching_service.match_candidates(job=job, threshold=60, limit=limit)
-        return {"engine": "compare", "v3": results, "v2": v2_result}
+        return {"engine": "compare", "v3": results, "v2": v2_result, "snapshot_at": v3_payload.get("snapshot_at")}
 
-    return {"engine": "v3", "job_id": job_id, "total_evaluated": len(candidates), "results": results}
+    return v3_payload
 
 
 # ============= JOB SCORECARD ENDPOINTS (v3) =============

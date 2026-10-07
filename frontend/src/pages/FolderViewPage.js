@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { openCandidate, restoreScroll } from '../utils/navigation';
 import Layout from '../components/Layout';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -97,6 +98,7 @@ const SENIORITY_LABELS = {
 export default function FolderViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
   const { user } = useAuth();
   
@@ -124,6 +126,7 @@ export default function FolderViewPage() {
       setFolder(response.data.folder);
       setCandidates(response.data.candidates);
       setTotal(response.data.total);
+      restoreScroll(location.state?.restoreScrollY);
     } catch (error) {
       console.error('Error loading folder:', error);
       toast.error('Error cargando folder');
@@ -407,7 +410,8 @@ export default function FolderViewPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => navigate(`/candidates/${candidate.id}`)}
+                      onClick={() => openCandidate(navigate, location, candidate.id, 'carpeta')}
+                      data-testid={`folder-view-candidate-${candidate.id}`}
                     >
                       <Eye className="w-4 h-4 mr-1" />
                       Ver

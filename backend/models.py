@@ -679,6 +679,11 @@ class CandidateMatchResult(BaseModel):
     # Doble visualización v2/v3 (transición): calculados en el endpoint, no alteran el orden v2
     v3_hms: Optional[int] = None
     v3_action: Optional[str] = None
+    # Contacto y CV (enriquecidos en el endpoint para acciones rápidas en la UI)
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    has_cv: Optional[bool] = None
     
     # Datos adicionales del candidato para display
     years_experience: Optional[int] = None
@@ -696,6 +701,7 @@ class JobMatchResponse(BaseModel):
     matched_candidates: int
     threshold_used: int
     results: List[CandidateMatchResult]
+    snapshot_at: Optional[str] = None
 
 
 

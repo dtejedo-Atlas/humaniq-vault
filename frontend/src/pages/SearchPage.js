@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { openCandidate, saveViewState, loadViewState, restoreScroll } from '../utils/navigation';
 import Layout from '../components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -23,14 +24,26 @@ import { getStatusColor, getStatusLabel, getSeniorityLabel } from '../utils/help
 
 const SearchPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { getIndustryOptions, getIndustryName, getPresentationAreaName, getPresentationSubareaName } = useTaxonomy();
+  // Estado previo guardado (al volver desde una ficha no se vuelve a buscar)
+  const saved = location.state?.restoreScrollY != null ? loadViewState(location.pathname) : null;
   const [loading, setLoading] = useState(false);
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState({});
-  const [useSemanticSearch, setUseSemanticSearch] = useState(true);
-  const [results, setResults] = useState([]);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [query, setQuery] = useState(saved?.query || '');
+  const [filters, setFilters] = useState(saved?.filters || {});
+  const [useSemanticSearch, setUseSemanticSearch] = useState(saved?.useSemanticSearch ?? true);
+  const [results, setResults] = useState(saved?.results || []);
+  const [hasSearched, setHasSearched] = useState(Boolean(saved?.results?.length));
+
+  useEffect(() => {
+    saveViewState(location.pathname, { query, filters, useSemanticSearch, results });
+  }, [query, filters, useSemanticSearch, results, location.pathname]);
+
+  useEffect(() => {
+    if (saved) restoreScroll(location.state?.restoreScrollY);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Obtener opciones de taxonomía desde el contexto
   const industries = getIndustryOptions();
@@ -38,6 +51,7 @@ const SearchPage = () => {
   // Leer parámetro 'q' de la URL y ejecutar búsqueda automáticamente
   useEffect(() => {
     const urlQuery = searchParams.get('q');
+    if (saved) return undefined;
     if (urlQuery && urlQuery.trim()) {
       setQuery(urlQuery.trim());
       // Ejecutar búsqueda automáticamente después de un breve delay para permitir que el estado se actualice
@@ -274,7 +288,8 @@ const SearchPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => navigate(`/candidates/${candidate.id}`)}
+                        onClick={() => openCandidate(navigate, location, candidate.id, 'búsqueda')}
+                        data-testid={`search-view-profile-${candidate.id}`}
                       >
                         <Eye className="w-4 h-4 mr-1" />
                         Ver Perfil

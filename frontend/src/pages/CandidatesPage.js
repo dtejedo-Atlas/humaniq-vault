@@ -16,13 +16,15 @@ import { Search, Filter, Eye, Mail, Phone, MapPin, Building2, Briefcase, ArrowUp
 import { candidatesAPI } from '../api';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { toast } from 'sonner';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { openCandidate } from '../utils/navigation';
 import { getStatusColor, getStatusLabel, getSeniorityLabel, formatDate } from '../utils/helpers';
 import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
 import { AreaSubareaFilter } from '../components/AreaSubareaFilter';
 
 const CandidatesPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { getIndustryOptions, getIndustryName, getPresentationAreaName, getPresentationSubareaName } = useTaxonomy();
   const [candidates, setCandidates] = useState([]);
@@ -100,7 +102,7 @@ const CandidatesPage = () => {
   };
 
   const handleViewCandidate = (candidateId) => {
-    navigate(`/candidates/${candidateId}`);
+    openCandidate(navigate, location, candidateId, 'candidatos');
   };
 
   return (
