@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only verification of unified-list relative actions, quality labels, custom KO chips, 🔒 KO labels in AI refine panel, moved-up and motor×K indicators, and regression on COO. All 4 scenarios pass on preview.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/it36_job1.jpeg", "/app/test_reports/it36_job2.jpeg", "/app/test_reports/it36_job3.jpeg"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "custom-ko-<id> chip has no native `title` attribute; tooltip not captured on hover via DOM querying for [role=tooltip] during Playwright (checked after 1.2s). If chip uses a custom popover triggered only on real mouseenter it may still work in browser, but testing agents cannot easily assert tooltip content. Consider adding `title` fallback or data-testid for the tooltip body (e.g., custom-ko-tooltip-<id>) so automation can validate the required 'No negociable' + cita content."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (per request)", "frontend": "100% (4/4 scenarios pass)"},
+  "test_credentials": "test_utf8@atlas.com / +OipyxbpGdvQIB9FNTF#D$ (admin)",
+  "seed_data_creation": "None. Read-only observation. No AI criteria written, no 'Buscar en toda la base', no 'Actualizar matching' triggered.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Verified on preview. Observations per scenario:\n1) /jobs/1745cda4-0080-45a2-b7d5-23ba1f347be3 (Director de Finanzas): 50 match-v3-result-card. Action distribution = 5 Entrevistar + 10 Backup + 35 Prioridad baja. match-v3-quality labels coherent with HMS (Aceptable for 55-62, Débil for <55). No 'Guardar para otro rol' or 'Revisión manual'. custom-ko-<id> chips present on every card (🔒 ✓/~/·/✕) with K multiplier text where applicable. Gamaliel González Leines at index 42, HMS=31, action='Prioridad baja', KO chip shows '🔒 ✕ Experiencia liderando la función fin… (K×0.5)'. No weak-group-banner (correct, >=3 pass 55). ai-refine-panel shows '🔒 KO Experiencia liderando la función financiera completa 16 ✓ 6 ~ · top 30 · US$0.2675' with ZERO buttons (no ai-criterion-remove-*, no ai-criterion-save-skill-*, no X). ai-criterion-<uuid> testid is present but it's the knockout one, read-only.\n2) /jobs/a5a9ceb5-6a43-4547-bd30-7966a96959b5 (Director Comercial): 50 cards. 3 Entrevistar (idx 0,2,3) + 47 Prioridad baja (no Backup — correct, only 3 reach HMS≥55). Quality: 3 Aceptable + 47 Débil. ai-refine-panel: two 🔒 KO labels ('Telecomunicaciones 8✓ 5~', 'Tecnologia 10✓ 15~') with zero buttons, and two normal criteria with ai-criterion-remove-* buttons ('que haya manejado equipos de más de 20 vendedores', 'que tenga experiencia en telecomunicaciones'). 26/50 cards display 'motor N × K 0.85/0.722/0.5' text under HMS. 5 cards show moved-up-<id> with text '↑ subió por: ...'. No weak-group-banner (exactly 3 reach 55).\n3) /jobs/f7dd7cf3-e710-4054-baf5-592c3340c3f9 (COO): 50 cards. Distribution = 5 Entrevistar + 10 Backup + 35 Prioridad baja. Quick actions (view-cv-<id>, download-cv-<id>, view-profile-<id>) present on cards. Clicking Perfil navigates to /candidates/<id>; candidate-back-button labeled 'Volver a vacante: Director de Operaciones (COO)' and returns to /jobs/f7dd...\nMinor note: custom-ko-<id> tooltip body is NOT discoverable via DOM query ([role=tooltip] / radix-popper) after hover+1.2s wait. May work in real UI with pointer movement, but automation cannot assert the 'No negociable' + cita text. Non-blocking.",
+  "rca of the issue": "N/A — no blocking issues."
+}
