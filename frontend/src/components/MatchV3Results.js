@@ -56,13 +56,27 @@ const COMPONENT_LABELS = {
 
 const COMPONENT_ORDER = ['SK', 'ER', 'FA', 'SA', 'IA', 'ED', 'TR', 'LO', 'SM', 'CQ', 'CC'];
 
+// Acciones RELATIVAS a la lista: Entrevistar = top 5 que pasan knockouts con HMS ≥55; Backup = siguientes 10 con HMS ≥55
 export const ACTION_CONFIG = {
-  advance_to_screening: { label: 'Avanzar a screening', color: 'bg-green-100 text-green-800' },
-  review_manually: { label: 'Revisión manual', color: 'bg-yellow-100 text-yellow-800' },
-  possible_backup: { label: 'Posible backup', color: 'bg-orange-100 text-orange-800' },
+  interview: { label: 'Entrevistar', color: 'bg-green-100 text-green-800' },
+  backup: { label: 'Backup', color: 'bg-orange-100 text-orange-800' },
   low_priority: { label: 'Prioridad baja', color: 'bg-gray-100 text-gray-800' },
-  do_not_advance_knockout: { label: 'No avanzar (knockout)', color: 'bg-red-100 text-red-800' },
-  save_for_other_role: { label: 'Guardar para otro rol', color: 'bg-blue-100 text-blue-800' },
+  do_not_advance_knockout: { label: 'No avanza (knockout)', color: 'bg-red-100 text-red-800' },
+};
+
+// Calidad absoluta del HMS
+const QUALITY_CONFIG = {
+  excelente: { label: 'Excelente', color: 'text-emerald-700' },
+  bueno: { label: 'Bueno', color: 'text-blue-700' },
+  aceptable: { label: 'Aceptable', color: 'text-amber-700' },
+  debil: { label: 'Débil', color: 'text-slate-400' },
+};
+
+const KO_STATUS = {
+  cumple: { icon: '✓', cls: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+  parcial: { icon: '~', cls: 'bg-amber-50 border-amber-200 text-amber-800' },
+  no_cumple: { icon: '✕', cls: 'bg-red-50 border-red-200 text-red-800' },
+  no_evaluado: { icon: '·', cls: 'bg-white border-dashed border-slate-200 text-slate-400' },
 };
 
 const getNeutralHint = (code, comp) => {
@@ -111,6 +125,8 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
   const [results, setResults] = useState(null);
   const [criteria, setCriteria] = useState([]);
   const [coverage, setCoverage] = useState(null);
+  const [weakGroup, setWeakGroup] = useState(false);
+  const [strongCount, setStrongCount] = useState(0);
   const [topN, setTopN] = useState(30);
   const [snapshotAt, setSnapshotAt] = useState(null);
   const [processType, setProcessType] = useState(null);
@@ -132,6 +148,8 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
     setResults(data.results || []);
     setCriteria(data.criteria || []);
     if (data.coverage) setCoverage(data.coverage);
+    setWeakGroup(Boolean(data.weak_group));
+    setStrongCount(data.strong_count || 0);
     setSnapshotAt(data.snapshot_at || null);
     if (data.results?.length > 0) setProcessType(data.results[0].process_type);
     if (onResultsChange) onResultsChange((data.results || []).length);
@@ -208,6 +226,8 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
     }
   };
 
+  const refineCriteria = criteria.filter((c) => c.kind !== 'knockout');
+
   const toggleExpanded = (candidateId) => {
     setExpanded((prev) => ({ ...prev, [candidateId]: !prev[candidateId] }));
   };
@@ -268,10 +288,16 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
             Cobertura por industria objetivo: {Object.entries(coverage.per_industry || {}).map(([k, v]) => `${INDUSTRY_LABELS[k] || k}: ${v}`).join(' · ')} · requisito: {coverage.requirement}
           </p>
         )}
+        {results && weakGroup && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900" data-testid="weak-group-banner">
+            <p className="font-medium">Grupo débil para esta vacante: considera búsqueda externa.</p>
+            <p className="text-xs mt-1">Solo {strongCount} candidato(s) alcanzan HMS ≥ 55 (Aceptable). Entrevistar y Backup requieren al menos 55.</p>
+          </div>
+        )}
         {results && (
           <AIRefinePanel jobId={jobId} criteria={criteria} topN={topN} onTopNChange={setTopN} onUpdated={applyUnified} disabled={loading} />
         )}
-        {criteria.length > 0 && results?.length > 0 && !results.some((r) => r.ai_met > 0 || r.ai_partial > 0) && (
+        {refineCriteria.length > 0 && results?.length > 0 && !results.some((r) => r.ai_met > 0 || r.ai_partial > 0) && (
           <p className="text-sm text-amber-700" data-testid="ai-none-met">Ningún candidato de la lista cumple los criterios de IA; el orden sigue siendo el del motor.</p>
         )}
         {loading ? (
@@ -290,7 +316,8 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
         ) : (
           <div className="space-y-3" data-testid="match-v3-results">
             {results.map((r, index) => {
-              const action = ACTION_CONFIG[r.recommended_action] || { label: r.recommended_action, color: 'bg-gray-100 text-gray-800' };
+              const action = ACTION_CONFIG[r.action] || ACTION_CONFIG.low_priority;
+              const quality = QUALITY_CONFIG[r.quality] || QUALITY_CONFIG.debil;
               const isOpen = expanded[r.candidate_id];
               const hecPct = Math.round((r.confidence_score || 0) * 100);
               return (
@@ -317,9 +344,9 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                                 {r.current_title}{r.current_company ? ` @ ${r.current_company}` : ''}
                               </p>
                             )}
-                            {criteria.length > 0 && (
+                            {refineCriteria.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-1.5" data-testid={`ai-criteria-${r.candidate_id}`}>
-                                {criteria.map((c) => {
+                                {refineCriteria.map((c) => {
                                   const st = r.ai_criteria?.[c.id];
                                   const cfg = CRITERION_STATUS[st?.status] || CRITERION_STATUS.pending;
                                   return (
@@ -342,6 +369,30 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                                 })}
                               </div>
                             )}
+                            {r.custom_knockouts?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5" data-testid={`custom-ko-${r.candidate_id}`}>
+                                {r.custom_knockouts.map((k) => {
+                                  const cfg = KO_STATUS[k.status] || KO_STATUS.no_evaluado;
+                                  return (
+                                    <TooltipProvider key={k.id}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] border ${cfg.cls}`}>
+                                            🔒 {cfg.icon} {k.criterion.length > 36 ? `${k.criterion.slice(0, 36)}…` : k.criterion}{k.status !== 'no_evaluado' && k.k < 1 ? ` (K×${k.k})` : ''}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-sm text-xs">
+                                          <p className="font-medium">No negociable ({k.severity || 'important'}): {k.status.replace('_', ' ')}</p>
+                                          {k.quote && <p className="mt-1 italic">"{k.quote}"</p>}
+                                          {(k.company || k.period) && <p className="mt-1 text-slate-300">{[k.company, k.period].filter(Boolean).join(' · ')}</p>}
+                                          {k.status === 'no_evaluado' && <p className="mt-1">Fuera del top 30: no evaluado (neutral)</p>}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  );
+                                })}
+                              </div>
+                            )}
                             {r.moved_up_by && (
                               <p className="text-xs text-violet-700 mt-1" data-testid={`moved-up-${r.candidate_id}`}>↑ {r.moved_up_by}</p>
                             )}
@@ -355,7 +406,10 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                             <div className="text-3xl font-bold text-slate-900" data-testid="match-v3-hms">
                               {r.match_score_v3}
                             </div>
-                            <div className="text-xs text-slate-500">HMS</div>
+                            <div className={`text-xs font-medium ${quality.color}`} data-testid="match-v3-quality">{quality.label}</div>
+                            {r.hms_engine != null && r.hms_engine !== r.match_score_v3 && (
+                              <div className="text-[10px] text-slate-400">motor {r.hms_engine} × K {r.k_custom}</div>
+                            )}
                           </div>
                           {technical && <CollapsibleTrigger asChild>
                             <Button variant="outline" size="sm" data-testid="match-v3-breakdown-toggle">

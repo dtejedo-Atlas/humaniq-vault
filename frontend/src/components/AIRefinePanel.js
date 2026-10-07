@@ -117,24 +117,29 @@ export const AIRefinePanel = ({ jobId, criteria, topN, onTopNChange, onUpdated, 
       {criteria.length > 0 && (
         <div className="flex flex-wrap gap-2" data-testid="ai-refine-tags">
           {criteria.map((c) => (
-            <Badge key={c.id} variant="secondary" className="gap-1 bg-white border border-violet-200 text-slate-800 py-1" data-testid={`ai-criterion-${c.id}`}>
+            <Badge key={c.id} variant="secondary" className={`gap-1 bg-white border py-1 text-slate-800 ${c.kind === 'knockout' ? 'border-red-200' : 'border-violet-200'}`} data-testid={`ai-criterion-${c.id}`}>
+              {c.kind === 'knockout' && <span title="No negociable del scorecard (afecta K)" className="text-[10px] text-red-700">🔒 KO</span>}
               <span className="max-w-[320px] truncate">{c.text}</span>
               <span className="text-[10px] text-emerald-700">{c.met} ✓</span>
               {c.partial > 0 && <span className="text-[10px] text-amber-700">{c.partial} ~</span>}
               <span className="text-[10px] text-slate-400">· {c.status === 'running' ? `evaluando ${c.evaluated}/${c.total}` : c.scope === 'all' ? 'toda la base' : `top ${c.evaluated}`} · US${c.cost_usd}</span>
-              <button type="button" title="Guardar como skill del scorecard" onClick={() => saveAs(c.id, 'skill')} disabled={savingId === c.id}
-                className="ml-1 rounded p-0.5 hover:bg-violet-100" data-testid={`ai-criterion-save-skill-${c.id}`}>
-                <Bookmark className="w-3 h-3 text-violet-700" />
-              </button>
-              <button type="button" title="Quitar criterio" onClick={() => remove(c.id)} className="rounded p-0.5 hover:bg-red-50" data-testid={`ai-criterion-remove-${c.id}`}>
-                <X className="w-3 h-3 text-slate-500" />
-              </button>
+              {c.kind !== 'knockout' && (
+                <>
+                  <button type="button" title="Guardar como skill del scorecard" onClick={() => saveAs(c.id, 'skill')} disabled={savingId === c.id}
+                    className="ml-1 rounded p-0.5 hover:bg-violet-100" data-testid={`ai-criterion-save-skill-${c.id}`}>
+                    <Bookmark className="w-3 h-3 text-violet-700" />
+                  </button>
+                  <button type="button" title="Quitar criterio" onClick={() => remove(c.id)} className="rounded p-0.5 hover:bg-red-50" data-testid={`ai-criterion-remove-${c.id}`}>
+                    <X className="w-3 h-3 text-slate-500" />
+                  </button>
+                </>
+              )}
             </Badge>
           ))}
         </div>
       )}
       <p className="text-[11px] text-slate-500">
-        Cumple / Parcial / No cumple con cita textual del CV. Sin evidencia en el CV = "No cumple (sin evidencia)". Nunca infiere. Resultados en caché por candidato, criterio y versión de CV.
+        Cumple / Parcial / No cumple con cita textual del CV verificada en el servidor. Sin evidencia = "No cumple (sin evidencia)". Nunca infiere. Los 🔒 no-negociables del scorecard se evalúan igual sobre el top 30 y ajustan K (Cumple 1.0 · Parcial 0.85 · No cumple 0.5 / 0 si fatal). Caché por candidato, criterio y versión de CV.
       </p>
 
       <Dialog open={Boolean(pending)} onOpenChange={(o) => !o && setPending(null)}>

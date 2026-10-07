@@ -4901,7 +4901,7 @@ async def create_ai_match_review(
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
     try:
-        unified = await build_unified_matches(job, current_user.name)
+        unified = await build_unified_matches(job, current_user.name, current_user.id)
         return await ai_match_review_service.review(
             job=job, top_n=top_n, threshold=threshold, actor=current_user.id,
             source_results=unified["results"], criteria=unified["criteria"],
@@ -5275,14 +5275,48 @@ async def get_or_build_v3_snapshot(job: dict, actor: Optional[str], limit: int =
     return payload
 
 
-async def build_unified_matches(job: dict, actor: Optional[str]) -> dict:
+KNOCKOUT_EVAL_TOP_N = 30
+DAILY_AI_CAP_USD = {"admin": 25.0, "super_admin": 25.0, "recruiter": 5.0, "researcher": 2.0}
+
+
+def custom_knockouts_of(job: dict) -> list:
+    sc = job.get("job_scorecard") or {}
+    return [k for k in (sc.get("non_negotiables") or []) if k.get("type") == "custom" and (k.get("criterion") or "").strip()]
+
+
+async def ensure_custom_knockout_evals(job: dict, snapshot: dict, actor: Optional[str], actor_id: Optional[str]) -> list:
+    """Lanza (una vez, con caché) la evaluación IA de cada no-negociable custom sobre el top 30 del ranking."""
+    from ai_refine_service import _norm
+    kos = custom_knockouts_of(job)
+    if not kos:
+        return []
+    refinements = await ai_refine_service.get(job["id"])
+    existing = {c.get("key") for c in refinements.get("criteria") or [] if c.get("kind") == "knockout"}
+    top_ids = [r["candidate_id"] for r in (snapshot.get("results") or [])[:KNOCKOUT_EVAL_TOP_N]]
+    launched = []
+    for ko in kos:
+        if _norm(ko["criterion"]) in existing or not top_ids:
+            continue
+        crit = await ai_refine_service.evaluate(job, ko["criterion"], top_ids, "knockout", actor, kind="knockout",
+                                                severity=ko.get("severity") or "important", actor_id=actor_id)
+        launched.append(crit["id"])
+    return launched
+
+
+async def build_unified_matches(job: dict, actor: Optional[str], actor_id: Optional[str] = None) -> dict:
+    from ai_refine_service import _norm, MIN_HMS_ACTION
     snapshot = await get_or_build_v3_snapshot(job, actor)
+    await ensure_custom_knockout_evals(job, snapshot, actor, actor_id)
     refinements = await ai_refine_service.get(job["id"])
     criteria = refinements.get("criteria") or []
-    rows = AIRefineService.unify(snapshot.get("results") or [], criteria)
-    public_criteria = [{k: v for k, v in c.items() if k != "results"} for c in criteria]
+    active_ko_keys = {_norm(k["criterion"]) for k in custom_knockouts_of(job)}
+    rows = AIRefineService.unify(snapshot.get("results") or [], criteria, active_ko_keys)
+    public_criteria = [{k: v for k, v in c.items() if k != "results"} for c in criteria
+                       if c.get("kind") != "knockout" or c.get("key") in active_ko_keys]
+    strong = sum(1 for r in rows if (r.get("match_score_v3") or 0) >= MIN_HMS_ACTION and r.get("action") != "do_not_advance_knockout")
     return {"job_id": job["id"], "snapshot_at": snapshot.get("snapshot_at"), "total_evaluated": snapshot.get("total_evaluated"),
-            "results": rows, "criteria": public_criteria}
+            "results": rows, "criteria": public_criteria, "strong_count": strong, "weak_group": strong < 3,
+            "knockouts_evaluating": any(c.get("kind") == "knockout" and c.get("status") == "running" for c in criteria)}
 
 
 class AIRefineRequest(PydanticBaseModel):
@@ -5297,7 +5331,7 @@ async def get_unified_matches(job_id: str, current_user: User = Depends(get_curr
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
-    data = await build_unified_matches(job, current_user.name)
+    data = await build_unified_matches(job, current_user.name, current_user.id)
     data["coverage"] = await ai_refine_service.coverage(job)
     return data
 
@@ -5327,6 +5361,16 @@ async def run_ai_refine(job_id: str, body: AIRefineRequest, current_user: User =
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
 
+    role = current_user.role.value if hasattr(current_user.role, "value") else str(current_user.role)
+    if body.scope == "all" and role not in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Buscar en toda la base está reservado a administradores")
+    cap = DAILY_AI_CAP_USD.get(role, 2.0)
+    spent = await ai_refine_service.daily_spend(current_user.id)
+    total_target = await db.candidates.count_documents({"is_deleted": {"$ne": True}}) if body.scope == "all" else min(body.top_n, 200)
+    projected = (await ai_refine_service.estimate(total_target))["estimated_cost_usd"]
+    if spent + projected > cap:
+        raise HTTPException(status_code=429, detail=f"Tope diario de IA alcanzado: gastado US${spent:.2f} + estimado US${projected:.2f} > US${cap:.0f}/día")
+
     snapshot = await get_or_build_v3_snapshot(job, current_user.name)
     ranked_ids = [r["candidate_id"] for r in snapshot.get("results") or []]
     if body.scope == "all":
@@ -5351,11 +5395,13 @@ async def run_ai_refine(job_id: str, body: AIRefineRequest, current_user: User =
         merged.sort(key=lambda x: x.get("match_score_v3", 0), reverse=True)
         await save_match_snapshot(job_id, "v3", {k: v for k, v in {**snap, "results": merged}.items() if k != "snapshot_at"}, actor_name)
 
-    crit = await ai_refine_service.evaluate(job, criterion, ids, body.scope, current_user.name, on_done=on_done)
+    crit = await ai_refine_service.evaluate(job, criterion, ids, body.scope, current_user.name, on_done=on_done,
+                                            actor_id=current_user.id)
     await log_activity(current_user, "ai_refine", "job", job_id, job.get("title"),
                        {"criterion": criterion, "scope": body.scope, "total": crit["total"]})
     estimate = await ai_refine_service.estimate(crit["total"])
-    return {"job_id": job_id, "criterion": crit, "estimate": estimate, "status": "running"}
+    return {"job_id": job_id, "criterion": crit, "estimate": estimate, "status": "running",
+            "daily_spent_usd": spent, "daily_cap_usd": cap}
 
 
 @api_router.get("/jobs/{job_id}/ai-refine/{criterion_id}/status")
@@ -5375,11 +5421,15 @@ async def ai_refine_status(job_id: str, criterion_id: str, current_user: User = 
 
 @api_router.delete("/jobs/{job_id}/ai-refine/{criterion_id}")
 async def delete_ai_refine(job_id: str, criterion_id: str, current_user: User = Depends(get_current_user)):
+    refinements = await ai_refine_service.get(job_id)
+    crit = next((c for c in refinements.get("criteria") or [] if c["id"] == criterion_id), None)
+    if crit and crit.get("kind") == "knockout":
+        raise HTTPException(status_code=400, detail="Los no-negociables se quitan desde el scorecard de la vacante")
     await ai_refine_service.remove(job_id, criterion_id)
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
-    return await build_unified_matches(job, current_user.name)
+    return await build_unified_matches(job, current_user.name, current_user.id)
 
 
 class SaveCriterionRequest(PydanticBaseModel):

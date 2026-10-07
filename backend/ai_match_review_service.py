@@ -120,7 +120,7 @@ class AIMatchReviewService:
             "industry": cand.get("industry"),
             "years_experience": cand.get("years_experience"),
             "match_score": row.get("match_score_v3"),
-            "accion_motor": row.get("recommended_action"),
+            "accion_lista": row.get("action"), "calidad_hms": row.get("quality"), "no_negociables_ia": row.get("custom_knockouts"),
             "score_breakdown": {k: v.get("raw") for k, v in breakdown.items() if isinstance(v, dict)},
             "industria_trayectoria": {"anios_en_industria_objetivo": ia_ev.get("target_years"),
                                       "evidencia": ia_ev.get("evidence")},
