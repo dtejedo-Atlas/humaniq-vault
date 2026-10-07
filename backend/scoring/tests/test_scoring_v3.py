@@ -262,8 +262,10 @@ class TestIndustryComponent:
         """IA: misma industria"""
         xi, ci, evidence = calculate_ia(SAMPLE_CANDIDATE, SAMPLE_JOB)
         
-        assert xi == 1.0  # retail -> retail
-        assert ci == 1.0
+        # v3.1: IA por trayectoria. Empleo actual en retail (LIVERPOOL) → afinidad alta
+        assert xi >= 0.6  # retail -> retail (empleo actual)
+        assert ci >= 0.5
+        assert evidence["target_years"] > 0 and evidence["evidence"][0]["company"] == "LIVERPOOL"
 
 
 class TestExecutiveDepthComponent:
@@ -512,7 +514,7 @@ class TestEvaluateKnockouts:
         K, results = evaluate_knockouts(SAMPLE_CANDIDATE, SAMPLE_JOB)
         
         assert 0 <= K <= 1.0
-        assert len(results) == 4  # language, location, experience, salary
+        assert len(results) == 5  # language, location, experience, salary, industry
     
     def test_knockout_summary(self):
         """Resume knockouts correctamente"""
@@ -520,7 +522,7 @@ class TestEvaluateKnockouts:
         summary = summarize_knockouts(results)
         
         assert "total_evaluators" in summary
-        assert summary["total_evaluators"] == 4
+        assert summary["total_evaluators"] == 5
         assert "fatal" in summary
 
 

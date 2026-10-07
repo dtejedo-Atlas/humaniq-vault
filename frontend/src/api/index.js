@@ -155,6 +155,15 @@ export const jobsAPI = {
     axios.post(`${API_BASE}/jobs/${id}/match-v3`, null, { params: { limit }, timeout: 300000 }),
   getMatchSnapshot: (id, engine = 'v2') =>
     axios.get(`${API_BASE}/jobs/${id}/match-snapshot`, { params: { engine } }),
+  getUnifiedMatches: (id) => axios.get(`${API_BASE}/jobs/${id}/unified-matches`),
+  aiRefine: (id, criterion, scope = 'top', topN = 30) =>
+    axios.post(`${API_BASE}/jobs/${id}/ai-refine`, { criterion, scope, top_n: topN }, { timeout: 600000 }),
+  aiRefineEstimate: (id, scope = 'all', topN = 30) =>
+    axios.get(`${API_BASE}/jobs/${id}/ai-refine/estimate`, { params: { scope, top_n: topN } }),
+  aiRefineStatus: (id, criterionId) => axios.get(`${API_BASE}/jobs/${id}/ai-refine/${criterionId}/status`),
+  deleteAiRefine: (id, criterionId) => axios.delete(`${API_BASE}/jobs/${id}/ai-refine/${criterionId}`),
+  saveCriterionAsRequirement: (id, criterionId, asType = 'skill') =>
+    axios.post(`${API_BASE}/jobs/${id}/ai-refine/${criterionId}/save-as-requirement`, { as_type: asType }),
   // Ingesta Inteligente - Parse Job Description from PDF/DOCX
   parseJD: (file) => {
     const formData = new FormData();

@@ -9,10 +9,11 @@ from typing import Dict
 # Componentes: SK, ER, FA, SA, IA, ED, TR, LO, SM, CQ, CC (11)
 # =============================================================================
 WEIGHTS_BY_PROCESS: Dict[str, Dict[str, float]] = {
-    "c_level":     {"SK": 0.07, "ER": 0.14, "FA": 0.12, "SA": 0.13, "IA": 0.10, "ED": 0.11, "TR": 0.09, "LO": 0.05, "SM": 0.05, "CQ": 0.03, "CC": 0.11},
-    "executive":   {"SK": 0.09, "ER": 0.14, "FA": 0.12, "SA": 0.12, "IA": 0.10, "ED": 0.10, "TR": 0.08, "LO": 0.05, "SM": 0.05, "CQ": 0.04, "CC": 0.11},
-    "managerial":  {"SK": 0.14, "ER": 0.14, "FA": 0.13, "SA": 0.11, "IA": 0.10, "ED": 0.09, "TR": 0.07, "LO": 0.06, "SM": 0.05, "CQ": 0.04, "CC": 0.07},
-    "operational": {"SK": 0.24, "ER": 0.14, "FA": 0.13, "SA": 0.10, "IA": 0.09, "ED": 0.05, "TR": 0.06, "LO": 0.07, "SM": 0.05, "CQ": 0.04, "CC": 0.03},
+    # v3.1: industria, afinidad funcional, seniority y experiencia relevante dominan (operational conserva SK alto)
+    "c_level":     {"SK": 0.05, "ER": 0.16, "FA": 0.14, "SA": 0.14, "IA": 0.17, "ED": 0.10, "TR": 0.06, "LO": 0.02, "SM": 0.03, "CQ": 0.03, "CC": 0.10},
+    "executive":   {"SK": 0.08, "ER": 0.17, "FA": 0.15, "SA": 0.14, "IA": 0.17, "ED": 0.07, "TR": 0.05, "LO": 0.03, "SM": 0.04, "CQ": 0.02, "CC": 0.08},
+    "managerial":  {"SK": 0.13, "ER": 0.17, "FA": 0.16, "SA": 0.13, "IA": 0.15, "ED": 0.06, "TR": 0.05, "LO": 0.03, "SM": 0.04, "CQ": 0.02, "CC": 0.06},
+    "operational": {"SK": 0.22, "ER": 0.17, "FA": 0.15, "SA": 0.11, "IA": 0.12, "ED": 0.04, "TR": 0.05, "LO": 0.05, "SM": 0.04, "CQ": 0.02, "CC": 0.03},
 }
 
 DEFAULT_PROCESS = "managerial"

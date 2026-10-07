@@ -53,6 +53,7 @@ from job_lifecycle_service import JobLifecycleService, ARCHIVE_AFTER_DAYS
 from name_quality import suspicious_name_issues, SUSPICIOUS_NAME_MESSAGE
 from ai_model_config import ai_model_config, AVAILABLE_MODELS, TASKS as AI_MODEL_TASKS
 from ai_match_review_service import AIMatchReviewService
+from ai_refine_service import AIRefineService
 from pymongo.errors import DuplicateKeyError
 import hmac
 from embedding_service import embedding_service
@@ -104,6 +105,7 @@ cv_version_service = CVVersionService(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
 ai_match_review_service = AIMatchReviewService(db, job_matching_service, os.environ['EMERGENT_LLM_KEY'])
+ai_refine_service = AIRefineService(db, os.environ['EMERGENT_LLM_KEY'])
 user_service = UserService(db)
 assignment_service = AssignmentService(db)
 export_service = ExportService(db, storage_service)
@@ -4894,13 +4896,15 @@ async def create_ai_match_review(
     threshold: int = Query(default=60, ge=0, le=100),
     current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
 ):
-    """Análisis experto de Claude sobre la terna que devolvió el motor. No altera scores ni orden."""
+    """Análisis experto de Claude sobre la terna de la LISTA UNIFICADA (v3 + criterios IA). No altera scores ni orden."""
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
     try:
+        unified = await build_unified_matches(job, current_user.name)
         return await ai_match_review_service.review(
-            job=job, top_n=top_n, threshold=threshold, actor=current_user.id
+            job=job, top_n=top_n, threshold=threshold, actor=current_user.id,
+            source_results=unified["results"], criteria=unified["criteria"],
         )
     except Exception as e:
         logger.error(f"AI match review failed for job {job_id}: {e}")
@@ -5189,13 +5193,43 @@ async def get_job_matches(
     return await match_job_candidates(job_id, threshold, limit, credentials)
 
 
+async def run_v3_ranking(job: dict, limit: int, candidate_filter: Optional[dict] = None) -> tuple:
+    """Puntúa con v3 a los candidatos activos y regresa (resultados ordenados, total evaluados)."""
+    from scoring.engine_v3 import score_v3
+
+    query = {"is_deleted": {"$ne": True}}
+    if candidate_filter:
+        query.update(candidate_filter)
+    candidates = await db.candidates.find(query, {"_id": 0, "embedding": 0}).to_list(5000)
+    results = []
+    for cand in candidates:
+        try:
+            r = score_v3(cand, job)
+            r["candidate_id"] = cand.get("id")
+            r["candidate_name"] = cand.get("full_name")
+            r["current_title"] = cand.get("current_title")
+            r["current_company"] = cand.get("current_company")
+            r["industry"] = cand.get("industry")
+            r["seniority"] = cand.get("seniority")
+            results.append(r)
+        except Exception as e:
+            logger.warning(f"score_v3 falló para {cand.get('id')}: {e}")
+    results.sort(key=lambda x: x.get("match_score_v3", 0), reverse=True)
+    results = results[:limit]
+    try:
+        await enrich_results_with_flags(results)
+    except Exception as e:
+        logger.warning(f"No se pudieron enriquecer flags v3: {e}")
+    return results, len(candidates)
+
+
 @api_router.post("/jobs/{job_id}/match-v3")
 async def match_job_candidates_v3(
     job_id: str,
     limit: int = Query(default=50, ge=1, le=200),
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ):
-    """Matching v3 (HMS). No persiste resultados. Feature flag: MATCHING_ENGINE_VERSION."""
+    """Matching v3 (HMS). Guarda snapshot por vacante. Feature flag: MATCHING_ENGINE_VERSION."""
     await get_current_user(credentials)
 
     engine_version = os.environ.get("MATCHING_ENGINE_VERSION", "v2")
@@ -5205,39 +5239,16 @@ async def match_job_candidates_v3(
             detail="Motor v3 deshabilitado. Configura MATCHING_ENGINE_VERSION=v3 o compare."
         )
 
-    from scoring.engine_v3 import score_v3
-
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
     if not job:
         raise HTTPException(status_code=404, detail="Vacante no encontrada")
 
-    candidates = await db.candidates.find(
-        {"is_deleted": {"$ne": True}}, {"_id": 0}
-    ).to_list(2000)
-
-    results = []
-    for cand in candidates:
-        try:
-            r = score_v3(cand, job)
-            r["candidate_id"] = cand.get("id")
-            r["candidate_name"] = cand.get("full_name")
-            r["current_title"] = cand.get("current_title")
-            results.append(r)
-        except Exception as e:
-            logger.warning(f"score_v3 falló para {cand.get('id')}: {e}")
-
-    results.sort(key=lambda x: x.get("match_score_v3", 0), reverse=True)
-    results = results[:limit]
-
-    try:
-        await enrich_results_with_flags(results)
-    except Exception as e:
-        logger.warning(f"No se pudieron enriquecer flags v3: {e}")
+    results, total = await run_v3_ranking(job, limit)
 
     user_v3 = await get_current_user(credentials)
     await log_activity(user_v3, "matching_run", "job", job_id, job.get("title"), {"engine": "v3"})
 
-    v3_payload = {"engine": "v3", "job_id": job_id, "total_evaluated": len(candidates), "results": results}
+    v3_payload = {"engine": "v3", "job_id": job_id, "total_evaluated": total, "results": results}
     try:
         v3_payload["snapshot_at"] = await save_match_snapshot(job_id, "v3", v3_payload, user_v3.name)
     except Exception as e:
@@ -5248,6 +5259,158 @@ async def match_job_candidates_v3(
         return {"engine": "compare", "v3": results, "v2": v2_result, "snapshot_at": v3_payload.get("snapshot_at")}
 
     return v3_payload
+
+
+# ============= FLUJO UNIFICADO: v3 (capa 1) + AFINAR CON IA (capa 2) =============
+
+async def get_or_build_v3_snapshot(job: dict, actor: Optional[str], limit: int = 50) -> dict:
+    snap = await db.job_match_snapshots.find_one({"job_id": job["id"], "engine": "v3"}, {"_id": 0})
+    if snap:
+        payload = snap["payload"]
+        payload["snapshot_at"] = snap.get("created_at")
+        return payload
+    results, total = await run_v3_ranking(job, limit)
+    payload = {"engine": "v3", "job_id": job["id"], "total_evaluated": total, "results": results}
+    payload["snapshot_at"] = await save_match_snapshot(job["id"], "v3", payload, actor)
+    return payload
+
+
+async def build_unified_matches(job: dict, actor: Optional[str]) -> dict:
+    snapshot = await get_or_build_v3_snapshot(job, actor)
+    refinements = await ai_refine_service.get(job["id"])
+    criteria = refinements.get("criteria") or []
+    rows = AIRefineService.unify(snapshot.get("results") or [], criteria)
+    public_criteria = [{k: v for k, v in c.items() if k != "results"} for c in criteria]
+    return {"job_id": job["id"], "snapshot_at": snapshot.get("snapshot_at"), "total_evaluated": snapshot.get("total_evaluated"),
+            "results": rows, "criteria": public_criteria}
+
+
+class AIRefineRequest(PydanticBaseModel):
+    criterion: str
+    scope: str = "top"          # top | all
+    top_n: int = 30
+
+
+@api_router.get("/jobs/{job_id}/unified-matches")
+async def get_unified_matches(job_id: str, current_user: User = Depends(get_current_user)):
+    """Una sola lista: ranking v3 + criterios de IA acumulados + cobertura por industria."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    data = await build_unified_matches(job, current_user.name)
+    data["coverage"] = await ai_refine_service.coverage(job)
+    return data
+
+
+@api_router.get("/jobs/{job_id}/industry-coverage")
+async def get_industry_coverage(job_id: str, current_user: User = Depends(get_current_user)):
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    return await ai_refine_service.coverage(job)
+
+
+@api_router.get("/jobs/{job_id}/ai-refine/estimate")
+async def estimate_ai_refine(job_id: str, scope: str = Query(default="all"), top_n: int = Query(default=30, ge=1, le=200),
+                             current_user: User = Depends(get_current_user)):
+    total = await db.candidates.count_documents({"is_deleted": {"$ne": True}}) if scope == "all" else top_n
+    return await ai_refine_service.estimate(total)
+
+
+@api_router.post("/jobs/{job_id}/ai-refine", dependencies=[Depends(enforce_upload_capacity)])
+async def run_ai_refine(job_id: str, body: AIRefineRequest, current_user: User = Depends(get_current_user)):
+    """Evalúa un criterio en lenguaje natural contra el CV completo de los top N (o toda la base)."""
+    criterion = body.criterion.strip()
+    if len(criterion) < 4:
+        raise HTTPException(status_code=400, detail="Escribe un criterio más específico")
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+
+    snapshot = await get_or_build_v3_snapshot(job, current_user.name)
+    ranked_ids = [r["candidate_id"] for r in snapshot.get("results") or []]
+    if body.scope == "all":
+        ids = ranked_ids + [c["id"] for c in await db.candidates.find(
+            {"is_deleted": {"$ne": True}, "id": {"$nin": ranked_ids}}, {"_id": 0, "id": 1}).to_list(10000)]
+    else:
+        ids = ranked_ids[:max(1, min(body.top_n, 200))]
+
+    ranked_set = set(ranked_ids)
+    actor_name = current_user.name
+
+    async def on_done(crit_done: dict):
+        # Candidatos fuera del ranking que sí cumplen: se incorporan al snapshot para que la lista sea una sola
+        if body.scope != "all":
+            return
+        extra = [cid for cid, ev in crit_done["results"].items() if cid not in ranked_set and ev.get("status") in ("cumple", "parcial")]
+        if not extra:
+            return
+        extra_rows, _ = await run_v3_ranking(job, len(extra), {"id": {"$in": extra}})
+        snap = await get_or_build_v3_snapshot(job, actor_name)
+        merged = (snap.get("results") or []) + extra_rows
+        merged.sort(key=lambda x: x.get("match_score_v3", 0), reverse=True)
+        await save_match_snapshot(job_id, "v3", {k: v for k, v in {**snap, "results": merged}.items() if k != "snapshot_at"}, actor_name)
+
+    crit = await ai_refine_service.evaluate(job, criterion, ids, body.scope, current_user.name, on_done=on_done)
+    await log_activity(current_user, "ai_refine", "job", job_id, job.get("title"),
+                       {"criterion": criterion, "scope": body.scope, "total": crit["total"]})
+    estimate = await ai_refine_service.estimate(crit["total"])
+    return {"job_id": job_id, "criterion": crit, "estimate": estimate, "status": "running"}
+
+
+@api_router.get("/jobs/{job_id}/ai-refine/{criterion_id}/status")
+async def ai_refine_status(job_id: str, criterion_id: str, current_user: User = Depends(get_current_user)):
+    refinements = await ai_refine_service.get(job_id)
+    crit = next((c for c in refinements.get("criteria") or [] if c["id"] == criterion_id), None)
+    if not crit:
+        raise HTTPException(status_code=404, detail="Criterio no encontrado")
+    data = {k: v for k, v in crit.items() if k != "results"}
+    if crit.get("status") == "done":
+        data["none_met"] = crit.get("met", 0) == 0 and crit.get("partial", 0) == 0
+        if data["none_met"] and crit.get("scope") != "all":
+            data["all_base_estimate"] = await ai_refine_service.estimate(
+                await db.candidates.count_documents({"is_deleted": {"$ne": True}}))
+    return data
+
+
+@api_router.delete("/jobs/{job_id}/ai-refine/{criterion_id}")
+async def delete_ai_refine(job_id: str, criterion_id: str, current_user: User = Depends(get_current_user)):
+    await ai_refine_service.remove(job_id, criterion_id)
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    return await build_unified_matches(job, current_user.name)
+
+
+class SaveCriterionRequest(PydanticBaseModel):
+    as_type: str = "skill"   # skill | knockout
+
+
+@api_router.post("/jobs/{job_id}/ai-refine/{criterion_id}/save-as-requirement")
+async def save_criterion_as_requirement(job_id: str, criterion_id: str, body: SaveCriterionRequest,
+                                        current_user: User = Depends(get_current_user)):
+    """Convierte un criterio de IA en skill requerido o en requisito no negociable del scorecard."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    refinements = await ai_refine_service.get(job_id)
+    crit = next((c for c in refinements.get("criteria") or [] if c["id"] == criterion_id), None)
+    if not crit:
+        raise HTTPException(status_code=404, detail="Criterio no encontrado")
+    scorecard = job.get("job_scorecard") or default_scorecard_from_job(job)
+    if body.as_type == "knockout":
+        items = scorecard.setdefault("non_negotiables", [])
+        if not any(k.get("criterion") == crit["text"] for k in items):
+            items.append({"criterion": crit["text"], "type": "custom", "severity": "important", "expected_value": None})
+    else:
+        items = scorecard.setdefault("required_skills", [])
+        if not any((s.get("skill") if isinstance(s, dict) else s) == crit["text"] for s in items):
+            items.append({"skill": crit["text"], "weight": 1.0, "required": True})
+    await db.jobs.update_one({"id": job_id}, {"$set": {"job_scorecard": scorecard,
+                                                         "updated_at": datetime.now(timezone.utc).isoformat()}})
+    await log_activity(current_user, "criterion_saved", "job", job_id, job.get("title"),
+                       {"criterion": crit["text"], "as": body.as_type})
+    return {"job_id": job_id, "scorecard": scorecard, "saved_as": body.as_type}
 
 
 # ============= JOB SCORECARD ENDPOINTS (v3) =============

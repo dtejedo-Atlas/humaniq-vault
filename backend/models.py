@@ -503,6 +503,8 @@ class JobScorecard(BaseModel):
     compensation_constraints: Optional[dict] = None
     process_type: str = "managerial"  # c_level | executive | managerial | operational
     target_company_caliber: Optional[str] = None  # multinacional_global | corporativo_nacional | mediana | pyme | startup
+    target_industries: List[str] = []  # claves del catálogo; vacío → se usa job.industry
+    industry_requirement: str = "preferente"  # obligatoria | preferente | indiferente
 
 class Job(BaseModel):
     """Modelo de Vacante para Job Matching Engine - v2 Rediseñado"""

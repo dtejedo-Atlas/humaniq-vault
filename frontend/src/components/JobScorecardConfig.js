@@ -14,6 +14,13 @@ import {
 import { Loader2, Plus, X, Save, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { jobsAPI } from '../api';
+import { useTaxonomy } from '../contexts/TaxonomyContext';
+
+const INDUSTRY_REQ_OPTIONS = [
+  { value: 'obligatoria', label: 'Obligatoria (sin experiencia → knockout importante)' },
+  { value: 'preferente', label: 'Preferente (pesa en el score)' },
+  { value: 'indiferente', label: 'Indiferente (no discrimina)' },
+];
 
 const PROCESS_OPTIONS = [
   { value: 'c_level', label: 'C-Level / Dirección General' },
@@ -55,6 +62,10 @@ const JobScorecardConfig = ({ jobId }) => {
   const [languages, setLanguages] = useState([]);
   const [languageInput, setLanguageInput] = useState('');
   const [nonNegotiables, setNonNegotiables] = useState([]);
+  const [targetIndustries, setTargetIndustries] = useState([]);
+  const [industryRequirement, setIndustryRequirement] = useState('preferente');
+  const [industryToAdd, setIndustryToAdd] = useState('');
+  const { getIndustryOptions, getIndustryName } = useTaxonomy();
 
   const loadScorecard = useCallback(async () => {
     setLoading(true);
@@ -67,6 +78,8 @@ const JobScorecardConfig = ({ jobId }) => {
       setTargetCaliber(sc.target_company_caliber || 'none');
       setLanguages(sc.required_languages || []);
       setNonNegotiables(sc.non_negotiables || []);
+      setTargetIndustries(sc.target_industries || []);
+      setIndustryRequirement(sc.industry_requirement || 'preferente');
     } catch (error) {
       console.error('Error loading scorecard:', error);
       toast.error('Error al cargar la configuración de matching');
@@ -125,6 +138,8 @@ const JobScorecardConfig = ({ jobId }) => {
         target_company_caliber: targetCaliber === 'none' ? null : targetCaliber,
         required_languages: languages,
         non_negotiables: nonNegotiables,
+        target_industries: targetIndustries,
+        industry_requirement: industryRequirement,
       };
       const response = await jobsAPI.saveScorecard(jobId, payload);
       setBaseScorecard(response.data.scorecard || payload);
@@ -184,6 +199,57 @@ const JobScorecardConfig = ({ jobId }) => {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 p-3 space-y-3" data-testid="scorecard-industries-block">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Industrias objetivo</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Select value={industryToAdd} onValueChange={setIndustryToAdd}>
+                      <SelectTrigger data-testid="scorecard-industry-select">
+                        <SelectValue placeholder="Agregar industria del catálogo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getIndustryOptions().filter((o) => !targetIndustries.includes(o.value)).map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="button" variant="outline" size="sm" disabled={!industryToAdd} data-testid="scorecard-industry-add"
+                      onClick={() => { setTargetIndustries([...targetIndustries, industryToAdd]); setIndustryToAdd(''); }}>
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {targetIndustries.length === 0 && (
+                      <span className="text-xs text-slate-500">Sin industrias: se usa la industria de la vacante como único objetivo.</span>
+                    )}
+                    {targetIndustries.map((ind) => (
+                      <Badge key={ind} variant="secondary" className="gap-1" data-testid={`scorecard-industry-${ind}`}>
+                        {getIndustryName(ind)}
+                        <button type="button" onClick={() => setTargetIndustries(targetIndustries.filter((i) => i !== ind))} aria-label="Quitar">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-sm">Requisito de industria</Label>
+                  <Select value={industryRequirement} onValueChange={setIndustryRequirement}>
+                    <SelectTrigger className="mt-1" data-testid="scorecard-industry-requirement-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {INDUSTRY_REQ_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500 mt-1">La afinidad se calcula sobre los últimos 10 años de trayectoria (más peso a lo reciente).</p>
+                </div>
               </div>
             </div>
 

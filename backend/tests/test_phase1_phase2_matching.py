@@ -32,10 +32,10 @@ print(f"2. IA trayectoria telco={xi_t} vs consumo={xi_c}; knockout obligatoria O
 stale = {"industry": "fintech", "current_company": "FLINK", "previous_companies": [
     {"company_name": "Banamex", "start_date": "2012-03", "end_date": "2021-12", "company_industry": "financial_services"}]}
 rows = trajectory_profile(stale, NOW)
-assert any(r.get("assumed") and r["industry"] == "fintech" for r in rows)
+assert any(r.get("undated") and r["industry"] == "fintech" and r["years"] == 1.0 for r in rows)
 cov = coverage_by_industry([telco, cpg, stale], ["telecommunications", "fintech"], NOW)
 assert cov == {"per_industry": {"telecommunications": 1, "fintech": 1}, "any": 2}, cov
-print("3. empleo actual asumido + cobertura por industria OK")
+print("3. empleo actual sin fecha = 1 año con CI baja + cobertura por industria OK")
 
 # ---------- Fase 1 (API) ----------
 API = os.environ["API_URL"]

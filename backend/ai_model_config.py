@@ -52,7 +52,27 @@ TASKS = {
         "description": "Revisión experta del ranking del motor para una vacante",
         "default": "claude-opus-5-5",
     },
+    "criteria_refine": {
+        "label": "Afinar con IA (criterios sobre CV)",
+        "description": "Verifica criterios en lenguaje natural contra el texto completo de cada CV",
+        "default": "claude-sonnet-5-5",
+    },
 }
+
+# Precio aproximado USD por millón de tokens (entrada, salida) para estimar costos
+MODEL_PRICING = {
+    "claude-opus-5-5": (15.0, 75.0),
+    "claude-sonnet-5-5": (3.0, 15.0),
+    "claude-sonnet-5": (3.0, 15.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-sonnet-4-5-20250929": (3.0, 15.0),
+    "claude-haiku-4-5-20251001": (1.0, 5.0),
+}
+
+
+def estimate_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+    pin, pout = MODEL_PRICING.get(model, (3.0, 15.0))
+    return round(input_tokens / 1e6 * pin + output_tokens / 1e6 * pout, 4)
 
 
 class AIModelConfig:

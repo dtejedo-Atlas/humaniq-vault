@@ -469,6 +469,24 @@ def evaluate_salary_knockout(
 # EVALUADOR PRINCIPAL
 # =============================================================================
 
+def evaluate_industry_knockout(
+    candidate: Dict[str, Any],
+    job: Dict[str, Any],
+    scorecard: Optional[Dict[str, Any]] = None
+) -> KnockoutResult:
+    """
+    Knockout de industria: solo aplica cuando industry_requirement = "obligatoria".
+    Sin experiencia en ninguna industria objetivo (últimos 10 años) → no_cumple_importante (no fatal).
+    """
+    from industry_trajectory import industry_knockout
+
+    result = industry_knockout(candidate, job)
+    if result is None:
+        return {"criterion": "industry", "status": "no_aplica", "k_value": None,
+                "note": "Industria no obligatoria para la vacante"}
+    return result
+
+
 def evaluate_knockouts(
     candidate: Dict[str, Any],
     job: Dict[str, Any],
@@ -497,6 +515,7 @@ def evaluate_knockouts(
         evaluate_location_knockout,
         evaluate_experience_knockout,
         evaluate_salary_knockout,
+        evaluate_industry_knockout,
     ]
     
     for evaluator in evaluators:

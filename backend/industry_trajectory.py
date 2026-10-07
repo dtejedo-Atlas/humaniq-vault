@@ -70,8 +70,13 @@ def trajectory_profile(candidate: Dict, now: Optional[datetime] = None) -> List[
     now = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
     window_start = datetime(now.year - WINDOW_YEARS, now.month, 1)
     rows = []
+    seen = set()
     companies = candidate.get("previous_companies") or []
     for idx, pc in enumerate(companies):
+        dedupe_key = ((pc.get("company_name") or "").strip().lower(), str(pc.get("start_date")), str(pc.get("end_date")))
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
         start = parse_date(pc.get("start_date"), now)
         end = parse_date(pc.get("end_date"), now)
         is_current = pc.get("is_current") or pc.get("end_date") in (None, "") or (end and end >= now)
@@ -105,15 +110,19 @@ def trajectory_profile(candidate: Dict, now: Optional[datetime] = None) -> List[
             "recency": round(recency, 3),
             "weighted_years": years * recency,
         })
-    # Empleo actual ausente en previous_companies (CV desactualizado): se asume en curso con 2 años
-    covers_now = any(r["end"] == "actual" or parse_date(r["end"], now) and parse_date(r["end"], now) >= now for r in rows)
+    # Empleo actual ausente en previous_companies (CV desactualizado): nunca se inventan años
+    covers_now = any(r["end"] == "actual" or (parse_date(r["end"], now) and parse_date(r["end"], now) >= now) for r in rows)
     if not covers_now and candidate.get("industry") and (candidate.get("current_company") or candidate.get("current_title")):
-        assumed = 2.0
-        rows.append({
-            "company": candidate.get("current_company"), "title": candidate.get("current_title"),
-            "industry": candidate.get("industry"), "start": "actual (asumido)", "end": "actual",
-            "years": assumed, "recency": 1.0, "weighted_years": assumed, "assumed": True,
-        })
+        start = parse_date(candidate.get("current_start_date"), now)
+        if start and start < now:
+            years = (now - max(start, window_start)).days / 365.25
+            rows.append({"company": candidate.get("current_company"), "title": candidate.get("current_title"),
+                         "industry": candidate.get("industry"), "start": candidate.get("current_start_date"), "end": "actual",
+                         "years": round(years, 1), "recency": 1.0, "weighted_years": years})
+        else:
+            rows.append({"company": candidate.get("current_company"), "title": candidate.get("current_title"),
+                         "industry": candidate.get("industry"), "start": "sin fecha", "end": "actual",
+                         "years": 1.0, "recency": 1.0, "weighted_years": 1.0, "undated": True})
     return rows
 
 
@@ -147,6 +156,9 @@ def industry_affinity(candidate: Dict, job: Dict, now: Optional[datetime] = None
 
     xi = TRAJECTORY_WEIGHT * proportion + TRANSFER_WEIGHT * transfer
     ci = 0.5 + 0.5 * (known_w / total_w)
+    undated = [r for r in rows if r.get("undated")]
+    if undated:
+        ci = min(ci, 0.6)
     evidence = {
         "targets": targets,
         "requirement": requirement,
@@ -154,8 +166,10 @@ def industry_affinity(candidate: Dict, job: Dict, now: Optional[datetime] = None
         "target_years": round(target_years, 1),
         "transferability": round(transfer, 3),
         "current_industry": cand_industry,
-        "evidence": [{k: r[k] for k in ("company", "industry", "start", "end", "years")} for r in target_rows],
+        "evidence": [{**{k: r[k] for k in ("company", "industry", "start", "end", "years")},
+                      **({"note": "sin fecha"} if r.get("undated") else {})} for r in target_rows],
         "unknown_industry_jobs": [r["company"] for r in rows if not r["industry"]],
+        "undated_current_job": bool(undated),
     }
     return (round(min(1.0, xi), 4), round(ci, 3), evidence)
 

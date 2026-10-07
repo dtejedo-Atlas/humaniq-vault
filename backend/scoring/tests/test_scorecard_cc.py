@@ -142,7 +142,7 @@ class TestProcessTypeInEngine:
         w = result["weights_used"]
         assert result["process_type"] == "operational"
         assert w["SK"] > w["CC"], "operational: SK debe pesar más que CC"
-        assert w["SK"] == 0.24
+        assert w["SK"] == 0.22
 
     def test_cc_in_component_breakdown(self):
         scorecard = {"process_type": "executive", "target_company_caliber": "corporativo_nacional"}

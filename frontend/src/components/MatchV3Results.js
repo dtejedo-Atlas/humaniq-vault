@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CandidateQuickActions from './CandidateQuickActions';
+import AIRefinePanel from './AIRefinePanel';
 import { loadViewState, saveViewState } from '../utils/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
@@ -79,6 +80,23 @@ const getNeutralHint = (code, comp) => {
     : 'Componente neutral por falta de evidencia — no penaliza al candidato.';
 };
 
+const CRITERION_STATUS = {
+  cumple: { label: 'Cumple', icon: '✓', cls: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
+  parcial: { label: 'Parcial', icon: '~', cls: 'bg-amber-50 border-amber-200 text-amber-800' },
+  no_cumple: { label: 'No cumple', icon: '✕', cls: 'bg-slate-50 border-slate-200 text-slate-500' },
+  error: { label: 'Error al evaluar', icon: '!', cls: 'bg-red-50 border-red-200 text-red-700' },
+  pending: { label: 'No evaluado', icon: '·', cls: 'bg-white border-dashed border-slate-200 text-slate-400' },
+};
+
+const INDUSTRY_LABELS = {
+  telecommunications: 'Telecomunicaciones', technology: 'Tecnología', fintech: 'Fintech', financial_services: 'Servicios Financieros',
+  manufacturing: 'Manufactura', consumer_goods: 'Bienes de Consumo', retail: 'Retail', pharmaceutical: 'Farmacéutica', automotive: 'Automotriz',
+  agriculture: 'Agricultura', energy: 'Energía', construction: 'Construcción', healthcare: 'Salud', education: 'Educación',
+  logistics_supply_chain: 'Logística', transportation: 'Transporte', real_estate: 'Bienes Raíces', hospitality: 'Hospitalidad',
+  industrial_services: 'Servicios Industriales', food_beverage: 'Alimentos y Bebidas', professional_services: 'Servicios Profesionales',
+  mining: 'Minería', media_entertainment: 'Medios',
+};
+
 const KNOCKOUT_STATUS_CONFIG = {
   cumple: { color: 'bg-green-500', label: 'Cumple' },
   no_aplica: { color: 'bg-gray-400', label: 'No aplica' },
@@ -88,9 +106,12 @@ const KNOCKOUT_STATUS_CONFIG = {
   no_cumple_fatal: { color: 'bg-red-500', label: 'No cumple (fatal)' },
 };
 
-const MatchV3Results = ({ jobId, jobTitle }) => {
+const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
+  const [criteria, setCriteria] = useState([]);
+  const [coverage, setCoverage] = useState(null);
+  const [topN, setTopN] = useState(30);
   const [snapshotAt, setSnapshotAt] = useState(null);
   const [processType, setProcessType] = useState(null);
   const [expanded, setExpanded] = useState(() => loadViewState(`v3:${jobId}`)?.expanded || {});
@@ -107,19 +128,25 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
     saveViewState(`v3:${jobId}`, { expanded });
   }, [expanded, jobId]);
 
-  // Último matching v3 guardado: no recalcula al volver a la vacante
+  const applyUnified = (data) => {
+    setResults(data.results || []);
+    setCriteria(data.criteria || []);
+    if (data.coverage) setCoverage(data.coverage);
+    setSnapshotAt(data.snapshot_at || null);
+    if (data.results?.length > 0) setProcessType(data.results[0].process_type);
+    if (onResultsChange) onResultsChange((data.results || []).length);
+  };
+
+  // Una sola lista: último v3 guardado + criterios de IA acumulados (no recalcula al volver)
   useEffect(() => {
     let cancelled = false;
-    jobsAPI.getMatchSnapshot(jobId, 'v3')
-      .then((res) => {
-        if (cancelled) return;
-        const data = res.data;
-        setResults(data.results || []);
-        setSnapshotAt(data.snapshot_at || null);
-        if (data.results?.length > 0) setProcessType(data.results[0].process_type);
-      })
-      .catch(() => {});
+    setLoading(true);
+    jobsAPI.getUnifiedMatches(jobId)
+      .then((res) => { if (!cancelled) applyUnified(res.data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
   const handleExport = async () => {
@@ -165,15 +192,10 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
   const runMatchV3 = async () => {
     setLoading(true);
     try {
-      const response = await jobsAPI.matchV3(jobId, 50);
-      const data = response.data;
-      const v3Results = data.engine === 'compare' ? data.v3 : data.results;
-      setResults(v3Results || []);
-      setSnapshotAt(data.snapshot_at || new Date().toISOString());
-      if (v3Results?.length > 0) {
-        setProcessType(v3Results[0].process_type);
-      }
-      toast.success(`Matching v3 completado: ${(v3Results || []).length} candidatos evaluados`);
+      await jobsAPI.matchV3(jobId, 50);
+      const unified = await jobsAPI.getUnifiedMatches(jobId);
+      applyUnified(unified.data);
+      toast.success(`Matching actualizado: ${(unified.data.results || []).length} candidatos en la lista`);
     } catch (error) {
       console.error('Error running match v3:', error);
       if (error.response?.status === 403) {
@@ -197,10 +219,10 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Zap className="w-5 h-5" />
-              Resultados Matching v3
+              Matching de la vacante
             </CardTitle>
             <CardDescription>
-              Humaniq Match Score (HMS) con desglose de 11 componentes
+              Capa 1: ranking v3 (HMS) · Capa 2: criterios de IA sobre el CV completo — una sola lista
               {processType && ` — proceso: ${processType}`}
               {snapshotAt && (
                 <span className="block text-xs text-slate-400 mt-0.5" data-testid="v3-snapshot-date">
@@ -224,12 +246,34 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
             )}
             <Button onClick={runMatchV3} disabled={loading} variant="outline" size="sm" data-testid="run-match-v3-btn">
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {results ? 'Actualizar matching' : 'Ejecutar Matching v3'}
+              {results ? 'Actualizar matching' : 'Ejecutar matching'}
             </Button>
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {coverage?.targets?.length > 0 && coverage.low_coverage && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" data-testid="coverage-banner">
+            <p className="font-medium">
+              {coverage.any === 0 ? 'No hay candidatos' : `Solo hay ${coverage.any} candidato(s)`} con experiencia en {coverage.targets.map((t) => INDUSTRY_LABELS[t] || t).join(', ')} en la base.
+              Mostrando los más cercanos por: función → seniority → experiencia relevante.
+            </p>
+            <p className="text-xs mt-1">
+              {Object.entries(coverage.per_industry || {}).map(([k, v]) => `${INDUSTRY_LABELS[k] || k}: ${v}`).join(' · ')} (de {coverage.total_candidates} candidatos activos)
+            </p>
+          </div>
+        )}
+        {coverage?.targets?.length > 0 && !coverage.low_coverage && (
+          <p className="text-xs text-slate-500" data-testid="coverage-summary">
+            Cobertura por industria objetivo: {Object.entries(coverage.per_industry || {}).map(([k, v]) => `${INDUSTRY_LABELS[k] || k}: ${v}`).join(' · ')} · requisito: {coverage.requirement}
+          </p>
+        )}
+        {results && (
+          <AIRefinePanel jobId={jobId} criteria={criteria} topN={topN} onTopNChange={setTopN} onUpdated={applyUnified} disabled={loading} />
+        )}
+        {criteria.length > 0 && results?.length > 0 && !results.some((r) => r.ai_met > 0 || r.ai_partial > 0) && (
+          <p className="text-sm text-amber-700" data-testid="ai-none-met">Ningún candidato de la lista cumple los criterios de IA; el orden sigue siendo el del motor.</p>
+        )}
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -255,8 +299,9 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-4">
                         <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-600">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-100 flex flex-col items-center justify-center font-bold text-slate-600 leading-none">
                             {index + 1}
+                            {r.v3_rank && r.v3_rank !== index + 1 && <span className="text-[9px] font-normal text-slate-400">v3 #{r.v3_rank}</span>}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -272,6 +317,34 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
                                 {r.current_title}{r.current_company ? ` @ ${r.current_company}` : ''}
                               </p>
                             )}
+                            {criteria.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5" data-testid={`ai-criteria-${r.candidate_id}`}>
+                                {criteria.map((c) => {
+                                  const st = r.ai_criteria?.[c.id];
+                                  const cfg = CRITERION_STATUS[st?.status] || CRITERION_STATUS.pending;
+                                  return (
+                                    <TooltipProvider key={c.id}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] border ${cfg.cls}`}>
+                                            {cfg.icon} {c.text.length > 36 ? `${c.text.slice(0, 36)}…` : c.text}{st?.no_evidence && st?.status === 'no_cumple' ? ' (sin evidencia)' : ''}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-sm text-xs">
+                                          <p className="font-medium">{cfg.label}</p>
+                                          {st?.quote && <p className="mt-1 italic">"{st.quote}"</p>}
+                                          {(st?.company || st?.period) && <p className="mt-1 text-slate-300">{[st.company, st.period].filter(Boolean).join(' · ')}</p>}
+                                          {!st && <p className="mt-1">No evaluado para este candidato (fuera del alcance de la consulta)</p>}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {r.moved_up_by && (
+                              <p className="text-xs text-violet-700 mt-1" data-testid={`moved-up-${r.candidate_id}`}>↑ {r.moved_up_by}</p>
+                            )}
                             <div className="mt-2">
                               <CandidateQuickActions candidate={r} originLabel={`vacante: ${jobTitle || ''}`} compact />
                             </div>
@@ -284,12 +357,12 @@ const MatchV3Results = ({ jobId, jobTitle }) => {
                             </div>
                             <div className="text-xs text-slate-500">HMS</div>
                           </div>
-                          <CollapsibleTrigger asChild>
+                          {technical && <CollapsibleTrigger asChild>
                             <Button variant="outline" size="sm" data-testid="match-v3-breakdown-toggle">
                               {isOpen ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
                               Ver desglose
                             </Button>
-                          </CollapsibleTrigger>
+                          </CollapsibleTrigger>}
                         </div>
                       </div>
 

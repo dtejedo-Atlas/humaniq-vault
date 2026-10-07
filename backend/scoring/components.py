@@ -602,35 +602,26 @@ def calculate_ia(
     job: Dict[str, Any]
 ) -> ComponentResult:
     """
-    IA: Industry Affinity
-    Transferibilidad entre industria del candidato y de la vacante.
+    IA: Industry Affinity por trayectoria.
+    Proporción (ponderada por recencia) de los últimos 10 años en alguna de las target_industries
+    de la vacante, combinada con la transferibilidad de la industria actual.
+    Compatibilidad: sin target_industries se usa job.industry como único objetivo.
     
     Returns:
         (xi, ci, evidence)
     """
-    cand_industry = candidate.get("industry")
-    job_industry = job.get("industry")
-    
-    if not cand_industry or not job_industry:
-        missing = []
-        if not cand_industry:
-            missing.append("candidate.industry")
-        if not job_industry:
-            missing.append("job.industry")
-        return (SHRINKAGE_NEUTRAL, 0.0, {"note": "Datos faltantes", "missing": missing})
-    
-    transferability = get_industry_transferability(cand_industry, job_industry)
-    xi = transferability / 100.0
-    
-    return (
-        xi,
-        1.0,
-        {
-            "candidate_industry": cand_industry,
-            "job_industry": job_industry,
-            "transferability_score": transferability,
-        }
-    )
+    from industry_trajectory import industry_affinity, job_target_industries
+
+    targets, _ = job_target_industries(job)
+    if not targets:
+        return (SHRINKAGE_NEUTRAL, 0.0, {"note": "Datos faltantes", "missing": ["job.industry"]})
+    if not candidate.get("industry") and not candidate.get("previous_companies"):
+        return (SHRINKAGE_NEUTRAL, 0.0, {"note": "Datos faltantes", "missing": ["candidate.industry"]})
+
+    xi, ci, evidence = industry_affinity(candidate, job)
+    evidence["candidate_industry"] = candidate.get("industry")
+    evidence["job_industries"] = targets
+    return (xi, ci, evidence)
 
 
 def calculate_ed(
