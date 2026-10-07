@@ -51,6 +51,8 @@ from duplicate_detector_v2 import DuplicateDetectorV2, CandidateMerger
 from cv_hash_service import CVHashService, compute_hashes
 from job_lifecycle_service import JobLifecycleService, ARCHIVE_AFTER_DAYS
 from name_quality import suspicious_name_issues, SUSPICIOUS_NAME_MESSAGE
+from ai_model_config import ai_model_config, AVAILABLE_MODELS, TASKS as AI_MODEL_TASKS
+from ai_match_review_service import AIMatchReviewService
 from pymongo.errors import DuplicateKeyError
 import hmac
 from embedding_service import embedding_service
@@ -96,10 +98,12 @@ duplicate_detector = DuplicateDetector(db)
 duplicate_detector_v2 = DuplicateDetectorV2(db)
 cv_hash_service = CVHashService(db)
 job_lifecycle_service = JobLifecycleService(db)
+ai_model_config.bind(db)
 candidate_merger = CandidateMerger(db)
 cv_version_service = CVVersionService(db)
 hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
+ai_match_review_service = AIMatchReviewService(db, job_matching_service, os.environ['EMERGENT_LLM_KEY'])
 user_service = UserService(db)
 assignment_service = AssignmentService(db)
 export_service = ExportService(db, storage_service)
@@ -4831,6 +4835,65 @@ async def list_jobs(
     
     jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).to_list(200)
     return jobs
+
+
+@api_router.get("/admin/ai-models")
+async def get_ai_models(current_user: User = Depends(get_current_user)):
+    """Modelos de Claude disponibles y el asignado a cada tarea."""
+    return {
+        "available_models": AVAILABLE_MODELS,
+        "tasks": [{"key": key, **meta} for key, meta in AI_MODEL_TASKS.items()],
+        "current": await ai_model_config.get_all(),
+        "defaults": ai_model_config.defaults(),
+        "can_edit": current_user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+    }
+
+
+class AIModelsUpdateRequest(PydanticBaseModel):
+    models: Dict[str, str]
+
+
+@api_router.put("/admin/ai-models")
+async def update_ai_models(
+    request: AIModelsUpdateRequest,
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Cambia el modelo de Claude usado en cada tarea."""
+    try:
+        current = await ai_model_config.set_models(request.models, actor=current_user.id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    await log_activity(current_user, "ai_models_updated", "settings", "ai_models", "Modelos de IA")
+    return {"message": "Modelos actualizados", "current": current}
+
+
+@api_router.post("/jobs/{job_id}/ai-match-review")
+async def create_ai_match_review(
+    job_id: str,
+    top_n: int = Query(default=5, ge=1, le=10),
+    threshold: int = Query(default=60, ge=0, le=100),
+    current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Análisis experto de Claude sobre la terna que devolvió el motor. No altera scores ni orden."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    try:
+        return await ai_match_review_service.review(
+            job=job, top_n=top_n, threshold=threshold, actor=current_user.id
+        )
+    except Exception as e:
+        logger.error(f"AI match review failed for job {job_id}: {e}")
+        raise HTTPException(status_code=502, detail=f"El análisis de IA no se pudo completar: {e}")
+
+
+@api_router.get("/jobs/{job_id}/ai-match-review")
+async def get_ai_match_review(job_id: str, current_user: User = Depends(get_current_user)):
+    """Último análisis de IA guardado para la vacante."""
+    review = await ai_match_review_service.get_cached(job_id)
+    if not review:
+        return {"exists": False}
+    return {"exists": True, **review}
 
 
 @api_router.get("/jobs/expiring")

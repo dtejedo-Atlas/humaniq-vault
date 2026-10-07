@@ -9,6 +9,7 @@ from taxonomy import (build_taxonomy_prompt_section, build_industries_prompt_sec
                       get_industry_by_key)
 from humaniq_catalog import (build_humaniq_prompt_section, normalize_classification,
                             resolve_area, resolve_seniority)
+from ai_model_config import ai_model_config, PROVIDER
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -222,7 +223,7 @@ Para "company_caliber", clasifica el calibre de cada empresa en UNO de estos 5 v
 - "startup": empresa joven / emprendimiento
 Si no hay información suficiente para clasificar una empresa, deja company_caliber en null. NO inventes.
             """
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model(PROVIDER, await ai_model_config.get_model("cv_parsing"))
         
         message = UserMessage(
             text=f"""Analiza el siguiente currículum y extrae toda la información estructurada.
@@ -287,7 +288,7 @@ Responde SOLO en formato JSON:
     "reasoning": "breve explicación de la clasificación"
 }}
 """
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model(PROVIDER, await ai_model_config.get_model("classification"))
         
         message = UserMessage(
             text=f"""Clasifica el siguiente perfil profesional:
@@ -381,7 +382,7 @@ Responde SOLO con JSON válido.
             api_key=self.api_key,
             session_id=f"summary-{id(candidate_data)}",
             system_message="Eres Atlas, un experto en redactar resúmenes profesionales de candidatos para reclutamiento ejecutivo. Genera resúmenes concisos, profesionales y en español que destaquen las fortalezas clave del candidato en 3-4 oraciones."
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model(PROVIDER, await ai_model_config.get_model("summary"))
         
         message = UserMessage(
             text=f"""Genera un resumen profesional ejecutivo del siguiente candidato:
@@ -425,7 +426,7 @@ Responde en JSON:
     "recommendation": "recomendación final"
 }
             """
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model(PROVIDER, await ai_model_config.get_model("text_matching"))
         
         candidate_summary = f"""
 Candidato: {candidate_data.get('full_name', 'N/A')}
@@ -553,7 +554,7 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional:
     "extraction_notes": "Notas sobre la extracción, campos inferidos o dudas"
 }}
 """
-        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        ).with_model(PROVIDER, await ai_model_config.get_model("job_parsing"))
         
         message = UserMessage(
             text=f"""Analiza la siguiente descripción de vacante y extrae toda la información estructurada.

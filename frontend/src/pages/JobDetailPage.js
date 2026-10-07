@@ -47,6 +47,7 @@ import {
   Lock
 } from 'lucide-react';
 import { jobsAPI, exportsAPI } from '../api';
+import AIMatchReview from '../components/AIMatchReview';
 import { useTaxonomy } from '../contexts/TaxonomyContext';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -406,6 +407,8 @@ const JobDetailPage = () => {
 
         {/* Matching v3 Results (vista técnica) — solo admin/super_admin */}
         {isTechnical && <MatchV3Results jobId={id} />}
+
+        <AIMatchReview jobId={id} hasMatches={(matches?.results?.length || 0) > 0} />
 
         <Card>
           <CardHeader>

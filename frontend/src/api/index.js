@@ -164,6 +164,15 @@ export const jobsAPI = {
   }
 };
 
+// IA: modelos y análisis de match
+export const aiAPI = {
+  getModels: () => axios.get(`${API_BASE}/admin/ai-models`),
+  updateModels: (models) => axios.put(`${API_BASE}/admin/ai-models`, { models }),
+  getMatchReview: (jobId) => axios.get(`${API_BASE}/jobs/${jobId}/ai-match-review`),
+  createMatchReview: (jobId, topN = 5, threshold = 50) =>
+    axios.post(`${API_BASE}/jobs/${jobId}/ai-match-review`, null, { params: { top_n: topN, threshold } }),
+};
+
 // Papelera y duplicados
 export const trashAPI = {
   getDeleted: () => axios.get(`${API_BASE}/trash/candidates`),
