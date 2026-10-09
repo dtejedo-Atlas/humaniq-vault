@@ -33,6 +33,15 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
+## Último trabajo — 2026-10-09: carga de lotes blindada (urgente)
+- Ambiente del usuario confirmado: **producción** (`atlas-recruiting-ai.emergent.host`, imagen 2026-09-30, 2 réplicas) sobre la **misma base Atlas** que preview. La base `atlas-recruiting-ai-atlas_talent_vault` gestionada por Emergent está sin uso; DB Manager no refleja producción.
+- Backend: la cuota de lotes se autolibera (lotes terminados, fallidos y huérfanos), el heartbeat ya no mantiene vivos jobs sin bytes en memoria, los jobs sin archivo quedan `failed` y al arrancar se cierran lotes de réplicas muertas.
+- Frontend: 404 limpia el seguimiento solo y nunca bloquea; 429, 401 y 403 muestran mensajes específicos.
+- Actualización de CV: `previous_companies` solo se reemplaza si el CV nuevo trae ≥1 empleo parseado (verificado E2E).
+- Detalle completo y pruebas en `CHANGELOG.md` (entrada 2026-10-09).
+- Pendiente conocido (no resuelto): los bytes de los archivos siguen en memoria de la réplica que recibe el POST; un reinicio a media carga obliga a volver a subir esos archivos (ahora se reportan como fallidos en vez de quedar colgados).
+
+
 ## Último trabajo — 2026-10-07: ajustes al matching (Fases 0-4)
 **Contexto:** la vacante "Director Comercial" (Diri Telecom) pedía Telecom/Tecnología/Fintech y el top 5 no tenía esa industria. Causas raíz: IA comparaba una sola industria vs una sola; IA pesaba 0.10; la terna IA salía del motor v2 con campos resumen; los no-negociables `custom` del scorecard nunca se evaluaban.
 **Reglas del usuario:** v2 (`job_matching_service.py`) intacto; flag `MATCHING_ENGINE_VERSION=compare` sin cambios; backup antes de backfills; no inventar años; todo en español.

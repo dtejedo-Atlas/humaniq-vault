@@ -12,6 +12,7 @@ QUEUED_BATCHES_PER_USER = 2
 FILES_PER_BATCH = 50
 LEASE_SECONDS = 600
 HEARTBEAT_SECONDS = 20
+ORPHAN_GRACE_SECONDS = 120
 _heartbeats = {}
 
 
@@ -27,7 +28,7 @@ def quota_error():
     return HTTPException(429, 'Límite de procesamiento: 2 CVs simultáneos y 2 lotes en espera por usuario. Espera a que termine un lote; se admiten hasta 50 CVs por lote.', headers={'Retry-After': '30'})
 
 
-async def _batch_heartbeat(db, user_id, batch_id, kind):
+async def _batch_heartbeat(db, user_id, batch_id, kind, owned_job_ids=None):
     try:
         while True:
             await asyncio.sleep(HEARTBEAT_SECONDS)
@@ -35,24 +36,52 @@ async def _batch_heartbeat(db, user_id, batch_id, kind):
                 {'$set': {'batches.$.expires_at': _now() + timedelta(seconds=LEASE_SECONDS)}})
             if not result.matched_count:
                 break
-            if kind == 'upload':
-                await db.upload_jobs.update_many({'batch_id': batch_id, 'status': 'pending'}, {'$set': {'updated_at': _now().isoformat()}})
+            # Solo se refrescan los jobs cuyos bytes siguen en memoria de esta réplica;
+            # los huérfanos deben envejecer para que el polling los marque como fallidos.
+            owned = list(owned_job_ids(batch_id)) if owned_job_ids else []
+            if kind == 'upload' and owned:
+                await db.upload_jobs.update_many({'batch_id': batch_id, 'job_id': {'$in': owned}, 'status': 'pending'},
+                    {'$set': {'updated_at': _now().isoformat()}})
     except (asyncio.CancelledError, Exception):
         return
 
 
-async def reserve_batch(db, user_id, batch_id, kind, count):
+async def release_idle_batches(db, user_id):
+    """Libera la cuota de lotes de carga sin trabajo pendiente (terminados, fallidos o huérfanos)."""
+    doc = await db.ai_user_workloads.find_one({'_id': user_id}, {'_id': 0, 'batches': 1})
+    now = _now()
+    for entry in (doc or {}).get('batches') or []:
+        if entry.get('kind') != 'upload':
+            continue
+        reserved = entry.get('reserved_at')
+        if reserved is not None:
+            if reserved.tzinfo is None:
+                reserved = reserved.replace(tzinfo=timezone.utc)
+            if (now - reserved).total_seconds() < ORPHAN_GRACE_SECONDS:
+                continue
+        batch_id = entry['batch_id']
+        batch = await db.upload_batches.find_one({'batch_id': batch_id}, {'_id': 0, 'submission_complete': 1})
+        if batch and not batch.get('submission_complete'):
+            continue
+        if await db.upload_jobs.count_documents({'batch_id': batch_id, 'status': {'$in': ['pending', 'processing']}}):
+            continue
+        await release_batch(db, user_id, batch_id)
+
+
+async def reserve_batch(db, user_id, batch_id, kind, count, owned_job_ids=None):
     if not 1 <= count <= FILES_PER_BATCH:
         raise HTTPException(400, 'Máximo 50 CVs por lote')
     try:
         await db.ai_user_workloads.update_one({'_id': user_id}, {'$setOnInsert': {'batches': [], 'leases': []}}, upsert=True)
     except DuplicateKeyError:
         pass
-    now = _now()
-    live = _live('batches', now)
-    existing = await db.ai_user_workloads.find_one({'_id': user_id, 'batches': {'$elemMatch': {'batch_id': batch_id, 'expires_at': {'$gt': now}}}}, {'_id': 0, 'batches.batch_id': 1})
-    if not existing:
-        item = {'batch_id': batch_id, 'kind': kind, 'expires_at': now + timedelta(seconds=LEASE_SECONDS)}
+    for attempt in (0, 1):
+        now = _now()
+        live = _live('batches', now)
+        existing = await db.ai_user_workloads.find_one({'_id': user_id, 'batches': {'$elemMatch': {'batch_id': batch_id, 'expires_at': {'$gt': now}}}}, {'_id': 0, 'batches.batch_id': 1})
+        if existing:
+            break
+        item = {'batch_id': batch_id, 'kind': kind, 'reserved_at': now, 'expires_at': now + timedelta(seconds=LEASE_SECONDS)}
         result = await db.ai_user_workloads.find_one_and_update(
             {'_id': user_id, '$expr': {'$and': [
                 {'$lt': [{'$size': live}, 1 + QUEUED_BATCHES_PER_USER]},
@@ -60,13 +89,18 @@ async def reserve_batch(db, user_id, batch_id, kind, count):
             ]}},
             [{'$set': {'batches': {'$concatArrays': [live, [item]]}, 'leases': _live('leases', now)}}],
             projection={'_id': 0, 'batches.batch_id': 1}, return_document=ReturnDocument.AFTER)
-        if result is None:
-            concurrent = await db.ai_user_workloads.find_one({'_id': user_id, 'batches': {'$elemMatch': {'batch_id': batch_id, 'expires_at': {'$gt': now}}}}, {'_id': 0, 'batches.batch_id': 1})
-            if not concurrent:
-                raise quota_error()
+        if result is not None:
+            break
+        concurrent = await db.ai_user_workloads.find_one({'_id': user_id, 'batches': {'$elemMatch': {'batch_id': batch_id, 'expires_at': {'$gt': now}}}}, {'_id': 0, 'batches.batch_id': 1})
+        if concurrent:
+            break
+        if attempt:
+            raise quota_error()
+        # La cuota puede estar ocupada por lotes ya terminados o huérfanos: se liberan y se reintenta.
+        await release_idle_batches(db, user_id)
     key = (id(db.client), db.name, user_id, batch_id)
     if key not in _heartbeats or _heartbeats[key].done():
-        task = asyncio.create_task(_batch_heartbeat(db, user_id, batch_id, kind))
+        task = asyncio.create_task(_batch_heartbeat(db, user_id, batch_id, kind, owned_job_ids))
         _heartbeats[key] = task
         task.add_done_callback(lambda finished: _heartbeats.pop(key, None) if _heartbeats.get(key) is finished else None)
 

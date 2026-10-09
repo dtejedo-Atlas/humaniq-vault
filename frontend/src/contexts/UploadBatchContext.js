@@ -57,8 +57,21 @@ export const UploadBatchProvider = ({ children }) => {
     setState(prev => prev.owner !== ownerRef.current || prev.batchId !== data.batch_id ? prev : { ...prev, status: data, recovering: false, error: '', unavailable: false });
   }, []);
   const pollingError = useCallback(error => {
-    const unavailable = [403, 404].includes(error.response?.status);
-    setState(prev => ({ ...prev, recovering: false, unavailable, error: unavailable ? 'Este lote no está disponible. Puedes cerrar este seguimiento.' : 'Conexión interrumpida. El servidor sigue procesando; el progreso se actualizará al reconectar.' }));
+    const owner = ownerRef.current;
+    const status = error.response?.status;
+    if (status === 404) {
+      // El lote ya no existe en el servidor: se limpia el seguimiento solo y se puede volver a subir.
+      writeTracking(owner, {});
+      setState(prev => (prev.owner !== owner ? prev : { ...EMPTY, owner, recovering: false }));
+      toast.info('El lote que seguíamos ya no existe en el servidor. Puedes volver a subir CVs.');
+      return;
+    }
+    const message = status === 401
+      ? 'Tu sesión expiró. Vuelve a iniciar sesión para seguir cargando CVs.'
+      : status === 403
+        ? 'Tu cuenta no tiene acceso a este lote. Puedes cerrar este seguimiento.'
+        : 'Conexión interrumpida. El servidor sigue procesando; el progreso se actualizará al reconectar.';
+    setState(prev => ({ ...prev, recovering: false, unavailable: status === 403, error: message }));
   }, []);
   useBatchPolling(owner ? current.batchId : null, receive, pollingError);
 
@@ -77,10 +90,27 @@ export const UploadBatchProvider = ({ children }) => {
       return data;
     } catch (error) {
       if (ownerRef.current === owner) {
-        if (error.response?.status === 429) {
-          const message = error.response.data?.detail || 'Límite de procesamiento alcanzado. Espera a que termine un lote.';
-          setState(prev => ({ ...prev, transferring: false, error: message }));
+        const status = error.response?.status;
+        if (status === 429) {
+          const message = 'Tienes un lote en proceso; espera a que termine antes de enviar otro.';
           toast.warning(message);
+          setState({ ...EMPTY, owner, recovering: false, error: message });
+          // Se vuelve a seguir el lote que realmente está corriendo, en vez de uno inexistente.
+          try {
+            const { data } = await candidatesAPI.getLatestBatch();
+            if (ownerRef.current === owner && data.batch_id) {
+              writeTracking(owner, { batch_id: data.batch_id });
+              setState(prev => (prev.owner === owner ? { ...prev, batchId: data.batch_id } : prev));
+            } else {
+              writeTracking(owner, {});
+            }
+          } catch { writeTracking(owner, {}); }
+          return;
+        }
+        if (status === 401) {
+          const message = 'Tu sesión expiró. Vuelve a iniciar sesión para cargar CVs.';
+          setState(prev => ({ ...prev, transferring: false, error: message }));
+          toast.error(message);
           return;
         }
         setState(prev => ({ ...prev, transferring: false, error: 'No se pudo confirmar la recepción. Actualiza el seguimiento antes de volver a enviar archivos.' }));

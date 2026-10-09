@@ -144,6 +144,11 @@ class BackgroundProcessor:
             self.queue = asyncio.Queue()
             logger.info(f"Background processor initialized with {self.max_concurrent} workers")
 
+    def owned_job_ids(self, batch_id: str) -> List[str]:
+        """Jobs de este lote cuyos bytes siguen en memoria de esta réplica."""
+        return [job_id for job_id, job in self.jobs.items()
+                if job.batch_id == batch_id and job_id in self.file_data]
+
     async def persist_job(self, job: ProcessingJob):
         """Escribe (upsert) el estado del job en MongoDB. Heartbeat = updated_at."""
         try:
@@ -179,6 +184,9 @@ class BackgroundProcessor:
 
                 job = self.jobs.get(job_id)
                 if not job or job.status == JobStatus.CANCELLED:
+                    if not job:
+                        # Los bytes ya no están en esta réplica: el job queda fallido, no pendiente para siempre.
+                        await self._mark_orphan_job(job_id)
                     self.queue.task_done()
                     continue
 
@@ -265,6 +273,27 @@ class BackgroundProcessor:
                 else:
                     job.status = JobStatus.FAILED
 
+    async def _mark_orphan_job(self, job_id: str):
+        """Marca fallido un job cuyo archivo ya no está en memoria y libera la cuota si el lote terminó."""
+        doc = await self.db.upload_jobs.find_one_and_update(
+            {"job_id": job_id, "status": {"$in": [JobStatus.PENDING.value, JobStatus.PROCESSING.value]}},
+            {"$set": {
+                "status": JobStatus.FAILED.value,
+                "current_stage": "failed",
+                "completed_at": _now_iso(),
+                "updated_at": _now_iso(),
+            }, "$push": {"errors": {
+                "type": "file_not_found",
+                "stage": "processing",
+                "message": "El archivo ya no estaba disponible en el servidor. Vuelve a subirlo.",
+                "recoverable": True,
+            }}},
+            projection={"_id": 0, "batch_id": 1},
+        )
+        if doc:
+            logger.warning(f"Job {job_id} marcado fallido: bytes ausentes en esta réplica")
+            await self.finish_batch_if_done(doc["batch_id"])
+
     async def create_batch(self, user_id: str, file_count: int) -> BatchUpload:
         """Crear un nuevo lote (persistido en MongoDB)"""
         batch = BatchUpload(
@@ -272,7 +301,7 @@ class BackgroundProcessor:
             user_id=user_id,
             total_files=file_count
         )
-        await reserve_batch(self.db, user_id, batch.batch_id, 'upload', file_count)
+        await reserve_batch(self.db, user_id, batch.batch_id, 'upload', file_count, self.owned_job_ids)
         try:
             await self.db.upload_batches.insert_one({**batch.to_dict(), 'quota_managed': True})
         except Exception:
@@ -329,6 +358,19 @@ class BackgroundProcessor:
         batch = await self.db.upload_batches.find_one({'batch_id': batch_id, 'quota_managed': True, 'submission_complete': True}, {'_id': 0, 'user_id': 1})
         if batch and not await self.db.upload_jobs.count_documents({'batch_id': batch_id, 'status': {'$in': ['pending', 'processing']}}):
             await release_batch(self.db, batch['user_id'], batch_id)
+
+    async def sweep_orphan_batches(self):
+        """Al arrancar: cierra lotes huérfanos de réplicas muertas y libera su cuota."""
+        batch_ids = await self.db.upload_jobs.distinct(
+            "batch_id", {"status": {"$in": [JobStatus.PENDING.value, JobStatus.PROCESSING.value]}}
+        )
+        for batch_id in batch_ids:
+            try:
+                await self.get_batch_status(batch_id)
+            except Exception as error:
+                logger.warning(f"No se pudo revisar el lote huérfano {batch_id}: {error}")
+        if batch_ids:
+            logger.info(f"Revisión de lotes huérfanos al arranque: {len(batch_ids)} lotes")
 
     async def get_job(self, job_id: str) -> Optional[Dict]:
         """Obtener estado de un job desde MongoDB (funciona en cualquier réplica)"""
@@ -387,6 +429,8 @@ class BackgroundProcessor:
         ).to_list(length=200)
 
         job_docs = await self._mark_stale_jobs(job_docs)
+        # Un lote huérfano o ya terminado nunca debe seguir ocupando cuota del usuario.
+        await self.finish_batch_if_done(batch_id)
 
         stats = {
             "rejected": len(batch.get("rejected_files", [])),
@@ -443,7 +487,7 @@ class BackgroundProcessor:
         job.retry_count += 1
 
         metadata = self.file_metadata.get(job_id) or {}
-        await reserve_batch(self.db, metadata['user_id'], job.batch_id, 'upload', 1)
+        await reserve_batch(self.db, metadata['user_id'], job.batch_id, 'upload', 1, self.owned_job_ids)
         await self.persist_job(job)
         await self.queue.put(job_id)
 

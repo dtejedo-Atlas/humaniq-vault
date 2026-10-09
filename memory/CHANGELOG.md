@@ -1,5 +1,23 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-09 — Carga de lotes: diagnóstico y blindaje (urgente)
+**Diagnóstico (hechos verificados):**
+- Ambiente del usuario: **producción** `https://atlas-recruiting-ai.emergent.host`, imagen desplegada 2026-09-30, que **sí** incluye el código de cuota de lotes. Producción y preview apuntan a la **misma base Atlas** (`ATLAS_URI`, `ATLAS_DB_NAME=atlas_talent_vault`). La base gestionada por Emergent (`atlas-recruiting-ai-atlas_talent_vault`) está sin usar (solo `smart_folders`) y por eso DB Manager/mongo_query no ven datos reales. Producción corre con **2 réplicas**.
+- Reproducción con la cuenta del dueño en producción: `POST /api/candidates/upload-batch` → 200; `GET /api/candidates/batch/{id}` → 200 hasta `is_complete`. **No se reprodujo 403/404 desde la API.**
+- Atlas: sin lotes del dueño ese día (último real 2026-07-07) y `ai_user_workloads` vacío → no había leases vivos bloqueando. Sí había **7 lotes huérfanos** de julio con jobs `pending/processing` eternos (bytes perdidos en réplicas muertas), que el heartbeat mantenía "frescos" y podían ocupar cuota e impedir que un lote completara.
+- El mensaje exacto "Este lote no está disponible" solo se produce con un `batch_id` en `localStorage` que ya no existe en la base (GET 404). Reproducido en navegador y corregido.
+
+**Correcciones aplicadas:**
+- `ai_workload_limits.py`: `reserve_batch` barre y libera lotes sin trabajo pendiente antes de devolver 429 (`release_idle_batches`, gracia de 120 s con `reserved_at`); el heartbeat solo refresca jobs cuyos bytes siguen en memoria de esa réplica, para que la detección de huérfanos funcione.
+- `background_processor.py`: job sin bytes en memoria se marca `failed` (`_mark_orphan_job`) en vez de quedar `pending` eterno; `get_batch_status` libera siempre la cuota de lotes terminados/huérfanos; `sweep_orphan_batches()` al arranque cierra lotes de réplicas muertas (limpió los 7 de julio: 0 jobs colgados).
+- `UploadBatchContext.js`: 404 → limpia el seguimiento solo, avisa y deja subir de nuevo (nunca bloquea); 429 → "Tienes un lote en proceso; espera a que termine" y pasa a seguir el lote real; 401 → "Tu sesión expiró"; 403 → mensaje de permisos.
+- Actualización de CV (punto 5): confirmado que `previous_companies` solo se reemplaza si el CV nuevo trae ≥1 empleo parseado; cubierto ahora con prueba E2E.
+
+**Pruebas:** `tests/test_batch_quota_selfheal.py` 6/6 (Mongo local aislado); `tests/test_e2e_batch_upload.py` 9/9 en preview (lote de 3, segundo lote inmediato, consulta a media carga, 404 de lote inexistente, tercer lote sin 429); `tests/test_cv_update_keeps_history.py` PASS (trayectoria intacta con CV sin empleos); UI con Playwright: carga de 3 CVs + recarga a media carga → progreso recuperado, 3 exitosos, sin banner de error; CVs sintéticos de prueba eliminados de Atlas.
+
+**Observación (no corregida, fuera de alcance):** en un CV sintético el parser dejó `company_industry: null` para una empresa cuya industria estaba descrita en el texto ("manufactura de componentes automotrices"); es una omisión del modelo, no de la validación de catálogo.
+
+
 ## 2026-09-22 — CAPA 1 y CAPA 2 completadas en orden
 - Capa 1: DOCX tablas/cuadros/encabezados/pies, alternativa PDF y OCR por página (Poppler+Tesseract spa/eng instalados y preparación idempotente). 12 tests pasan tras corregir AlternateContent.
 - Reprocesados solo 34 IDs autorizados con clasificador original. **34 legibles, 34 autoclasificados con cuatro campos completos, 0 ilegibles y 0 pendientes**, confianzas 78%-95%. Sin aprobaciones humanas. Before-images en cv_reprocessing_runs e historial/archivos preservados.

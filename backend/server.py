@@ -2340,6 +2340,7 @@ async def upload_batch(
 @app.on_event("startup")
 async def prepare_ocr_dependencies():
     await asyncio.to_thread(ensure_ocr_runtime)
+    await background_processor.sweep_orphan_batches()
     async for batch in db.cv_recheck_batches.find({'status': {'$in': ['queued', 'processing']}}, {'_id': 0, 'batch_id': 1}):
         launch_recheck_batch(db, batch['batch_id'])
 
