@@ -33,6 +33,7 @@ from types import SimpleNamespace
 import invitation_service
 from email_service import send_invitation_email, send_password_reset_email
 from atlas_service import atlas_service, classify_seniority
+from taxonomy import INDUSTRIES as TAXONOMY_INDUSTRIES
 from humaniq_catalog import (public_catalog, presentation_fields, resolve_area, resolve_seniority,
                              normalize_job_taxonomy, ENGINE_AREA_LABELS, CATALOG_VERSION)
 from document_parser import DocumentParser
@@ -187,6 +188,9 @@ def safe_list(value, default=None) -> list:
     return default
 
 
+INDUSTRY_KEYS = {i["key"] for i in TAXONOMY_INDUSTRIES}
+
+
 def clean_previous_company(pc_data: dict) -> Optional[dict]:
     """
     Limpia y valida una entrada de previous_companies.
@@ -207,6 +211,10 @@ def clean_previous_company(pc_data: dict) -> Optional[dict]:
     caliber = pc_data.get('company_caliber')
     if caliber not in ('multinacional_global', 'corporativo_nacional', 'mediana', 'pyme', 'startup'):
         caliber = None
+    # Validar company_industry contra el catálogo (fuera del catálogo → null)
+    company_industry = pc_data.get('company_industry')
+    if company_industry not in INDUSTRY_KEYS:
+        company_industry = None
     
     return {
         'company_name': company_name or 'Empresa no especificada',
@@ -218,6 +226,7 @@ def clean_previous_company(pc_data: dict) -> Optional[dict]:
         'industry': safe_string(pc_data.get('industry')),
         'location': safe_string(pc_data.get('location')),
         'company_caliber': caliber,
+        'company_industry': company_industry,
     }
 
 
@@ -3940,6 +3949,10 @@ async def update_candidate_cv(
                 existing_skills = set(candidate.get("skills") or [])
                 new_skills = set(parsed_snapshot.get("skills") or [])
                 update_data["skills"] = list(existing_skills | new_skills)
+            # Historial laboral del CV nuevo (con company_industry/company_caliber validados)
+            cleaned_history = clean_previous_companies(parsed_snapshot.get("previous_companies") or [])
+            if cleaned_history:
+                update_data["previous_companies"] = cleaned_history
         
         await db.candidates.update_one(
             {"id": candidate_id},

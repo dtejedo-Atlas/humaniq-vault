@@ -199,7 +199,8 @@ Siempre responde en formato JSON válido con esta estructura:
                         "start_date": "fecha inicio o null",
                         "end_date": "fecha fin o null",
                         "description": "descripción breve o null",
-                        "company_caliber": "calibre de la empresa o null"
+                        "company_caliber": "calibre de la empresa o null",
+                        "company_industry": "key de industria de la EMPRESA del catálogo o null"
                     }
                 ]
             }
@@ -222,6 +223,11 @@ Para "company_caliber", clasifica el calibre de cada empresa en UNO de estos 5 v
 - "pyme": pequeña o mediana empresa local
 - "startup": empresa joven / emprendimiento
 Si no hay información suficiente para clasificar una empresa, deja company_caliber en null. NO inventes.
+
+Para "company_industry", indica la industria de la EMPRESA de cada empleo (no la función del candidato) usando
+EXCLUSIVAMENTE una key del catálogo de industrias de arriba (ej. Telcel → "telecommunications", Dell → "technology",
+Clip → "fintech", Coca-Cola → "consumer_goods", BBVA → "financial_services"). Bancos/aseguradoras tradicionales →
+"financial_services"; fintech solo si el producto principal es financiero-digital. Si no hay certeza razonable → null. NO inventes.
             """
         ).with_model(PROVIDER, await ai_model_config.get_model("cv_parsing"))
         

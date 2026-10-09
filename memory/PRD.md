@@ -65,6 +65,12 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Tests: `tests/test_relative_actions_antihallucination.py`; testing agent `iteration_36.json` (frontend 100%).
 - Observación: candidatos fuera del top 30 quedan "no evaluados" (neutral) y pueden entrar a Entrevistar (caso COO) — posible mejora: evaluar KO también a quienes suban al top 15 tras el reorden.
 
+### Pipeline de carga — 2026-10-09: `company_industry` en CVs nuevos (bloqueador resuelto)
+- `atlas_service.parse_resume` pide `company_industry` por empleo (key del catálogo, null sin certeza) junto con `company_caliber`.
+- `server.clean_previous_company` valida `company_industry` contra `taxonomy.INDUSTRIES` (`INDUSTRY_KEYS`; fuera del catálogo → null). Aplica a carga individual (`/candidates/upload-resume`), lote (`/candidates/upload-batch`) y actualización de CV (`/candidates/{id}/update-cv`, que ahora también reemplaza `previous_companies` con el historial limpio del CV nuevo).
+- `models.PreviousCompany.company_industry` agregado. Backfill incremental: `scripts/enrich_company_industry.py` solo procesa empleos sin la clave (0 candidatos nuevos desde el backfill; 1 pendiente por duplicados resuelto con fallback uno-a-uno). Backup `/root/backups/candidates_20261009_1812.json`.
+- E2E `tests/test_e2e_company_industry_upload.py`: CV sintético (actual Bimbo, anteriores AT&T/Telcel) → AT&T/Telcel = telecommunications, Bimbo = consumer_goods; IA cuenta 5.2 años en telecom; knockout de industria "cumple". Se elimina el candidato de prueba al final.
+
 ### Fase 4 — Una sola lista (hecho, probado)
 - `MatchV3Results.js` es la lista única (v3 capa 1 + criterios IA capa 2); se quitó la lista v2 de `JobDetailPage.js` (el backend v2 sigue intacto). Orden: criterios cumplidos → HMS; muestra `v3 #n` y "subió por: …". Banner de cobertura por industria si < 3 candidatos.
 - La terna de `AIMatchReview` sale de la lista unificada (`review(source_results=…)`, `source: unified_v3_ai`) y lee trayectoria con industrias + citas de criterios.

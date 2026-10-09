@@ -68,6 +68,13 @@ async def process_candidate(db, cand, force):
         return {"processed": False, "name": cand.get("full_name")}
     try:
         inds = await infer_industries(cand["id"], [pcs[i] for i in idx])
+    except ValueError:
+        # El modelo colapsó duplicados: inferir una por una
+        try:
+            inds = [(await infer_industries(f"{cand['id']}-{i}", [pcs[i]]))[0] for i in idx]
+        except Exception as e:
+            print(f"  ERROR {cand.get('full_name')}: {e}")
+            return {"processed": False, "error": True, "name": cand.get("full_name")}
     except Exception as e:
         print(f"  ERROR {cand.get('full_name')}: {e}")
         return {"processed": False, "error": True, "name": cand.get("full_name")}

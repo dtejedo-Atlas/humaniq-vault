@@ -219,6 +219,7 @@ class PreviousCompany(BaseModel):
     end_date: Optional[str] = None
     description: Optional[str] = None
     company_caliber: Optional[str] = None  # inferido por IA al parsear
+    company_industry: Optional[str] = None  # key del catálogo, inferido por IA al parsear
 
 class ResumeFile(BaseModel):
     file_name: str
