@@ -211,9 +211,9 @@ def clean_previous_company(pc_data: dict) -> Optional[dict]:
     caliber = pc_data.get('company_caliber')
     if caliber not in ('multinacional_global', 'corporativo_nacional', 'mediana', 'pyme', 'startup'):
         caliber = None
-    # Validar company_industry contra el catálogo (fuera del catálogo → null)
+    # Validar company_industry contra el catálogo (no string o fuera del catálogo → null)
     company_industry = pc_data.get('company_industry')
-    if company_industry not in INDUSTRY_KEYS:
+    if not isinstance(company_industry, str) or company_industry not in INDUSTRY_KEYS:
         company_industry = None
     
     return {
@@ -242,7 +242,12 @@ def clean_previous_companies(companies_data: list) -> list:
     
     cleaned = []
     for pc in companies_data:
-        clean_pc = clean_previous_company(pc)
+        try:
+            clean_pc = clean_previous_company(pc)
+        except Exception as error:
+            # Un empleo malformado se salta; nunca debe tumbar al candidato completo.
+            logger.warning(f"Empleo previo descartado por datos inválidos: {error}")
+            continue
         if clean_pc:
             cleaned.append(clean_pc)
     

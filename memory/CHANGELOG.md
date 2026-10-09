@@ -1,5 +1,12 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-09 — `company_industry` con tipos inesperados ya no tumba al candidato
+- `clean_previous_company` (server.py): `company_industry` se valida con `isinstance(..., str)` antes de comparar contra `INDUSTRY_KEYS`. Lista, dict, número o valor fuera del catálogo → `None`. Antes, una lista provocaba `TypeError: unhashable type: 'list'` y descartaba el candidato completo.
+- `clean_previous_companies`: cada empleo va en `try/except`; un empleo malformado se registra en log y se salta sin afectar al resto.
+- Prueba: `backend/tests/test_clean_previous_company_types.py` 13/13 (incluye `["telecom"]`, dict, número, valor fuera de catálogo, `company_caliber` como lista y lista mixta).
+- Herramienta nueva de lectura: `backend/tests/cross_check_cv_hashes.py` cruza un CSV (archivo + sha256) contra `cv_hashes` activos en Atlas y, para los que no coinciden por hash, busca por nombre normalizado del archivo. Validada con 5 filas reales. Pendiente: el CSV de 57 CVs del usuario no llegó en el adjunto.
+
+
 ## 2026-10-09 — Carga de lotes: diagnóstico y blindaje (urgente)
 **Diagnóstico (hechos verificados):**
 - Ambiente del usuario: **producción** `https://atlas-recruiting-ai.emergent.host`, imagen desplegada 2026-09-30, que **sí** incluye el código de cuota de lotes. Producción y preview apuntan a la **misma base Atlas** (`ATLAS_URI`, `ATLAS_DB_NAME=atlas_talent_vault`). La base gestionada por Emergent (`atlas-recruiting-ai-atlas_talent_vault`) está sin usar (solo `smart_folders`) y por eso DB Manager/mongo_query no ven datos reales. Producción corre con **2 réplicas**.
