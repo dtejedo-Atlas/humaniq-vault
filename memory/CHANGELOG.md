@@ -4,7 +4,8 @@
 - `clean_previous_company` (server.py): `company_industry` se valida con `isinstance(..., str)` antes de comparar contra `INDUSTRY_KEYS`. Lista, dict, número o valor fuera del catálogo → `None`. Antes, una lista provocaba `TypeError: unhashable type: 'list'` y descartaba el candidato completo.
 - `clean_previous_companies`: cada empleo va en `try/except`; un empleo malformado se registra en log y se salta sin afectar al resto.
 - Prueba: `backend/tests/test_clean_previous_company_types.py` 13/13 (incluye `["telecom"]`, dict, número, valor fuera de catálogo, `company_caliber` como lista y lista mixta).
-- Herramienta nueva de lectura: `backend/tests/cross_check_cv_hashes.py` cruza un CSV (archivo + sha256) contra `cv_hashes` activos en Atlas y, para los que no coinciden por hash, busca por nombre normalizado del archivo. Validada con 5 filas reales. Pendiente: el CSV de 57 CVs del usuario no llegó en el adjunto.
+- Herramienta nueva de lectura: `backend/tests/cross_check_cv_hashes.py` cruza un CSV (archivo + sha256) contra `cv_hashes` activos en Atlas y, para los que no coinciden por hash, busca por nombre normalizado del archivo. Validada con 5 filas reales.
+- Cruce ejecutado con `cvs_director_comercial_sha256.csv` (57 CVs, carpeta Director Comercial): **48 ya están por hash exacto**; **1 ya está con otra versión del archivo** (`Resume Alejandro Cancino 2026 Fs.docx`: mismo nombre de archivo y mismo candidato `6153ef42-d82a-4a97-87db-dd7c913f183d`, sha256 distinto); **8 no están** (Juan Gregg, Paulina Molo Esteban, Raúl Ducoing, Ramón Alberto Ponce Campos, Guillermo Marcelo Sánchez Montemayor, Martín Buendía —dos archivos ES/EN— y Sergio Moba), verificado por sha256 en todo `cv_hashes` (activos e inactivos) y por apellido distintivo en los 665 candidatos vigentes más los eliminados. Solo lectura, sin mutaciones.
 
 
 ## 2026-10-09 — Carga de lotes: diagnóstico y blindaje (urgente)
