@@ -110,12 +110,20 @@ const JobDetailPage = () => {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unifiedCount, setUnifiedCount] = useState(0);
+  const [singleRanking, setSingleRanking] = useState(false);
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   useEffect(() => {
     loadJob();
   }, [id]);
+
+  // Motor único activo: una sola lista, sin la tarjeta separada de la terna IA
+  useEffect(() => {
+    jobsAPI.getSingleRankingSetting()
+      .then((res) => setSingleRanking(Boolean(res.data?.active)))
+      .catch(() => {});
+  }, []);
 
   // Persistir scroll para que "Volver" desde una ficha lo restaure
   useEffect(() => {
@@ -319,7 +327,7 @@ const JobDetailPage = () => {
         {/* Flujo unificado: v3 (capa 1) + Afinar con IA (capa 2) — una sola lista */}
         <MatchV3Results jobId={id} jobTitle={job?.title} technical={isTechnical} onResultsChange={handleUnifiedLoaded} />
 
-        <AIMatchReview jobId={id} hasMatches={unifiedCount > 0} />
+        {!singleRanking && <AIMatchReview jobId={id} hasMatches={unifiedCount > 0} />}
 
       </div>
 

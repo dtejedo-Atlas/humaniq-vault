@@ -10,6 +10,8 @@ export const candidatesAPI = {
   getById: (id) => axios.get(`${API_BASE}/candidates/${id}`),
   create: (data) => axios.post(`${API_BASE}/candidates`, data),
   update: (id, data) => axios.put(`${API_BASE}/candidates/${id}`, data),
+  setPreviousCompanyIndustry: (id, index, companyIndustry) =>
+    axios.patch(`${API_BASE}/candidates/${id}/previous-companies/${index}/industry`, { company_industry: companyIndustry }),
   delete: (id) => axios.delete(`${API_BASE}/candidates/${id}`),
   restore: (id) => axios.post(`${API_BASE}/candidates/${id}/restore`),
   addNote: (id, note) => {
@@ -156,6 +158,12 @@ export const jobsAPI = {
   getMatchSnapshot: (id, engine = 'v2') =>
     axios.get(`${API_BASE}/jobs/${id}/match-snapshot`, { params: { engine } }),
   getUnifiedMatches: (id) => axios.get(`${API_BASE}/jobs/${id}/unified-matches`),
+  getRanking: (id) => axios.get(`${API_BASE}/jobs/${id}/ranking`),
+  refreshRanking: (id, limit = 50) =>
+    axios.post(`${API_BASE}/jobs/${id}/ranking/refresh`, null, { params: { limit }, timeout: 900000 }),
+  getSingleRankingSetting: () => axios.get(`${API_BASE}/settings/single-ranking`),
+  setSingleRankingSetting: (active) =>
+    axios.put(`${API_BASE}/settings/single-ranking`, null, { params: { active } }),
   aiRefine: (id, criterion, scope = 'top', topN = 30) =>
     axios.post(`${API_BASE}/jobs/${id}/ai-refine`, { criterion, scope, top_n: topN }, { timeout: 600000 }),
   aiRefineEstimate: (id, scope = 'all', topN = 30) =>

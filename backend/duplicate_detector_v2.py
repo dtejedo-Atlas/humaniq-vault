@@ -14,6 +14,8 @@ from difflib import SequenceMatcher
 import logging
 import unicodedata
 
+from experience_dedupe import dedupe_experience
+
 logger = logging.getLogger(__name__)
 
 
@@ -467,23 +469,12 @@ class CandidateMerger:
         if merge_options.get('merge_experience'):
             primary_exp = primary.get('previous_companies', []) or []
             secondary_exp = secondary.get('previous_companies', []) or []
-            
-            # Deduplicate by company name + title + dates
-            combined_exp = list(primary_exp)
-            existing_keys = {
-                (e.get('company_name', '').lower(), e.get('title', '').lower(), e.get('start_date'))
-                for e in primary_exp
-            }
-            
-            for exp in secondary_exp:
-                key = (exp.get('company_name', '').lower(), exp.get('title', '').lower(), exp.get('start_date'))
-                if key not in existing_keys:
-                    combined_exp.append(exp)
-                    existing_keys.add(key)
-                    merge_log.append(f"Experiencia agregada: {exp.get('title')} en {exp.get('company_name')}")
-            
-            # Sort by start date descending (handle None values safely)
-            combined_exp.sort(key=lambda x: x.get('start_date') or '', reverse=True)
+
+            # Mismo empleo = empresa normalizada similar + periodos que se traslapan (conserva el más completo)
+            before = len(primary_exp) + len(secondary_exp)
+            combined_exp = dedupe_experience(list(primary_exp) + list(secondary_exp))
+            if len(combined_exp) < before:
+                merge_log.append(f"Experiencia combinada sin duplicados: {before} → {len(combined_exp)} empleos")
             merged_data['previous_companies'] = combined_exp
         
         # Merge education

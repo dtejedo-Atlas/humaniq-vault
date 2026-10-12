@@ -55,6 +55,60 @@ def _safe(year: int, month: int) -> Optional[datetime]:
     return datetime(year, min(max(month, 1), 12), 1)
 
 
+def merge_periods(periods: List[Tuple[datetime, datetime]]) -> List[Tuple[datetime, datetime]]:
+    """Une periodos que se traslapan: dos empleos simultáneos no cuentan doble."""
+    clean = sorted([(s, e) for s, e in periods if s and e and e > s])
+    merged: List[Tuple[datetime, datetime]] = []
+    for start, end in clean:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def union_years(periods: List[Tuple[datetime, datetime]]) -> float:
+    """Años cubiertos por la unión de periodos (sin duplicar traslapes)."""
+    return sum((e - s).days for s, e in merge_periods(periods)) / 365.25
+
+
+def _recency(start: datetime, end: datetime, now: datetime) -> float:
+    mid = start + (end - start) / 2
+    age = (now - mid).days / 365.25
+    return 1.0 - (1.0 - RECENCY_FLOOR) * min(max(age / WINDOW_YEARS, 0.0), 1.0)
+
+
+def weighted_union_years(periods: List[Tuple[datetime, datetime]], now: datetime) -> float:
+    """Años de la unión de periodos ponderados por recencia (el segmento actual pesa 1.0)."""
+    return sum(((e - s).days / 365.25) * _recency(s, e, now) for s, e in merge_periods(periods))
+
+
+def employment_periods(candidate: Dict, now: Optional[datetime] = None) -> List[Tuple[datetime, datetime]]:
+    """Periodos de empleo fechados de la ficha completa (sin ventana), para años de experiencia."""
+    now = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
+    periods = []
+    for idx, pc in enumerate(candidate.get("previous_companies") or []):
+        start = parse_date(pc.get("start_date"), now)
+        end = parse_date(pc.get("end_date"), now)
+        is_current = pc.get("is_current") or pc.get("end_date") in (None, "")
+        if end is None and (is_current or idx == 0):
+            end = now
+        if start is None or end is None:
+            continue
+        if end < start:
+            start, end = end, start
+        periods.append((start, min(end, now)))
+    return periods
+
+
+def total_experience_years(candidate: Dict, now: Optional[datetime] = None) -> Optional[float]:
+    """Años de experiencia por la UNIÓN de periodos fechados. None si no hay nada fechado."""
+    periods = employment_periods(candidate, now)
+    if not periods:
+        return None
+    return round(union_years(periods), 1)
+
+
 def job_target_industries(job: Dict) -> Tuple[List[str], str]:
     """Lista de industrias objetivo + requisito. Compatible con el campo legado `industry`."""
     sc = job.get("job_scorecard") or {}
@@ -109,6 +163,7 @@ def trajectory_profile(candidate: Dict, now: Optional[datetime] = None) -> List[
             "years": round(years, 1),
             "recency": round(recency, 3),
             "weighted_years": years * recency,
+            "_period": (ov_start, ov_end),
         })
     # Empleo actual ausente en previous_companies (CV desactualizado): nunca se inventan años
     covers_now = any(r["end"] == "actual" or (parse_date(r["end"], now) and parse_date(r["end"], now) >= now) for r in rows)
@@ -135,15 +190,23 @@ def industry_affinity(candidate: Dict, job: Dict, now: Optional[datetime] = None
         return (NEUTRAL_INDIFFERENT, 1.0, {"note": "Industria indiferente para la vacante", "targets": targets})
 
     rows = trajectory_profile(candidate, now)
+    now_dt = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
     cand_industry = candidate.get("industry")
     transfer = max((get_industry_transferability(cand_industry, t) for t in targets), default=35) / 100.0 \
         if cand_industry else 0.35
 
-    total_w = sum(r["weighted_years"] for r in rows)
-    known_w = sum(r["weighted_years"] for r in rows if r["industry"])
+    # Años por la UNIÓN de periodos: dos empleos simultáneos no cuentan doble
+    def _weighted(selected):
+        dated = [r["_period"] for r in selected if r.get("_period")]
+        undated = sum(r["weighted_years"] for r in selected if not r.get("_period"))
+        return weighted_union_years(dated, now_dt) + undated
+
     target_rows = [r for r in rows if r["industry"] in targets]
-    target_w = sum(r["weighted_years"] for r in target_rows)
-    target_years = sum(r["years"] for r in target_rows)
+    total_w = _weighted(rows)
+    known_w = _weighted([r for r in rows if r["industry"]])
+    target_w = _weighted(target_rows)
+    target_years = union_years([r["_period"] for r in target_rows if r.get("_period")]) \
+        + sum(r["years"] for r in target_rows if not r.get("_period"))
 
     if total_w <= 0:
         xi = transfer

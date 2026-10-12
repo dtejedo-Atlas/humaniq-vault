@@ -127,6 +127,8 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
   const [coverage, setCoverage] = useState(null);
   const [weakGroup, setWeakGroup] = useState(false);
   const [strongCount, setStrongCount] = useState(0);
+  const [singleRanking, setSingleRanking] = useState(false);
+  const [onlyAllCriteria, setOnlyAllCriteria] = useState(false);
   const [topN, setTopN] = useState(30);
   const [snapshotAt, setSnapshotAt] = useState(null);
   const [processType, setProcessType] = useState(null);
@@ -151,15 +153,16 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
     setWeakGroup(Boolean(data.weak_group));
     setStrongCount(data.strong_count || 0);
     setSnapshotAt(data.snapshot_at || null);
+    if (data.single_ranking !== undefined) setSingleRanking(Boolean(data.single_ranking));
     if (data.results?.length > 0) setProcessType(data.results[0].process_type);
     if (onResultsChange) onResultsChange((data.results || []).length);
   };
 
-  // Una sola lista: último v3 guardado + criterios de IA acumulados (no recalcula al volver)
+  // Una sola lista: último ranking guardado (no recalcula ni gasta IA al volver)
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    jobsAPI.getUnifiedMatches(jobId)
+    jobsAPI.getRanking(jobId)
       .then((res) => { if (!cancelled) applyUnified(res.data); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -210,16 +213,22 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
   const runMatchV3 = async () => {
     setLoading(true);
     try {
-      await jobsAPI.matchV3(jobId, 50);
-      const unified = await jobsAPI.getUnifiedMatches(jobId);
-      applyUnified(unified.data);
-      toast.success(`Matching actualizado: ${(unified.data.results || []).length} candidatos en la lista`);
+      if (singleRanking) {
+        const res = await jobsAPI.refreshRanking(jobId, 50);
+        applyUnified(res.data);
+        toast.success(`Ranking actualizado: ${(res.data.results || []).length} candidatos · ${res.data.fit_evaluated || 0} CVs leídos por la IA`);
+      } else {
+        await jobsAPI.matchV3(jobId, 50);
+        const unified = await jobsAPI.getRanking(jobId);
+        applyUnified(unified.data);
+        toast.success(`Matching actualizado: ${(unified.data.results || []).length} candidatos en la lista`);
+      }
     } catch (error) {
-      console.error('Error running match v3:', error);
+      console.error('Error running ranking:', error);
       if (error.response?.status === 403) {
         toast.error('Motor v3 deshabilitado. Configura MATCHING_ENGINE_VERSION=v3 o compare.');
       } else {
-        toast.error(error.response?.data?.detail || 'Error al ejecutar el matching v3');
+        toast.error(error.response?.data?.detail || 'Error al actualizar el ranking');
       }
     } finally {
       setLoading(false);
@@ -227,6 +236,11 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
   };
 
   const refineCriteria = criteria.filter((c) => c.kind !== 'knockout');
+
+  const filtered = onlyAllCriteria && refineCriteria.length > 0
+    ? (results || []).filter((r) => r.criteria_all_met)
+    : (results || []);
+  const visibleResults = singleRanking ? filtered.slice(0, 15) : filtered;
 
   const toggleExpanded = (candidateId) => {
     setExpanded((prev) => ({ ...prev, [candidateId]: !prev[candidateId] }));
@@ -239,10 +253,12 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
           <div>
             <CardTitle className="flex items-center gap-2">
               <Zap className="w-5 h-5" />
-              Matching de la vacante
+              {singleRanking ? 'Ranking de candidatos' : 'Matching de la vacante'}
             </CardTitle>
             <CardDescription>
-              Capa 1: ranking v3 (HMS) · Capa 2: criterios de IA sobre el CV completo — una sola lista
+              {singleRanking
+                ? 'Un solo motor por capas: knockouts del scorecard → HMS v3 → lectura del CV completo con IA. Puntuación final = 0.75·HMS + 0.25·fit IA'
+                : 'Capa 1: ranking v3 (HMS) · Capa 2: criterios de IA sobre el CV completo — una sola lista'}
               {processType && ` — proceso: ${processType}`}
               {snapshotAt && (
                 <span className="block text-xs text-slate-400 mt-0.5" data-testid="v3-snapshot-date">
@@ -266,7 +282,7 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
             )}
             <Button onClick={runMatchV3} disabled={loading} variant="outline" size="sm" data-testid="run-match-v3-btn">
               {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {results ? 'Actualizar matching' : 'Ejecutar matching'}
+              {singleRanking ? 'Actualizar ranking' : results ? 'Actualizar matching' : 'Ejecutar matching'}
             </Button>
           </div>
         </div>
@@ -291,12 +307,30 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
         {results && weakGroup && (
           <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-900" data-testid="weak-group-banner">
             <p className="font-medium">Grupo débil para esta vacante: considera búsqueda externa.</p>
-            <p className="text-xs mt-1">Solo {strongCount} candidato(s) alcanzan HMS ≥ 55 (Aceptable). Entrevistar y Backup requieren al menos 55.</p>
+            <p className="text-xs mt-1">Solo {strongCount} candidato(s) alcanzan {singleRanking ? 'puntuación final' : 'HMS'} ≥ 55 (Aceptable). Entrevistar y Backup requieren al menos 55.</p>
           </div>
         )}
         {results && (
           <AIRefinePanel jobId={jobId} criteria={criteria} topN={topN} onTopNChange={setTopN} onUpdated={applyUnified} disabled={loading} />
         )}
+        {singleRanking && refineCriteria.length > 0 && results?.length > 0 && (
+          <div className="flex items-center justify-between gap-3 rounded-lg border bg-slate-50 px-3 py-2">
+            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-cyan-700"
+                checked={onlyAllCriteria}
+                onChange={(e) => setOnlyAllCriteria(e.target.checked)}
+                data-testid="filter-all-criteria"
+              />
+              Solo los que cumplen todos los criterios ({refineCriteria.length})
+            </label>
+            <span className="text-xs text-slate-500" data-testid="filter-all-criteria-count">
+              {filtered.length} de {results.length} candidatos
+            </span>
+          </div>
+        )}
+
         {refineCriteria.length > 0 && results?.length > 0 && !results.some((r) => r.ai_met > 0 || r.ai_partial > 0) && (
           <p className="text-sm text-amber-700" data-testid="ai-none-met">Ningún candidato de la lista cumple los criterios de IA; el orden sigue siendo el del motor.</p>
         )}
@@ -315,13 +349,19 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
           </div>
         ) : (
           <div className="space-y-3" data-testid="match-v3-results">
-            {results.map((r, index) => {
+            {visibleResults.map((r, index) => {
               const action = ACTION_CONFIG[r.action] || ACTION_CONFIG.low_priority;
               const quality = QUALITY_CONFIG[r.quality] || QUALITY_CONFIG.debil;
               const isOpen = expanded[r.candidate_id];
               const hecPct = Math.round((r.confidence_score || 0) * 100);
+              const isTerna = singleRanking && index < 3;
+              const headline = singleRanking && r.final_score != null ? r.final_score : r.match_score_v3;
               return (
-                <Card key={r.candidate_id} className="border" data-testid={`match-v3-result-card-${r.candidate_id}`}>
+                <Card
+                  key={r.candidate_id}
+                  className={isTerna ? 'border-2 border-emerald-400 bg-emerald-50/40' : 'border'}
+                  data-testid={`match-v3-result-card-${r.candidate_id}`}
+                >
                   <Collapsible open={isOpen} onOpenChange={() => toggleExpanded(r.candidate_id)}>
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-4">
@@ -333,6 +373,11 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <h4 className="font-semibold text-slate-900 truncate">{r.candidate_name}</h4>
+                              {isTerna && (
+                                <Badge className="bg-emerald-600 text-white border-0" data-testid="terna-badge">
+                                  Terna recomendada
+                                </Badge>
+                              )}
                               {r.is_placed && <PlacedBadge />}
                               <NotesBadge count={r.notes_count} />
                               <Badge className={`${action.color} border-0`} data-testid="match-v3-action-badge">
@@ -396,6 +441,17 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                             {r.moved_up_by && (
                               <p className="text-xs text-violet-700 mt-1" data-testid={`moved-up-${r.candidate_id}`}>↑ {r.moved_up_by}</p>
                             )}
+                            {singleRanking && r.why && (
+                              <p className="text-xs text-slate-600 mt-1" data-testid={`why-${r.candidate_id}`}>
+                                <span className="font-medium text-slate-500">Por qué está aquí: </span>{r.why}
+                              </p>
+                            )}
+                            {singleRanking && r.ai_warning && (
+                              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1.5"
+                                 data-testid={`ai-warning-${r.candidate_id}`}>
+                                ⚠ {r.ai_warning}
+                              </p>
+                            )}
                             <div className="mt-2">
                               <CandidateQuickActions candidate={r} originLabel={`vacante: ${jobTitle || ''}`} compact />
                             </div>
@@ -404,24 +460,62 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                         <div className="flex items-center gap-4 flex-shrink-0">
                           <div className="text-right">
                             <div className="text-3xl font-bold text-slate-900" data-testid="match-v3-hms">
-                              {r.match_score_v3}
+                              {headline}
                             </div>
                             <div className={`text-xs font-medium ${quality.color}`} data-testid="match-v3-quality">{quality.label}</div>
-                            {r.hms_engine != null && r.hms_engine !== r.match_score_v3 && (
+                            {singleRanking && r.ai_fit != null && (
+                              <div className="text-[10px] text-slate-400" data-testid={`score-parts-${r.candidate_id}`}>
+                                HMS {r.match_score_v3} · fit IA {r.ai_fit}{r.criteria_bonus > 0 ? ` · criterios +${r.criteria_bonus}` : ''}
+                              </div>
+                            )}
+                            {singleRanking && r.ai_fit == null && (
+                              <div className="text-[10px] text-slate-400">HMS {r.match_score_v3} · CV no leído</div>
+                            )}
+                            {!singleRanking && r.hms_engine != null && r.hms_engine !== r.match_score_v3 && (
                               <div className="text-[10px] text-slate-400">motor {r.hms_engine} × K {r.k_custom}</div>
                             )}
                           </div>
-                          {technical && <CollapsibleTrigger asChild>
+                          <CollapsibleTrigger asChild>
                             <Button variant="outline" size="sm" data-testid="match-v3-breakdown-toggle">
                               {isOpen ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
                               Ver desglose
                             </Button>
-                          </CollapsibleTrigger>}
+                          </CollapsibleTrigger>
                         </div>
                       </div>
 
                       <CollapsibleContent>
                         <div className="mt-4 border-t pt-4 space-y-4" data-testid="match-v3-breakdown-panel">
+                          {singleRanking && (r.ai_strengths?.length > 0 || r.ai_risks?.length > 0) && (
+                            <div className="grid md:grid-cols-2 gap-4" data-testid={`ai-reading-${r.candidate_id}`}>
+                              <div>
+                                <h5 className="text-sm font-semibold text-emerald-700 mb-1">Fortalezas (citadas del CV)</h5>
+                                <ul className="space-y-1">
+                                  {(r.ai_strengths || []).map((s, i) => (
+                                    <li key={i} className="text-sm text-slate-700">
+                                      · {s.text}
+                                      {s.quote && <span className="block text-xs text-slate-500 italic">"{s.quote}"</span>}
+                                    </li>
+                                  ))}
+                                  {(r.ai_strengths || []).length === 0 && (
+                                    <li className="text-sm text-slate-400">Sin fortalezas con cita verificable</li>
+                                  )}
+                                </ul>
+                              </div>
+                              <div>
+                                <h5 className="text-sm font-semibold text-amber-700 mb-1">Riesgos</h5>
+                                <ul className="space-y-1">
+                                  {(r.ai_risks || []).map((risk, i) => (
+                                    <li key={i} className="text-sm text-slate-700">· {risk}</li>
+                                  ))}
+                                  {(r.ai_risks || []).length === 0 && (
+                                    <li className="text-sm text-slate-400">Sin riesgos señalados</li>
+                                  )}
+                                </ul>
+                              </div>
+                            </div>
+                          )}
+                          {technical && (
                           <div>
                             <h5 className="text-sm font-semibold text-slate-700 mb-2">Componentes (11)</h5>
                             <div className="overflow-x-auto">
@@ -470,14 +564,15 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                               </table>
                             </div>
                           </div>
+                          )}
 
-                          <div data-testid="match-v3-hec-bar">
+                          {technical && <div data-testid="match-v3-hec-bar">
                             <div className="flex justify-between items-center mb-1">
                               <h5 className="text-sm font-semibold text-slate-700">Confianza (HEC)</h5>
                               <span className="text-sm font-mono text-slate-600">{hecPct}%</span>
                             </div>
                             <Progress value={hecPct} className="h-2" />
-                          </div>
+                          </div>}
 
                           {r.knockout_results?.results?.length > 0 && (
                             <div>

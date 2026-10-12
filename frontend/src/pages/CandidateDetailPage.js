@@ -100,9 +100,11 @@ const CandidateDetailPage = () => {
   const location = useLocation();
   const back = backTarget(location);
   const goBack = () => navigate(back.to, { state: back.restore ? { restoreScrollY: back.scrollY } : undefined });
-  const { getIndustryName, getFunctionalAreaName } = useTaxonomy();
+  const { getIndustryName, getFunctionalAreaName, industries } = useTaxonomy();
   const { user: currentUser } = useAuth();
   const [candidate, setCandidate] = useState(null);
+  const [editingIndustry, setEditingIndustry] = useState(null);
+  const [savingIndustry, setSavingIndustry] = useState(null);
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -160,6 +162,25 @@ const CandidateDetailPage = () => {
       fetchDuplicates();
     }
   }, [candidate?.id]);
+
+  const saveCompanyIndustry = async (index, value) => {
+    setSavingIndustry(index);
+    try {
+      await candidatesAPI.setPreviousCompanyIndustry(id, index, value);
+      setCandidate((prev) => {
+        const history = [...(prev.previous_companies || [])];
+        history[index] = { ...history[index], company_industry: value };
+        return { ...prev, previous_companies: history };
+      });
+      setEditingIndustry(null);
+      toast.success('Industria actualizada');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'No se pudo guardar la industria');
+    } finally {
+      setSavingIndustry(null);
+    }
+  };
+
 
   const fetchCandidate = async () => {
     try {
@@ -882,6 +903,59 @@ const CandidateDetailPage = () => {
                             {company.start_date || 'N/A'} - {company.end_date || 'Presente'}
                           </p>
                         )}
+                        <div className="mt-2">
+                          {company.company_industry ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-xs" data-testid={`company-industry-${index}`}>
+                                {getIndustryName(company.company_industry)}
+                              </Badge>
+                              <button
+                                type="button"
+                                className="text-xs text-slate-400 hover:text-cyan-700 underline"
+                                onClick={() => setEditingIndustry(editingIndustry === index ? null : index)}
+                                data-testid={`change-industry-btn-${index}`}
+                              >
+                                cambiar
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge className="bg-amber-100 text-amber-800 border-0 text-xs" data-testid={`industry-missing-${index}`}>
+                                Industria sin detectar
+                              </Badge>
+                              {editingIndustry !== index && (
+                                <button
+                                  type="button"
+                                  className="text-xs text-cyan-700 hover:underline"
+                                  onClick={() => setEditingIndustry(index)}
+                                  data-testid={`assign-industry-btn-${index}`}
+                                >
+                                  Asignar industria
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {editingIndustry === index && (
+                            <div className="mt-2 max-w-xs">
+                              <Select
+                                value={company.company_industry || ''}
+                                onValueChange={(value) => saveCompanyIndustry(index, value)}
+                                disabled={savingIndustry === index}
+                              >
+                                <SelectTrigger className="h-8 text-xs" data-testid={`industry-select-${index}`}>
+                                  <SelectValue placeholder="Elige la industria del catálogo" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(industries || []).map((item) => (
+                                    <SelectItem key={item.key} value={item.key} className="text-xs">
+                                      {item.name_es || item.name || item.key}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
                         {company.description && (
                           <p className="text-sm text-slate-700 mt-2">{company.description}</p>
                         )}

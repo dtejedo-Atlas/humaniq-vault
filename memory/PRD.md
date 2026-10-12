@@ -33,6 +33,14 @@ Construir una aplicación web full-stack lista para producción para una firma d
 - Advertencia histórica: el backend existente prioriza `ATLAS_URI`/`ATLAS_DB_NAME` frente a la copia local. No asumir que una consulta al Mongo local representa producción, ni cambiar conexiones durante tareas operativas. Para esta baja se usó únicamente la API existente.
 - Credenciales vigentes: `memory/test_credentials.md`, archivo privado ignorado por git.
 
+## Último trabajo — 2026-10-12: motor único de matching (prendido en preview para revisión)
+- Un solo motor por capas: knockouts del scorecard → HMS v3 → lectura del CV completo con IA calificada solo con el scorecard → explicación. Puntuación final = 0.75·HMS + 0.25·fit IA + bono de criterios (cumple +6, parcial +3, tope +12).
+- Una sola lista "Ranking de candidatos" (15 mejores, terna = top 3 resaltados), filtro "Solo los que cumplen todos los criterios"; la tarjeta separada de terna IA se oculta. v2 intacto en el backend.
+- Flag `single-ranking` **ACTIVO en preview** a pedido del usuario (lo revisa antes de dejarlo fijo). Vive en la misma base Atlas que producción.
+- Años de experiencia y años por industria se calculan por **unión de periodos** (empleos simultáneos no cuentan doble).
+- Limpieza reversible de empleos duplicados en 33 fichas fusionadas (respaldo + `previous_companies_pre_dedupe`).
+- Detalle y pruebas en `CHANGELOG.md` (entradas 2026-10-12).
+
 ## Último trabajo — 2026-10-09: carga de lotes blindada (urgente)
 - Ambiente del usuario confirmado: **producción** (`atlas-recruiting-ai.emergent.host`, imagen 2026-09-30, 2 réplicas) sobre la **misma base Atlas** que preview. La base `atlas-recruiting-ai-atlas_talent_vault` gestionada por Emergent está sin uso; DB Manager no refleja producción.
 - Backend: la cuota de lotes se autolibera (lotes terminados, fallidos y huérfanos), el heartbeat ya no mantiene vivos jobs sin bytes en memoria, los jobs sin archivo quedan `failed` y al arrancar se cierran lotes de réplicas muertas.

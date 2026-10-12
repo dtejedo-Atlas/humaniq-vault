@@ -61,6 +61,9 @@ K_BY_STATUS = {"cumple": 1.0, "parcial": 0.85}
 RELATIVE_INTERVIEW = 5
 RELATIVE_BACKUP = 10
 MIN_HMS_ACTION = 55
+CRITERIA_BONUS_MET = 6
+CRITERIA_BONUS_PARTIAL = 3
+CRITERIA_BONUS_CAP = 12
 
 
 def _extract_json(text: str) -> Dict:
@@ -185,6 +188,44 @@ class AIRefineService:
                 {"job_id": job_id, "criteria.id": crit["id"]},
                 {"$set": {"criteria.$.status": "error", "criteria.$.error": str(e)[:200]}})
 
+    async def extend_to_top(self, job: Dict, top_ids: List[str]) -> Dict:
+        """Evalúa los criterios ya existentes en los candidatos que ENTRAN al top del ranking.
+        Así todos los del top compiten contra los mismos criterios."""
+        doc = await self.get(job["id"])
+        summary = {"criteria": 0, "evaluated": 0, "cost_usd": 0.0}
+        for crit in doc.get("criteria") or []:
+            if crit.get("status") != "done" or crit.get("scope") == "all":
+                continue
+            existing = crit.get("results") or {}
+            missing = [cid for cid in top_ids if cid not in existing]
+            if not missing:
+                continue
+            cands = await self.db.candidates.find({"id": {"$in": missing}, "is_deleted": {"$ne": True}},
+                                                  {"_id": 0, "embedding": 0}).to_list(len(missing))
+            model = crit.get("model") or await ai_model_config.get_model("criteria_refine")
+            sem = asyncio.Semaphore(MAX_PARALLEL)
+            evals = await asyncio.gather(*[self.evaluate_one(model, crit["text"], c, sem) for c in cands])
+            updates, met, partial, cost = {}, 0, 0, 0.0
+            for cand, ev in zip(cands, evals):
+                if ev.get("status") == "error":
+                    continue
+                updates[f"criteria.$.results.{cand['id']}"] = {
+                    k: ev.get(k) for k in ("status", "quote", "company", "period", "reason", "no_evidence", "from_cache")}
+                met += 1 if ev.get("status") == "cumple" else 0
+                partial += 1 if ev.get("status") == "parcial" else 0
+                cost += ev.get("cost_usd") or 0.0
+            if not updates:
+                continue
+            await self.db.job_ai_refinements.update_one(
+                {"job_id": job["id"], "criteria.id": crit["id"]},
+                {"$set": updates,
+                 "$inc": {"criteria.$.evaluated": len(updates), "criteria.$.met": met, "criteria.$.partial": partial,
+                          "criteria.$.cost_usd": round(cost, 4), "criteria.$.total": len(updates)}})
+            summary["criteria"] += 1
+            summary["evaluated"] += len(updates)
+            summary["cost_usd"] = round(summary["cost_usd"] + cost, 4)
+        return summary
+
     # ------------------------------------------------------------------ persistencia
     async def get(self, job_id: str) -> Dict:
         doc = await self.db.job_ai_refinements.find_one({"job_id": job_id}, {"_id": 0})
@@ -213,24 +254,28 @@ class AIRefineService:
 
     # ------------------------------------------------------------------ lista unificada (Fase 4)
     @staticmethod
-    def unify(v3_results: List[Dict], criteria: List[Dict], active_knockout_keys: Optional[set] = None) -> List[Dict]:
-        """Capa 1 (v3) + capa 2 (criterios IA). No-negociables custom ajustan K/HMS. Orden: criterios cumplidos → HMS.
-        Acciones RELATIVAS: Entrevistar = top 5 que pasan knockouts con HMS ≥55; Backup = siguientes 10 con HMS ≥55."""
+    def unify(v3_results: List[Dict], criteria: List[Dict], active_knockout_keys: Optional[set] = None,
+              fits: Optional[Dict] = None, single: bool = False) -> List[Dict]:
+        """Motor único por capas: knockouts (K) + HMS v3 + fit IA del CV completo + criterios de Afinar con IA.
+        Puntuación final = 0.75·HMS + 0.25·fit IA (solo para los evaluados).
+        Acciones RELATIVAS: Entrevistar = top 5 que pasan knockouts con puntuación ≥55; Backup = siguientes 10."""
+        from ai_fit_service import DISCREPANCY_GAP, final_score
         rows = []
+        fits = fits or {}
         done = [c for c in criteria if c.get("status", "done") == "done"]
         refine = [c for c in done if c.get("kind", "criterion") != "knockout"]
         knockouts = [c for c in done if c.get("kind") == "knockout"
                      and (active_knockout_keys is None or c.get("key") in active_knockout_keys)]
         for i, r in enumerate(v3_results):
             cid = r.get("candidate_id")
-            statuses, score, reasons = {}, 0.0, []
+            statuses, score_criteria, reasons = {}, 0.0, []
             for crit in refine:
                 ev = (crit.get("results") or {}).get(cid)
                 if not ev:
                     continue
                 statuses[crit["id"]] = {"status": ev.get("status"), "quote": ev.get("quote"), "company": ev.get("company"),
                                         "period": ev.get("period"), "no_evidence": ev.get("no_evidence")}
-                score += STATUS_SCORE.get(ev.get("status"), 0.0)
+                score_criteria += STATUS_SCORE.get(ev.get("status"), 0.0)
                 if ev.get("status") == "cumple":
                     where = ", ".join(filter(None, [ev.get("company"), ev.get("period")]))
                     reasons.append(f"{crit['text']}" + (f" en {where}" if where else ""))
@@ -248,6 +293,19 @@ class AIRefineService:
                                "company": ev.get("company"), "period": ev.get("period"), "severity": crit.get("severity")})
             hms_engine = r.get("match_score_v3") or 0
             hms = max(0, min(100, round(hms_engine * k_custom)))
+            fit_doc = fits.get(cid) or {}
+            fit = fit_doc.get("fit")
+            met = sum(1 for s in statuses.values() if s["status"] == "cumple")
+            partial = sum(1 for s in statuses.values() if s["status"] == "parcial")
+            # Criterios de "Afinar con IA": cumple +6, parcial +3, tope +12 por candidato
+            bonus = min(CRITERIA_BONUS_CAP, CRITERIA_BONUS_MET * met + CRITERIA_BONUS_PARTIAL * partial) if single else 0
+            base = final_score(hms, fit)
+            score = min(100, base + bonus)
+            all_met = bool(refine) and len(statuses) == len(refine) and met == len(refine)
+            warning = None
+            if fit is not None and hms - fit >= DISCREPANCY_GAP:
+                detail = (fit_doc.get("why") or "la lectura del CV no sostiene el puntaje estructurado").strip()
+                warning = f"La lectura del CV no confirma: {detail}"
             k_engine = (r.get("knockout_results") or {}).get("K", 1.0)
             fatal = k_engine == 0 or k_custom == 0
             important_fail = any(kr.get("status") == "no_cumple_importante" for kr in (r.get("knockout_results") or {}).get("results", [])) \
@@ -255,13 +313,23 @@ class AIRefineService:
             unevaluated = any(c["status"] == "no_evaluado" for c in custom)
             # Tier: 0 = pasa knockouts (evaluado) · 1 = no evaluado (neutral) · 2 = falla un no-negociable importante · 3 = fatal
             tier = 3 if fatal else 2 if important_fail else 1 if unevaluated else 0
-            rows.append({**r, "v3_rank": i + 1, "ai_criteria": statuses, "ai_score": score, "ko_tier": tier,
-                         "ai_met": sum(1 for s in statuses.values() if s["status"] == "cumple"),
-                         "ai_partial": sum(1 for s in statuses.values() if s["status"] == "parcial"), "_reasons": reasons,
+            rows.append({**r, "v3_rank": i + 1, "ai_criteria": statuses, "ai_score": score_criteria, "ko_tier": tier,
+                         "ai_met": met, "ai_partial": partial, "_reasons": reasons,
+                         "criteria_total": len(refine), "criteria_all_met": all_met, "criteria_bonus": bonus,
+                         "base_score": base,
                          "hms_engine": hms_engine, "match_score_v3": hms, "k_custom": round(k_custom, 3),
+                         "ai_fit": fit, "final_score": score, "why": fit_doc.get("why"),
+                         "ai_strengths": fit_doc.get("strengths") or [], "ai_risks": fit_doc.get("risks") or [],
+                         "ai_fit_criteria": fit_doc.get("criteria") or [], "ai_warning": warning,
+                         "fit_evidence_verified": fit_doc.get("evidence_verified"),
                          "custom_knockouts": custom, "_fatal": fatal, "_passes_ko": not fatal and not important_fail,
-                         "quality": AIRefineService.quality_label(hms)})
-        rows.sort(key=lambda x: (x["ko_tier"], -x["ai_score"], -(x.get("match_score_v3") or 0), x["v3_rank"]))
+                         "quality": AIRefineService.quality_label(score)})
+        # Motor único: no avanza (fatal) al final; el resto de mayor a menor puntuación final.
+        # Los criterios de "Afinar con IA" desempatan cuando la puntuación final coincide.
+        if single:
+            rows.sort(key=lambda x: (1 if x["_fatal"] else 0, -(x.get("final_score") or 0), -x["ai_score"], x["v3_rank"]))
+        else:
+            rows.sort(key=lambda x: (x["ko_tier"], -x["ai_score"], -(x.get("final_score") or 0), x["v3_rank"]))
         interview = backup = 0
         for pos, row in enumerate(rows, 1):
             row["rank"] = pos
@@ -270,9 +338,9 @@ class AIRefineService:
             fatal, passes = row.pop("_fatal"), row.pop("_passes_ko")
             if fatal:
                 row["action"] = "do_not_advance_knockout"
-            elif passes and row["match_score_v3"] >= MIN_HMS_ACTION and interview < RELATIVE_INTERVIEW:
+            elif passes and row["final_score"] >= MIN_HMS_ACTION and interview < RELATIVE_INTERVIEW:
                 row["action"], interview = "interview", interview + 1
-            elif row["match_score_v3"] >= MIN_HMS_ACTION and backup < RELATIVE_BACKUP:
+            elif row["final_score"] >= MIN_HMS_ACTION and backup < RELATIVE_BACKUP:
                 row["action"], backup = "backup", backup + 1
             else:
                 row["action"] = "low_priority"

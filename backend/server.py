@@ -55,6 +55,7 @@ from name_quality import suspicious_name_issues, SUSPICIOUS_NAME_MESSAGE
 from ai_model_config import ai_model_config, AVAILABLE_MODELS, TASKS as AI_MODEL_TASKS
 from ai_match_review_service import AIMatchReviewService
 from ai_refine_service import AIRefineService
+from ai_fit_service import AIFitService
 from pymongo.errors import DuplicateKeyError
 import hmac
 from embedding_service import embedding_service
@@ -107,6 +108,7 @@ hybrid_search_service = HybridSearchService(db, embedding_service)
 job_matching_service = JobMatchingService(db, embedding_service)
 ai_match_review_service = AIMatchReviewService(db, job_matching_service, os.environ['EMERGENT_LLM_KEY'])
 ai_refine_service = AIRefineService(db, os.environ['EMERGENT_LLM_KEY'])
+ai_fit_service = AIFitService(db, os.environ['EMERGENT_LLM_KEY'])
 user_service = UserService(db)
 assignment_service = AssignmentService(db)
 export_service = ExportService(db, storage_service)
@@ -1093,6 +1095,38 @@ async def save_match_snapshot(job_id: str, engine: str, payload: dict, actor: Op
     }
     await db.job_match_snapshots.update_one({"job_id": job_id, "engine": engine}, {"$set": doc}, upsert=True)
     return doc["created_at"]
+
+class PreviousCompanyIndustryRequest(PydanticBaseModel):
+    company_industry: Optional[str] = None
+
+
+@api_router.patch("/candidates/{candidate_id}/previous-companies/{index}/industry")
+async def set_previous_company_industry(
+    candidate_id: str,
+    index: int,
+    request: PreviousCompanyIndustryRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Asigna manualmente la industria de un empleo previo (catálogo). `null` la deja sin detectar."""
+    industry = request.company_industry or None
+    if industry is not None and industry not in INDUSTRY_KEYS:
+        raise HTTPException(status_code=400, detail="Industria fuera del catálogo")
+    candidate = await db.candidates.find_one({"id": candidate_id, "is_deleted": {"$ne": True}},
+                                             {"_id": 0, "id": 1, "full_name": 1, "previous_companies": 1})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    history = candidate.get("previous_companies") or []
+    if index < 0 or index >= len(history):
+        raise HTTPException(status_code=404, detail="Empleo previo no encontrado")
+    await db.candidates.update_one(
+        {"id": candidate_id},
+        {"$set": {f"previous_companies.{index}.company_industry": industry,
+                  f"previous_companies.{index}.company_industry_source": "manual" if industry else None,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}})
+    await log_activity(current_user, "candidate_updated", "candidate", candidate_id, candidate.get("full_name"),
+                       {"field": "company_industry", "company": history[index].get("company_name"), "value": industry})
+    return {"candidate_id": candidate_id, "index": index, "company_industry": industry}
+
 
 @api_router.post("/candidates/{candidate_id}/restrict")
 async def mark_candidate_restricted(
@@ -5322,19 +5356,41 @@ async def ensure_custom_knockout_evals(job: dict, snapshot: dict, actor: Optiona
     return launched
 
 
-async def build_unified_matches(job: dict, actor: Optional[str], actor_id: Optional[str] = None) -> dict:
+SINGLE_RANKING_SETTING = "single_ranking"
+
+
+async def single_ranking_active() -> bool:
+    """Flag de activación del motor único (capa 3 + puntuación final). Apagado = comportamiento anterior."""
+    doc = await db.app_settings.find_one({"key": SINGLE_RANKING_SETTING}, {"_id": 0, "active": 1})
+    return bool((doc or {}).get("active"))
+
+
+async def fit_scores_for(job: dict, snapshot: dict, evaluate: bool, force: bool = False) -> dict:
+    """Capa 3: fit IA del top 30 por HMS. Solo lee caché salvo que se pida evaluar."""
+    if not force and not await single_ranking_active():
+        return {}
+    top_ids = [r["candidate_id"] for r in (snapshot.get("results") or [])[:KNOCKOUT_EVAL_TOP_N]]
+    return await ai_fit_service.evaluate_top(job, top_ids, evaluate=evaluate)
+
+
+async def build_unified_matches(job: dict, actor: Optional[str], actor_id: Optional[str] = None,
+                                evaluate_fit: bool = False, force_fit: bool = False) -> dict:
     from ai_refine_service import _norm, MIN_HMS_ACTION
     snapshot = await get_or_build_v3_snapshot(job, actor)
     await ensure_custom_knockout_evals(job, snapshot, actor, actor_id)
     refinements = await ai_refine_service.get(job["id"])
     criteria = refinements.get("criteria") or []
     active_ko_keys = {_norm(k["criterion"]) for k in custom_knockouts_of(job)}
-    rows = AIRefineService.unify(snapshot.get("results") or [], criteria, active_ko_keys)
+    fits = await fit_scores_for(job, snapshot, evaluate=evaluate_fit, force=force_fit)
+    single = bool(fits) or await single_ranking_active()
+    rows = AIRefineService.unify(snapshot.get("results") or [], criteria, active_ko_keys, fits, single)
     public_criteria = [{k: v for k, v in c.items() if k != "results"} for c in criteria
                        if c.get("kind") != "knockout" or c.get("key") in active_ko_keys]
-    strong = sum(1 for r in rows if (r.get("match_score_v3") or 0) >= MIN_HMS_ACTION and r.get("action") != "do_not_advance_knockout")
+    strong = sum(1 for r in rows if (r.get("final_score") or 0) >= MIN_HMS_ACTION and r.get("action") != "do_not_advance_knockout")
     return {"job_id": job["id"], "snapshot_at": snapshot.get("snapshot_at"), "total_evaluated": snapshot.get("total_evaluated"),
             "results": rows, "criteria": public_criteria, "strong_count": strong, "weak_group": strong < 3,
+            "single_ranking": single,
+            "fit_evaluated": sum(1 for f in fits.values() if f.get("fit") is not None),
             "knockouts_evaluating": any(c.get("kind") == "knockout" and c.get("status") == "running" for c in criteria)}
 
 
@@ -5353,6 +5409,60 @@ async def get_unified_matches(job_id: str, current_user: User = Depends(get_curr
     data = await build_unified_matches(job, current_user.name, current_user.id)
     data["coverage"] = await ai_refine_service.coverage(job)
     return data
+
+
+@api_router.get("/jobs/{job_id}/ranking")
+async def get_single_ranking(job_id: str, current_user: User = Depends(get_current_user)):
+    """Motor único: una sola lista ya calculada (capas 1-4). No dispara llamadas nuevas de IA."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    data = await build_unified_matches(job, current_user.name, current_user.id)
+    data["coverage"] = await ai_refine_service.coverage(job)
+    return data
+
+
+@api_router.post("/jobs/{job_id}/ranking/refresh")
+async def refresh_single_ranking(
+    job_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    current_user: User = Depends(require_role([UserRole.RECRUITER, UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Recalcula el ranking por capas en orden (knockouts → HMS v3 → fit IA del CV) y guarda UN solo snapshot."""
+    job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Vacante no encontrada")
+    results, total = await run_v3_ranking(job, limit)
+    payload = {"engine": "v3", "job_id": job_id, "total_evaluated": total, "results": results}
+    payload["snapshot_at"] = await save_match_snapshot(job_id, "v3", payload, current_user.name)
+    # Los criterios existentes se extienden a los que ENTRAN al top: todos compiten en igualdad
+    top_ids = [r["candidate_id"] for r in results[:KNOCKOUT_EVAL_TOP_N]]
+    extended = await ai_refine_service.extend_to_top(job, top_ids)
+    data = await build_unified_matches(job, current_user.name, current_user.id, evaluate_fit=True)
+    data["criteria_extended"] = extended
+    data["coverage"] = await ai_refine_service.coverage(job)
+    data["snapshot_at"] = await save_match_snapshot(job_id, "unified", data, current_user.name)
+    await log_activity(current_user, "matching_run", "job", job_id, job.get("title"), {"engine": "unified"})
+    return data
+
+
+@api_router.get("/settings/single-ranking")
+async def get_single_ranking_setting(current_user: User = Depends(get_current_user)):
+    return {"active": await single_ranking_active()}
+
+
+@api_router.put("/settings/single-ranking")
+async def set_single_ranking_setting(
+    active: bool = Query(...),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN]))
+):
+    """Activa o desactiva el motor único como vista por defecto de la vacante."""
+    await db.app_settings.update_one(
+        {"key": SINGLE_RANKING_SETTING},
+        {"$set": {"key": SINGLE_RANKING_SETTING, "active": active,
+                  "updated_at": datetime.now(timezone.utc).isoformat(), "updated_by": current_user.email}},
+        upsert=True)
+    return {"active": active}
 
 
 @api_router.get("/jobs/{job_id}/industry-coverage")

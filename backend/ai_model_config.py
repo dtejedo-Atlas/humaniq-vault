@@ -57,6 +57,11 @@ TASKS = {
         "description": "Verifica criterios en lenguaje natural contra el texto completo de cada CV",
         "default": "claude-sonnet-5-5",
     },
+    "fit_scoring": {
+        "label": "Fit IA del motor único (capa 3)",
+        "description": "Lee el CV completo del top 30 y lo califica 0-100 solo con los criterios del scorecard",
+        "default": "claude-sonnet-5-5",
+    },
 }
 
 # Precio aproximado USD por millón de tokens (entrada, salida) para estimar costos
