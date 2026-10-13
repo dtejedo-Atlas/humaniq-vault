@@ -1,5 +1,36 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-13 — Chips informativos, PDF del shortlist, flag por defecto y pendientes de datos
+Checkpoint previo: tag git `checkpoint-20261013_181452` (commit 75e76b8) + `/root/backups/checkpoint_20261013_181452/app_code.tgz`. **No desplegado.**
+
+**A/C/D — Chips (`frontend/src/components/CandidateNotices.js`, reescrito)**
+- En la línea del nombre, antes de la puntuación. Máximo 2 visibles + "+N" con tooltip. Prioridad: Duplicado > Inestable > Revisar > Edad.
+- Textos con el dato dentro: "Inestable · 4 en 5a" (coral `#FF6B5B`, texto `#272727` por contraste), "Revisar · 3 en 5a" (`#FFAA00` / `#272727`), "≈50+ · est. 48–54" (sin relleno, borde/texto `#0092AE`), "Posible duplicado" (sin relleno, borde/texto `#272727`, enlaza a /duplicates).
+- Space Grotesk 11.5 px (fuente agregada en `frontend/public/index.html`), radio 4 px, sin sombras ni degradados. Tooltip con timeline/fuente de edad/motivo del duplicado; abre con hover y con foco (toque en móvil). La alerta ⚠ (HMS − fit ≥ 25) quedó intacta y separada.
+- Ficha: los chips se movieron a la línea del título (`CandidateDetailPage.js`).
+
+**B — PDF del shortlist (`backend/templates/shortlist_report.html` reescrito, `export_service.py`)**
+- Paleta: fondo blanco, títulos `#272727`, acentos/líneas `#0092AE`, chips de competencias con borde `#77C5D5`. Sin azul marino ni degradados.
+- Poppins (nombres/títulos) y Space Grotesk (fechas, empresas, etiquetas) **incrustadas desde disco** (`backend/assets/fonts/*.ttf`, `base_url` local; variable de Space Grotesk instanciada a 400/500/700). Cero llamadas a Google Fonts.
+- Portada con logo `backend/assets/humaniq-logo.png`, vacante, cliente, fecha en español, preparado por y "Perfil buscado" en viñetas reales (`summary_bullets`).
+- Encabezado de candidato: nombre + puesto @ empresa + industria (`industry_label` vía `get_industry_display_name`). Se eliminó el recuadro HMS/acción.
+- `clean_markdown` ahora quita el encabezado "Nombre - Resumen Profesional Ejecutivo" pegado al resumen; `title_case_if_shouting` conserva siglas (`R3D BR1DG3`, `AT&T`) y solo minusculiza conectores.
+- Bug corregido: `export_custom_candidates` pasaba `include_scores` sin definir (la exportación de selección custom en PDF tronaba).
+
+**Flag del motor único**
+- `single_ranking_active()`: **encendido por defecto** en todos los ambientes. Se apaga solo con `false` explícito, en `app_settings.single_ranking` (gana si existe) o con `SINGLE_RANKING=false` en el `.env` del ambiente. Nota en el código: `app_settings` es la MISMA base para preview y producción; no usarlo para pruebas.
+- Pantalla y export usan el mismo ranking con el flag en cualquier estado: `POST /api/exports/job/{id}` ya no lee el snapshot, recalcula con `build_unified_matches` (solo caché, sin llamadas nuevas de IA) y lo pasa como `ranking_rows`.
+
+**Datos (con aprobación explícita del usuario)**
+- `experience_dedupe.py`: agrupamiento **transitivo** (independiente del orden) y preservación de trayectoria al colapsar: título = puesto más reciente + "Roles: X 2005–2010; …" en la descripción + `merged_roles`. Nuevo `strict_duplicates()` (±2 meses) y `experience_years_from_history()` (lapso del primer empleo sin prácticas al último menos huecos de 12+ meses).
+- Dedupe aplicado SOLO a fichas fusionadas: 1 ficha pendiente, **Humberto David Hernández Pérez 8 → 4 empleos** (Coca-Cola FEMSA colapsado con los 5 roles listados, años 19 sin cambio). Respaldo `/app/memory/backups/experience_dedupe_20261013_185209.json` + colección `experience_dedupe_backups`.
+- Años de experiencia de las 10 fichas que habían bajado: con la regla del usuario los valores actuales resultaron correctos; solo subieron 3 (Cesia González 9→10, Gabriela Martínez 14→15, Berenice Gómora 9→10). Previo guardado en `years_experience_pre_fix` (no se tocó `years_experience_pre_dedupe`). El resto de la base NO se recalculó: 276 de 659 fichas cambiarían más de 2 años con esa regla.
+- Reportes solo lectura: `test_reports/strict_duplicates_report.json` (135 fichas no fusionadas, 843 empleos repetidos con la regla estricta), `test_reports/dryrun_reparse_empty.json` (12 fichas sin empleos/sin años: todas legibles, el re-parseo llenaría empleos y años), `test_reports/pendientes_diagnostico.json`, `test_reports/fix_experience_years.json`.
+- OCR "CV Ismael Hdz 2027.pdf": funciona (0 caracteres nativos, 4,938 por OCR, `readable: true`, ficha completa con confianza 88%). No se tocó el parser.
+
+**Pruebas:** `test_experience_dedupe.py` 29/29 (incluye "puestos secuenciales con fechas de solo año NUNCA colapsan", caso Movistar) · `test_flag_pdf_format.py` 15/15 (nuevo: flag por defecto, viñetas, fuentes incrustadas, sin HMS en el PDF) · `test_stability_alert.py` 22/22 · `test_age_estimate.py` 12/12 · `test_probable_duplicates.py` 13/13 · `test_single_ranking_unify.py` 27/27 · `test_export_shortlist.py` 12/12. UI verificada en preview (chips, tooltip, ranking intacto) y PDF real de "Director Comercial" revisado página por página.
+
+
 ## 2026-10-12 (segunda parte) — Motor único prendido en preview, bono por criterios y limpieza de duplicados
 - **Flag `single_ranking` ACTIVADO** (`PUT /api/settings/single-ranking?active=true`) para revisión del usuario en preview. Ojo: el documento vive en la misma base Atlas que producción; el código desplegado del 30-sep lo ignora, pero quedará activo en cuanto se despliegue esta versión.
 - **Bono por criterios de "Afinar con IA"**: cumple +6, parcial +3, tope +12 por candidato, sumado a la puntuación final (`criteria_bonus`, `base_score`, `criteria_all_met` en cada fila). Solo aplica con el motor único activo.

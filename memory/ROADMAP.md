@@ -1,5 +1,14 @@
 # Humaniq Talent Vault — Pendientes
 
+## P0 — Decisiones del usuario pendientes (2026-10-13)
+- **Audita y despliega**: código listo y probado en preview, **sin desplegar** por instrucción. El usuario pidió push a GitHub (botón "Save to Github" del chat) y auditar la lista de archivos antes del deploy.
+- **135 fichas no fusionadas con el mismo empleo repetido** (843 empleos, regla estricta ±2 meses) en `test_reports/strict_duplicates_report.json`: decidir si se limpian. Hoy NO se tocan.
+- **12 fichas sin empleos / sin años**: el re-parseo en modo prueba llenaría datos en todas (`test_reports/dryrun_reparse_empty.json`). Decidir si se aplica.
+- **Años de experiencia del resto de la base**: 276 de 659 fichas cambiarían más de 2 años con la regla nueva. No recalculado por decisión del usuario.
+- **Quitar el flag `single_ranking` y la ruta vieja**: solo después de 2 semanas estables en producción. No hacerlo antes.
+- Revisar y fusionar manualmente las fichas marcadas como "Posible duplicado" en el ranking.
+
+
 ## P0 — Capas 1 y 2 completadas (2026-09-22)
 - Capa 1: extracción DOCX/PDF/OCR corregida y 34 reprocesados con motor original. Resultado entregado antes de Capa 2: **34 legibles, 34 autoclasificados completos, cero ilegibles/pendientes**.
 - Capa 2: segunda pasada condicional implementada, caché/deduplicación, cronología/industria/seniority, captura manual y botones individual/lote activos.

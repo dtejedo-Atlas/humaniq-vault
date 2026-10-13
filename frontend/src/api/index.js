@@ -8,6 +8,7 @@ export const candidatesAPI = {
   deleteNote: (candidateId, noteId) => axios.delete(`${API_BASE}/candidates/${candidateId}/notes/${noteId}`),
   getAll: (params = {}) => axios.get(`${API_BASE}/candidates`, { params }),
   getById: (id) => axios.get(`${API_BASE}/candidates/${id}`),
+  getNotices: (id) => axios.get(`${API_BASE}/candidates/${id}/notices`),
   create: (data) => axios.post(`${API_BASE}/candidates`, data),
   update: (id, data) => axios.put(`${API_BASE}/candidates/${id}`, data),
   setPreviousCompanyIndustry: (id, index, companyIndustry) =>
@@ -249,6 +250,7 @@ export const exportsAPI = {
     params.append('include_contact_info', options.includeContact || false);
     if (options.clientName) params.append('client_name', options.clientName);
     if (options.engine) params.append('engine', options.engine);
+    if (options.includeScores) params.append('include_scores', 'true');
     return axios.post(`${API_BASE}/exports/job/${jobId}?${params.toString()}`);
   },
   exportCandidates: (candidateIds, options = {}) =>

@@ -1,7 +1,11 @@
 """Deduplicación de experiencia laboral para fusiones de fichas.
 
 Mismo empleo = empresa normalizada similar (una contiene a la otra, sin acentos ni sufijos de
-razón social) + periodos que se traslapan. Se conserva el registro más completo.
+razón social) + periodos que se traslapan. Se conserva el registro más completo y la trayectoria
+interna (título más reciente + lista de roles en la descripción).
+
+`dedupe_experience` se usa SOLO en el flujo de fusión de fichas (duplicate_detector_v2) y en el
+script de limpieza. Nunca corre al cargar un CV ni al calcular el ranking.
 """
 import re
 import unicodedata
@@ -98,18 +102,106 @@ def _merge_pair(keep: Dict, other: Dict) -> Dict:
     return merged
 
 
+def _year(value: Optional[str]) -> Optional[int]:
+    months = _month(value)
+    return months // 12 if months else None
+
+
+def _role_line(entry: Dict) -> str:
+    start, end = _year(entry.get('start_date')), _year(entry.get('end_date'))
+    title = str(entry.get('title') or 'Puesto sin título').strip()
+    if start and end:
+        return f"{title} {start}–{end}"
+    if start:
+        return f"{title} {start}–actualidad"
+    return title
+
+
+def _preserve_trajectory(group: List[Dict], kept: Dict) -> Dict:
+    """Conserva la trayectoria interna: título del puesto más reciente + lista de roles."""
+    titles = []
+    for entry in group:
+        title = str(entry.get('title') or '').strip()
+        if title and title.lower() not in [t.lower() for t in titles]:
+            titles.append(title)
+    if len(titles) < 2:
+        return kept
+
+    ordered = sorted(group, key=lambda e: _month(e.get('start_date')) or 0, reverse=True)
+    result = dict(kept)
+    newest_title = str(ordered[0].get('title') or '').strip()
+    if newest_title:
+        result['title'] = newest_title
+
+    seen, roles = set(), []
+    for entry in ordered:
+        line = _role_line(entry)
+        if line.lower() not in seen:
+            seen.add(line.lower())
+            roles.append(line)
+    roles_text = 'Roles: ' + '; '.join(roles)
+    description = str(result.get('description') or '').strip()
+    if 'Roles:' not in description:
+        result['description'] = f"{description}\n{roles_text}".strip() if description else roles_text
+    result['merged_roles'] = roles
+    return result
+
+
+def experience_years_from_history(history: List[Dict], today_months: Optional[int] = None) -> Optional[int]:
+    """Años de experiencia = lapso del primer empleo (sin prácticas) al último, menos huecos de 12+ meses.
+
+    Nunca devuelve más que ese lapso: un valor mayor es señal de inflación por empleos duplicados.
+    """
+    from datetime import date
+    if today_months is None:
+        today = date.today()
+        today_months = today.year * 12 + today.month
+
+    periods = []
+    for entry in history or []:
+        if not isinstance(entry, dict):
+            continue
+        title = str(entry.get('title') or '').lower()
+        if any(word in title for word in ('practicante', 'prácticas', 'practicas', 'becario', 'intern', 'trainee')):
+            continue
+        start, end = _range(entry)
+        if start is None:
+            continue
+        periods.append((start, min(end or today_months, today_months)))
+    if not periods:
+        return None
+
+    periods.sort()
+    span = max(end for _, end in periods) - periods[0][0]
+    gaps = 0
+    reach = periods[0][1]
+    for start, end in periods[1:]:
+        if start - reach >= 12:
+            gaps += start - reach
+        reach = max(reach, end)
+    return max(0, round((span - gaps) / 12))
+
+
 def dedupe_experience(entries: List[Dict]) -> List[Dict]:
-    """Agrupa empleos equivalentes y conserva el registro más completo de cada grupo."""
+    """Agrupa empleos equivalentes y conserva el registro más completo de cada grupo.
+
+    El agrupamiento es transitivo y por tanto independiente del orden del historial: si un
+    registro "paraguas" (p. ej. 2005-2019 en la misma empresa) coincide con varios puestos
+    internos, todos quedan en el mismo grupo.
+    """
     groups: List[List[Dict]] = []
     for entry in entries or []:
         if not isinstance(entry, dict):
             continue
-        for group in groups:
-            if any(is_same_job(entry, member) for member in group):
-                group.append(entry)
-                break
-        else:
+        matched = [g for g in groups if any(is_same_job(entry, member) for member in g)]
+        if not matched:
             groups.append([entry])
+            continue
+        first = matched[0]
+        first.append(entry)
+        for extra in matched[1:]:
+            first.extend(extra)
+            groups.remove(extra)
 
     kept = []
     for group in groups:
@@ -117,6 +209,35 @@ def dedupe_experience(entries: List[Dict]) -> List[Dict]:
         for member in group:
             if member is not best:
                 best = _merge_pair(best, member)
-        kept.append(best)
+        kept.append(_preserve_trajectory(group, best))
     kept.sort(key=lambda e: e.get('start_date') or '', reverse=True)
     return kept
+
+
+def strict_duplicates(history: List[Dict], tolerance: int = 2) -> List[List[Dict]]:
+    """Regla estricta: mismo empleador + inicio y fin dentro de ±N meses (el mismo empleo repetido)."""
+    groups: List[List[Dict]] = []
+    for entry in history or []:
+        if not isinstance(entry, dict):
+            continue
+        start, end = _range(entry)
+        placed = False
+        for group in groups:
+            for member in group:
+                m_start, m_end = _range(member)
+                if not same_company(entry.get('company_name'), member.get('company_name')):
+                    continue
+                if start is None or m_start is None or abs(start - m_start) > tolerance:
+                    continue
+                if (end is None) != (m_end is None):
+                    continue
+                if end is not None and abs(end - m_end) > tolerance:
+                    continue
+                group.append(entry)
+                placed = True
+                break
+            if placed:
+                break
+        if not placed:
+            groups.append([entry])
+    return [g for g in groups if len(g) > 1]

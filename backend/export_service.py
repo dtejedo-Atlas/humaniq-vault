@@ -8,7 +8,10 @@ Diseño ejecutivo con branding Humaniq.
 import os
 import uuid
 import logging
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timezone
+
+from probable_duplicates import collapse_duplicates
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from io import BytesIO
@@ -21,6 +24,7 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.style import WD_STYLE_TYPE
 
 from models import User, UserRole, ExportFormat, ExportSourceType
+from taxonomy import get_industry_display_name
 
 V3_ACTION_LABELS = {
     "advance_to_screening": "Avanzar a screening",
@@ -35,11 +39,104 @@ logger = logging.getLogger(__name__)
 
 # Paths
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+ASSETS_DIR = Path(__file__).parent / "assets"
 EXPORT_DIR = Path(__file__).parent / "exports"
 EXPORT_DIR.mkdir(exist_ok=True)
 
 # Jinja2 environment
 jinja_env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+
+
+
+MONTHS_ES = {1: "enero", 2: "febrero", 3: "marzo", 4: "abril", 5: "mayo", 6: "junio", 7: "julio",
+             8: "agosto", 9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"}
+EXPERIENCE_YEARS_WINDOW = 10
+MAX_DESCRIPTION_CHARS = 300
+
+
+def spanish_date(value: Optional[date] = None) -> str:
+    """Fecha en español sin depender del locale del servidor."""
+    value = value or date.today()
+    return f"{value.day} de {MONTHS_ES[value.month]} de {value.year}"
+
+
+def clean_markdown(text: Optional[str]) -> str:
+    """Quita markdown y el encabezado repetido del resumen."""
+    if not text:
+        return ""
+    clean = re.sub(r"^\s*#{1,6}\s*", "", str(text), flags=re.MULTILINE)
+    clean = re.sub(r"\*\*(.+?)\*\*", r"\1", clean)
+    clean = re.sub(r"(?<!\*)\*(?!\*)", "", clean)
+    clean = re.sub(r"^\s*[-•]\s*", "", clean, flags=re.MULTILINE)
+    clean = re.sub(r"(?i)^\s*resumen profesional( ejecutivo)?\s*:?\s*", "", clean).strip()
+    # Encabezado pegado al nombre: "Edgar Ochoa - Resumen Profesional Ejecutivo Director comercial…"
+    clean = re.sub(r"(?i)^(.{0,60}?\s[-–]\s*)?resumen\s+profesional(\s+ejecutivo)?\s*:?\s*", "", clean).strip()
+    return re.sub(r"\n{3,}", "\n\n", clean).strip()
+
+
+def trim_to_sentence(text: Optional[str], limit: int = MAX_DESCRIPTION_CHARS) -> str:
+    """Corta en la última oración completa, nunca a media palabra."""
+    clean = clean_markdown(text)
+    if len(clean) <= limit:
+        return clean
+    window = clean[:limit]
+    cut = max(window.rfind(". "), window.rfind("."), window.rfind("; "))
+    if cut > limit * 0.4:
+        return window[:cut + 1].strip()
+    space = window.rfind(" ")
+    return (window[:space] if space > 0 else window).strip() + "…"
+
+
+CONNECTORS = {"de", "del", "la", "las", "los", "y", "e", "en", "a", "al", "con", "para", "por", "the", "of", "and"}
+
+
+def title_case_if_shouting(text: Optional[str]) -> Optional[str]:
+    """Pasa MAYÚSCULAS a formato título; conserva siglas (CFO, R3D, AT&T) y minusculiza conectores."""
+    if not text or not text.isupper():
+        return text
+    words = []
+    for word in text.split():
+        if word.lower() in CONNECTORS:
+            words.append(word.lower())
+        elif not word.isalpha() or len(word) <= 3:
+            words.append(word)
+        else:
+            words.append(word.capitalize())
+    return " ".join(words)
+
+
+def summary_bullets(text: Optional[str], limit: int = 8) -> List[str]:
+    """Convierte el perfil buscado en viñetas reales (sin '•' pegados ni markdown)."""
+    if not text:
+        return []
+    clean = re.sub(r"^\s*#{1,6}\s*", "", str(text), flags=re.MULTILINE)
+    clean = re.sub(r"\*\*(.+?)\*\*", r"\1", clean).replace("\r", "")
+    clean = re.sub(r"(?<!\*)\*(?!\*)", "", clean)
+    parts = re.split(r"[•·]+|\n\s*[-–*]\s+|\n+", clean)
+    bullets = []
+    for part in parts:
+        item = re.sub(r"\s+", " ", part).strip(" -–*;,.")
+        if len(item) > 2:
+            bullets.append(item)
+    return bullets[:limit]
+
+
+def recent_experience(candidate: Dict[str, Any], today: Optional[date] = None) -> List[Dict[str, Any]]:
+    """Empleos de los últimos 10 años, con descripción recortada por oración."""
+    today = today or date.today()
+    cutoff = today.year - EXPERIENCE_YEARS_WINDOW
+    out = []
+    for item in candidate.get("previous_companies") or []:
+        if not isinstance(item, dict):
+            continue
+        match = re.search(r"(19|20)\d{2}", str(item.get("end_date") or item.get("start_date") or ""))
+        year = int(match.group(0)) if match else None
+        if year is not None and year < cutoff and item.get("end_date"):
+            continue
+        out.append({**item,
+                    "title": title_case_if_shouting(item.get("title")),
+                    "description": trim_to_sentence(item.get("description"))})
+    return out
 
 
 class ExportService:
@@ -106,56 +203,59 @@ class ExportService:
         return candidates
     
     async def get_job_matches(
-        self, 
-        job_id: str, 
+        self,
+        job_id: str,
         limit: int = 20,
-        engine: str = "v2"
+        engine: str = "v2",
+        ranking_rows: Optional[List[Dict[str, Any]]] = None
     ) -> List[Dict[str, Any]]:
-        """Obtiene matches de una vacante con scores"""
-        from job_matching_service import JobMatchingService
-        from embedding_service import embedding_service
-        
-        # Primero obtener el job
+        """Matches para exportar. El shortlist usa SIEMPRE el ranking unificado ya calculado."""
         job = await self.db.jobs.find_one({"id": job_id}, {"_id": 0})
         if not job:
             return []
-        
-        if engine == "v3":
-            return await self._get_job_matches_v3(job, limit)
-        
+        if engine in ("v3", "unified"):
+            return await self._get_unified_ranking(job_id, limit, rows=ranking_rows)
+
+        from job_matching_service import JobMatchingService
+        from embedding_service import embedding_service
         matching_service = JobMatchingService(self.db, embedding_service)
         result = await matching_service.match_candidates(job, threshold=0, limit=limit)
-        
         return result.get("results", [])
-    
-    async def _get_job_matches_v3(self, job: Dict[str, Any], limit: int) -> List[Dict[str, Any]]:
-        """Ranking v3 (HMS) para exportación. No persiste nada."""
-        if os.environ.get("MATCHING_ENGINE_VERSION", "v2") == "v2":
-            raise ValueError("Motor v3 deshabilitado. Configura MATCHING_ENGINE_VERSION=v3 o compare.")
-        from scoring.engine_v3 import score_v3
-        
-        candidates = await self.db.candidates.find(
-            {"is_deleted": {"$ne": True}}, {"_id": 0}
-        ).to_list(2000)
-        
-        results = []
-        for cand in candidates:
-            try:
-                r = score_v3(cand, job)
-                results.append({
-                    "candidate_id": cand.get("id"),
-                    "match_percentage": r.get("match_score_v3"),
-                    "recommended_action": V3_ACTION_LABELS.get(r.get("recommended_action"), r.get("recommended_action")),
-                    "strengths": [],
-                    "risks": [],
-                    "missing_skills": [],
-                })
-            except Exception as e:
-                logger.warning(f"score_v3 export falló para {cand.get('id')}: {e}")
-        
-        results.sort(key=lambda x: x.get("match_percentage") or 0, reverse=True)
-        return results[:limit]
-    
+
+    async def _get_unified_ranking(self, job_id: str, limit: int,
+                                   rows: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+        """Ranking unificado tal como lo ve el usuario. Si no se recibe, lee el snapshot. No recalcula IA."""
+        if rows is None:
+            snapshot = await self.db.job_match_snapshots.find_one({"job_id": job_id, "engine": "unified"}, {"_id": 0})
+            rows = ((snapshot or {}).get("payload") or {}).get("results") or []
+        if not rows:
+            raise ValueError("Aún no hay ranking calculado para esta vacante. "
+                             "Abre la vacante y usa \"Actualizar ranking\" antes de exportar.")
+        # Nunca dos veces la misma persona: se colapsan los duplicados probables
+        row_ids = [r.get("candidate_id") for r in rows if r.get("candidate_id")]
+        docs = await self.db.candidates.find({"id": {"$in": row_ids}},
+                                             {"_id": 0, "id": 1, "full_name": 1, "email": 1, "phone": 1,
+                                              "previous_companies": 1}).to_list(len(row_ids) or 1)
+        rows = collapse_duplicates(rows, {d["id"]: d for d in docs})
+
+        matches, seen = [], set()
+        for row in rows:
+            cid = row.get("candidate_id")
+            if not cid or cid in seen:
+                continue
+            seen.add(cid)
+            matches.append({
+                "candidate_id": cid,
+                "match_percentage": row.get("final_score"),
+                "recommended_action": V3_ACTION_LABELS.get(row.get("action"), row.get("action")),
+                "strengths": [s.get("text") for s in (row.get("ai_strengths") or []) if s.get("text")],
+                "risks": row.get("ai_risks") or [],
+                "missing_skills": [],
+            })
+            if len(matches) >= limit:
+                break
+        return matches
+
     def prepare_candidate_for_export(
         self, 
         candidate: Dict[str, Any],
@@ -165,16 +265,17 @@ class ExportService:
         
         export_data = {
             "full_name": candidate.get("full_name", "Sin nombre"),
-            "current_title": candidate.get("current_title"),
-            "current_company": candidate.get("current_company"),
-            "ai_summary": candidate.get("ai_summary"),
+            "current_title": title_case_if_shouting(candidate.get("current_title")),
+            "current_company": title_case_if_shouting(candidate.get("current_company")),
+            "ai_summary": clean_markdown(candidate.get("ai_summary")),
             "skills": candidate.get("skills", []),
             "languages": candidate.get("languages", []),
             "years_experience": candidate.get("years_experience"),
             "industry": candidate.get("industry"),
+            "industry_label": get_industry_display_name(candidate.get("industry")),
             "functional_area": candidate.get("functional_area"),
             "seniority": candidate.get("seniority"),
-            "previous_companies": candidate.get("previous_companies", []),
+            "previous_companies": recent_experience(candidate),
             "education": candidate.get("education", []),
             # Contact info (si está incluido)
             "email": candidate.get("email"),
@@ -202,7 +303,8 @@ class ExportService:
         client_name: Optional[str] = None,
         job_summary: Optional[str] = None,
         include_risks: bool = True,
-        include_contact_info: bool = False
+        include_contact_info: bool = False,
+        include_scores: bool = False
     ) -> bytes:
         """Genera PDF con template Jinja2 + WeasyPrint"""
         
@@ -213,16 +315,18 @@ class ExportService:
             job_title=job_title,
             client_name=client_name,
             job_summary=job_summary,
-            generation_date=datetime.now().strftime("%d de %B de %Y"),
+            job_summary_bullets=summary_bullets(job_summary),
+            generation_date=spanish_date(),
             prepared_by=user.name,
             candidate_count=len(candidates),
             candidates=candidates,
             include_risks=include_risks,
-            include_contact_info=include_contact_info
+            include_contact_info=include_contact_info,
+            include_scores=include_scores
         )
         
-        # Generar PDF
-        pdf_bytes = HTML(string=html_content).write_pdf()
+        # base_url local: fuentes incrustadas y logo desde disco (nunca Google Fonts)
+        pdf_bytes = HTML(string=html_content, base_url=f"{ASSETS_DIR.as_uri()}/").write_pdf()
         
         return pdf_bytes
     
@@ -292,7 +396,7 @@ class ExportService:
         
         # Meta info
         meta = doc.add_paragraph()
-        meta.add_run(f"Fecha: {datetime.now().strftime('%d/%m/%Y')}\n")
+        meta.add_run(f"Fecha: {spanish_date()}\n")
         meta.add_run(f"Preparado por: {user.name}\n")
         meta.add_run(f"Candidatos: {len(candidates)}")
         meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -400,7 +504,9 @@ class ExportService:
         include_risks: bool = True,
         include_contact_info: bool = False,
         client_name: Optional[str] = None,
-        engine: str = "v2"
+        engine: str = "unified",
+        include_scores: bool = False,
+        ranking_rows: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Exporta shortlist de una vacante.
@@ -424,8 +530,13 @@ class ExportService:
         if not job:
             raise ValueError("Vacante no encontrada")
         
-        # Obtener matches
-        matches = await self.get_job_matches(job_id, limit=min(limit, 20), engine=engine)
+        # La versión al cliente nunca lleva puntuación; solo admin puede pedirla
+        if include_scores and user.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
+            include_scores = False
+
+        # El shortlist usa siempre el MISMO ranking que ve el usuario en pantalla
+        matches = await self.get_job_matches(job_id, limit=min(limit, 20), engine="unified",
+                                             ranking_rows=ranking_rows)
         
         if not matches:
             raise ValueError("No hay candidatos para esta vacante")
@@ -437,13 +548,16 @@ class ExportService:
             include_contact=include_contact_info
         )
         
-        # Combinar con datos de match
-        candidates_export = []
+        # Combinar con datos de match (una sola aparición por persona)
+        candidates_export, exported = [], set()
         for match in matches:
             cid = match["candidate_id"]
+            if cid in exported:
+                continue
             candidate = next((c for c in candidates_data if c.get("id") == cid), None)
             if candidate:
-                export_data = self.prepare_candidate_for_export(candidate, match)
+                exported.add(cid)
+                export_data = self.prepare_candidate_for_export(candidate, match if include_scores else None)
                 candidates_export.append(export_data)
         
         # Generar documento
@@ -458,7 +572,8 @@ class ExportService:
                 client_name=client_name or job.get("company"),
                 job_summary=job_summary,
                 include_risks=include_risks,
-                include_contact_info=include_contact_info
+                include_contact_info=include_contact_info,
+                include_scores=include_scores
             )
             file_ext = "pdf"
             content_type = "application/pdf"
@@ -559,7 +674,8 @@ class ExportService:
                 user=user,
                 client_name=client_name,
                 include_risks=include_risks,
-                include_contact_info=include_contact_info
+                include_contact_info=include_contact_info,
+                include_scores=False
             )
             file_ext = "pdf"
         else:

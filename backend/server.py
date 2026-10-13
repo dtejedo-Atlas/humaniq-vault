@@ -56,6 +56,11 @@ from ai_model_config import ai_model_config, AVAILABLE_MODELS, TASKS as AI_MODEL
 from ai_match_review_service import AIMatchReviewService
 from ai_refine_service import AIRefineService
 from ai_fit_service import AIFitService
+from stability_alert import compute_stability_alert
+from age_estimate import estimate_age
+from probable_duplicates import collapse_duplicates
+
+ROW_NOTICE_LIMIT = 60
 from pymongo.errors import DuplicateKeyError
 import hmac
 from embedding_service import embedding_service
@@ -1126,6 +1131,18 @@ async def set_previous_company_industry(
     await log_activity(current_user, "candidate_updated", "candidate", candidate_id, candidate.get("full_name"),
                        {"field": "company_industry", "company": history[index].get("company_name"), "value": industry})
     return {"candidate_id": candidate_id, "index": index, "company_industry": industry}
+
+
+@api_router.get("/candidates/{candidate_id}/notices")
+async def get_candidate_notices(candidate_id: str, current_user: User = Depends(get_current_user)):
+    """Avisos informativos de la ficha: estabilidad laboral y edad estimada. No se persisten."""
+    candidate = await db.candidates.find_one({"id": candidate_id, "is_deleted": {"$ne": True}},
+                                             {"_id": 0, "embedding": 0})
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Candidato no encontrado")
+    today = datetime.now(timezone.utc).date()
+    return {"stability_alert": compute_stability_alert(candidate, today),
+            "age_estimate": estimate_age(candidate, today)}
 
 
 @api_router.post("/candidates/{candidate_id}/restrict")
@@ -5357,12 +5374,26 @@ async def ensure_custom_knockout_evals(job: dict, snapshot: dict, actor: Optiona
 
 
 SINGLE_RANKING_SETTING = "single_ranking"
+SINGLE_RANKING_ENV = os.environ.get("SINGLE_RANKING")
 
 
 async def single_ranking_active() -> bool:
-    """Flag de activación del motor único (capa 3 + puntuación final). Apagado = comportamiento anterior."""
+    """Motor único ENCENDIDO por defecto en todos los ambientes.
+
+    Solo se apaga si el ajuste de base (`app_settings.single_ranking`) o la variable
+    de entorno `SINGLE_RANKING` valen explícitamente false.
+
+    OJO: `app_settings` vive en la MISMA base de Mongo para preview y producción, así que
+    apagar el flag en preview lo apaga también en producción. No usar este ajuste para
+    pruebas; para probar el camino viejo usar `SINGLE_RANKING=false` en el .env del ambiente.
+    """
     doc = await db.app_settings.find_one({"key": SINGLE_RANKING_SETTING}, {"_id": 0, "active": 1})
-    return bool((doc or {}).get("active"))
+    stored = (doc or {}).get("active")
+    if isinstance(stored, bool):
+        return stored
+    if SINGLE_RANKING_ENV is not None:
+        return str(SINGLE_RANKING_ENV).strip().lower() not in ("false", "0", "off", "no")
+    return True
 
 
 async def fit_scores_for(job: dict, snapshot: dict, evaluate: bool, force: bool = False) -> dict:
@@ -5384,6 +5415,22 @@ async def build_unified_matches(job: dict, actor: Optional[str], actor_id: Optio
     fits = await fit_scores_for(job, snapshot, evaluate=evaluate_fit, force=force_fit)
     single = bool(fits) or await single_ranking_active()
     rows = AIRefineService.unify(snapshot.get("results") or [], criteria, active_ko_keys, fits, single)
+    # Avisos informativos por fila (no cambian score, orden ni acción) + duplicados probables
+    docs_by_id = {}
+    if rows:
+        row_ids = [r["candidate_id"] for r in rows[:ROW_NOTICE_LIMIT]]
+        async for doc in db.candidates.find({"id": {"$in": row_ids}}, {"_id": 0, "embedding": 0}):
+            docs_by_id[doc["id"]] = doc
+        today = datetime.now(timezone.utc).date()
+        for row in rows:
+            doc = docs_by_id.get(row["candidate_id"])
+            if not doc:
+                continue
+            row["stability_alert"] = compute_stability_alert(doc, today)
+            row["age_estimate"] = estimate_age(doc, today)
+        rows = collapse_duplicates(rows, docs_by_id, today=today)
+        for position, row in enumerate(rows, 1):
+            row["rank"] = position
     public_criteria = [{k: v for k, v in c.items() if k != "results"} for c in criteria
                        if c.get("kind") != "knockout" or c.get("key") in active_ko_keys]
     strong = sum(1 for r in rows if (r.get("final_score") or 0) >= MIN_HMS_ACTION and r.get("action") != "do_not_advance_knockout")
@@ -6448,7 +6495,8 @@ async def export_job_shortlist(
     include_risks: bool = Query(default=True),
     include_contact_info: bool = Query(default=False),
     client_name: Optional[str] = Query(default=None),
-    engine: str = Query(default="v2"),
+    engine: str = Query(default="unified"),
+    include_scores: bool = Query(default=False),
     current_user: User = Depends(get_current_user)
 ):
     """
@@ -6458,6 +6506,11 @@ async def export_job_shortlist(
     - Máximo 20 candidatos por exportación
     """
     try:
+        job_doc_full = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+        if not job_doc_full:
+            raise ValueError("Vacante no encontrada")
+        # Mismo ranking que la pantalla, con el flag encendido o apagado (solo caché, sin llamadas de IA)
+        ranking = await build_unified_matches(job_doc_full, current_user.name, current_user.id)
         result = await export_service.export_job_shortlist(
             job_id=job_id,
             user=current_user,
@@ -6466,7 +6519,9 @@ async def export_job_shortlist(
             include_risks=include_risks,
             include_contact_info=include_contact_info,
             client_name=client_name,
-            engine=engine
+            engine="unified",
+            include_scores=include_scores,
+            ranking_rows=ranking.get("results") or []
         )
         job_doc = await db.jobs.find_one({"id": job_id}, {"_id": 0, "title": 1})
         await log_activity(current_user, "shortlist_exported", "job", job_id, (job_doc or {}).get("title"), {"engine": engine, "format": str(format)})

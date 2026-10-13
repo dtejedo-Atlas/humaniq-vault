@@ -31,6 +31,7 @@ import {
 } from './ui/collapsible';
 import { Loader2, Zap, ChevronDown, ChevronUp, Download, FileText, FileSpreadsheet, Info } from 'lucide-react';
 import { PlacedBadge, NotesBadge } from './CandidateBadges';
+import { CandidateNotices } from './CandidateNotices';
 import {
   Tooltip,
   TooltipContent,
@@ -178,7 +179,8 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
         limit: exportOptions.limit,
         includeContact: exportOptions.includeContact,
         clientName: exportOptions.clientName || null,
-        engine: 'v3',
+        engine: 'unified',
+        includeScores: exportOptions.includeScores || false,
       });
 
       const downloadUrl = `${process.env.REACT_APP_BACKEND_URL}${response.data.download_url}`;
@@ -383,6 +385,13 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
                               <Badge className={`${action.color} border-0`} data-testid="match-v3-action-badge">
                                 {action.label}
                               </Badge>
+                            <CandidateNotices
+                              stability={r.stability_alert}
+                              age={r.age_estimate}
+                              duplicate={r.duplicate_of}
+                              candidateId={r.candidate_id}
+                            />
+
                             </div>
                             {r.current_title && (
                               <p className="text-sm text-slate-600 truncate">
@@ -613,11 +622,23 @@ const MatchV3Results = ({ jobId, jobTitle, technical = true, onResultsChange }) 
               Exportar Shortlist v3
             </DialogTitle>
             <DialogDescription>
-              Genera un documento con el ranking v3 (HMS y acción recomendada)
+              Documento para el cliente con el mismo orden del ranking, sin puntuaciones ni avisos internos
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {technical && (
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-cyan-700"
+                  checked={exportOptions.includeScores || false}
+                  onChange={(e) => setExportOptions({ ...exportOptions, includeScores: e.target.checked })}
+                  data-testid="export-include-scores"
+                />
+                Incluir puntuación (uso interno)
+              </label>
+            )}
             <div className="space-y-2">
               <Label>Formato</Label>
               <div className="flex gap-3">

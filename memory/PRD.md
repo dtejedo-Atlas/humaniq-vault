@@ -1,5 +1,8 @@
 # Humaniq Talent Vault — Product Requirements Document
 
+> Última sesión: 2026-10-13 — chips informativos rediseñados, PDF del shortlist con paleta y fuentes Humaniq incrustadas, flag del motor único encendido por defecto (apagable con `app_settings.single_ranking` o `SINGLE_RANKING=false`), export y pantalla con el mismo ranking, dedupe transitivo con trayectoria preservada. Detalle en `CHANGELOG.md`; decisiones abiertas en `ROADMAP.md`. **Nada desplegado.**
+
+
 ## Objetivo original
 Construir una aplicación web full-stack lista para producción para una firma de reclutamiento, denominada Humaniq Talent Vault: una base de candidatos con extracción y clasificación de CVs mediante IA, búsqueda híbrida y matching candidato-vacante.
 

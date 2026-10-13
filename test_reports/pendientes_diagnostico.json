@@ -1,0 +1,718 @@
+{
+ "anios_bajados": [
+  {
+   "id": "ac8cc2f4-c6ad-4e60-8429-51ef0224fa2b",
+   "nombre": "Martín Buendía Torres",
+   "antes": 15,
+   "despues": 7,
+   "empleos_sin_fecha": 0,
+   "empleos": 3,
+   "empleos_antes": 6
+  },
+  {
+   "id": "dc56d0a9-58c9-4d10-8cd3-55880d799f5a",
+   "nombre": "Mario Gutiérrez",
+   "antes": 23,
+   "despues": 17,
+   "empleos_sin_fecha": 0,
+   "empleos": 6,
+   "empleos_antes": 7
+  },
+  {
+   "id": "99b9ca71-80b8-4239-b318-de664cf2c6fd",
+   "nombre": "Berenice Gómora Camargo",
+   "antes": 14,
+   "despues": 9,
+   "empleos_sin_fecha": 0,
+   "empleos": 5,
+   "empleos_antes": 10
+  },
+  {
+   "id": "de52747c-6084-4b62-987e-a2b6abc273e8",
+   "nombre": "David Andrés Montiel Salgado",
+   "antes": 10,
+   "despues": 5,
+   "empleos_sin_fecha": 0,
+   "empleos": 6,
+   "empleos_antes": 8
+  },
+  {
+   "id": "d96c26d5-c662-408b-afbd-918376f79a75",
+   "nombre": "Cesia González Jiménez",
+   "antes": 13,
+   "despues": 9,
+   "empleos_sin_fecha": 1,
+   "empleos": 5,
+   "empleos_antes": 7
+  },
+  {
+   "id": "b6a2faba-d3a2-4ad9-ab17-6e3a7b5828f4",
+   "nombre": "Jose Abel Espinosa Valdivieso",
+   "antes": 15,
+   "despues": 12,
+   "empleos_sin_fecha": 0,
+   "empleos": 6,
+   "empleos_antes": 10
+  },
+  {
+   "id": "b883a114-103e-4ea6-b0a7-db2bcf772886",
+   "nombre": "Gabriela Martínez",
+   "antes": 15,
+   "despues": 14,
+   "empleos_sin_fecha": 0,
+   "empleos": 10,
+   "empleos_antes": 11
+  },
+  {
+   "id": "edb922d0-d581-478f-80cd-5b54238bd692",
+   "nombre": "Alejandra Cabrera Bustamante",
+   "antes": 3,
+   "despues": 2,
+   "empleos_sin_fecha": 0,
+   "empleos": 4,
+   "empleos_antes": 8
+  },
+  {
+   "id": "e76b9e48-5650-4d08-9a02-ac736f2e304e",
+   "nombre": "Humberto David Hernández Pérez",
+   "antes": 20,
+   "despues": 19,
+   "empleos_sin_fecha": 0,
+   "empleos": 8,
+   "empleos_antes": 14
+  },
+  {
+   "id": "d6b24d00-626a-4047-a257-cfc18397eae8",
+   "nombre": "Carolina Correa",
+   "antes": 23,
+   "despues": 22,
+   "empleos_sin_fecha": 0,
+   "empleos": 11,
+   "empleos_antes": 13
+  }
+ ],
+ "humberto": [
+  {
+   "id": "d483bc20-2bfc-4978-811a-18b4355fbce5",
+   "nombre": "Humberto Zarate Chaparro",
+   "fusionada": false,
+   "dedupe_aplicado": null,
+   "empleos": 7,
+   "empleos_dedupe": 7,
+   "years_experience": 24,
+   "detalle": [
+    {
+     "empresa": "Tractores del Norte",
+     "norm": "tractores del norte",
+     "titulo": "Supply Chain & Operations Manager",
+     "inicio": "2025-03",
+     "fin": "2025-08"
+    },
+    {
+     "empresa": "Wegochem Group",
+     "norm": "wegochem",
+     "titulo": "Senior Supply Chain Manager",
+     "inicio": "2024-02",
+     "fin": "2025-03"
+    },
+    {
+     "empresa": "Kraft-Heinz International",
+     "norm": "kraft heinz",
+     "titulo": "Logistics Director",
+     "inicio": "2022-09",
+     "fin": "2024-01"
+    },
+    {
+     "empresa": "McCormick Flavor Solutions",
+     "norm": "mccormick flavor solutions",
+     "titulo": "Senior Supply Chain Manager",
+     "inicio": "2021-04",
+     "fin": "2022-09"
+    },
+    {
+     "empresa": "Perfetti Van Melle",
+     "norm": "perfetti van melle",
+     "titulo": "Supply Chain Manager",
+     "inicio": "2016-10",
+     "fin": "2021-04"
+    },
+    {
+     "empresa": "AG Convertidora",
+     "norm": "convertidora",
+     "titulo": "Supply Chain Manager",
+     "inicio": "2014-05",
+     "fin": "2016-09"
+    },
+    {
+     "empresa": "Rotoplas Group",
+     "norm": "rotoplas",
+     "titulo": "Supply Chain and Operations Leadership",
+     "inicio": "2001-08",
+     "fin": "2014-05"
+    }
+   ],
+   "pares_misma_empresa": []
+  },
+  {
+   "id": "e76b9e48-5650-4d08-9a02-ac736f2e304e",
+   "nombre": "Humberto David Hernández Pérez",
+   "fusionada": true,
+   "dedupe_aplicado": "20261012_185831",
+   "empleos": 8,
+   "empleos_dedupe": 7,
+   "years_experience": 19,
+   "detalle": [
+    {
+     "empresa": "Despegar / W2M World2Meet",
+     "norm": "despegar w2m world2meet",
+     "titulo": "Director Regional Operaciones",
+     "inicio": "2022-05",
+     "fin": "2025-04"
+    },
+    {
+     "empresa": "Grupo Herdez",
+     "norm": "herdez",
+     "titulo": "Gerente Senior de Transporte",
+     "inicio": "2021-01",
+     "fin": "2022-05"
+    },
+    {
+     "empresa": "DHL Supply Chain",
+     "norm": "dhl supply chain",
+     "titulo": "Gerente de Transporte",
+     "inicio": "2019-07",
+     "fin": "2021-01"
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "norm": "coca cola femsa",
+     "titulo": "Planeación de Supply Chain",
+     "inicio": "2015-01",
+     "fin": "2016-01"
+    },
+    {
+     "empresa": "Coca-Cola FEMSA / Solistica",
+     "norm": "coca cola femsa solistica",
+     "titulo": "Coordinación de Operaciones",
+     "inicio": "2013-01",
+     "fin": "2015-01"
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "norm": "coca cola femsa",
+     "titulo": "Especialista Distribución",
+     "inicio": "2011-01",
+     "fin": "2013-01"
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "norm": "coca cola femsa",
+     "titulo": "Facilitador Almacén",
+     "inicio": "2009-01",
+     "fin": "2011-01"
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "norm": "coca cola femsa",
+     "titulo": "Distribution & Transportation Lead",
+     "inicio": "2005-11",
+     "fin": "2019-06"
+    }
+   ],
+   "pares_misma_empresa": [
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "a": "Planeación de Supply Chain 2015-01→2016-01",
+     "b": "Especialista Distribución 2011-01→2013-01",
+     "mismo_empleo": false
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "a": "Planeación de Supply Chain 2015-01→2016-01",
+     "b": "Facilitador Almacén 2009-01→2011-01",
+     "mismo_empleo": false
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "a": "Planeación de Supply Chain 2015-01→2016-01",
+     "b": "Distribution & Transportation Lead 2005-11→2019-06",
+     "mismo_empleo": true
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "a": "Especialista Distribución 2011-01→2013-01",
+     "b": "Facilitador Almacén 2009-01→2011-01",
+     "mismo_empleo": false
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "a": "Especialista Distribución 2011-01→2013-01",
+     "b": "Distribution & Transportation Lead 2005-11→2019-06",
+     "mismo_empleo": true
+    },
+    {
+     "empresa": "Coca-Cola FEMSA",
+     "a": "Facilitador Almacén 2009-01→2011-01",
+     "b": "Distribution & Transportation Lead 2005-11→2019-06",
+     "mismo_empleo": true
+    }
+   ]
+  },
+  {
+   "id": "d57dc908-70a8-4e9e-8fd4-94239452f885",
+   "nombre": "Wilson Humberto Muñoz Pulgarin",
+   "fusionada": false,
+   "dedupe_aplicado": null,
+   "empleos": 8,
+   "empleos_dedupe": 8,
+   "years_experience": 15,
+   "detalle": [
+    {
+     "empresa": "Azteca Comunicaciones Colombia",
+     "norm": "azteca comunicaciones colombia",
+     "titulo": "Gerente comercial regional",
+     "inicio": "Julio 2025",
+     "fin": "Septiembre 2026"
+    },
+    {
+     "empresa": "Bold.co SAS",
+     "norm": "bold co sas",
+     "titulo": "Jefe Comercial Regional Sur Occidente",
+     "inicio": "Agosto 2023",
+     "fin": "Junio 2025"
+    },
+    {
+     "empresa": "DHL Express",
+     "norm": "dhl express",
+     "titulo": "Supervisor retail puntos de venta",
+     "inicio": "Diciembre 2022",
+     "fin": "Agosto 2023"
+    },
+    {
+     "empresa": "PayJoy Colombia",
+     "norm": "payjoy colombia",
+     "titulo": "Gerente Regional Suroccidente",
+     "inicio": "Febrero 2022",
+     "fin": "Septiembre 2022"
+    },
+    {
+     "empresa": "Telefónica Movistar",
+     "norm": "telefonica movistar",
+     "titulo": "Comercial Regional Canales de ventas",
+     "inicio": "Diciembre 2020",
+     "fin": "Marzo 2022"
+    },
+    {
+     "empresa": "Tiendas Metro/Jumbo – Grupo Cencosud",
+     "norm": "tiendas metro jumbo grupo cencosud",
+     "titulo": "Coordinador Comercial zonal",
+     "inicio": "Julio 2019",
+     "fin": "Abril 2020"
+    },
+    {
+     "empresa": "TIGO",
+     "norm": "tigo",
+     "titulo": "Gerente Tiendas: Ventas, fidelización y servicio al cliente",
+     "inicio": "Agosto 2015",
+     "fin": "Julio 2019"
+    },
+    {
+     "empresa": "Movistar",
+     "norm": "movistar",
+     "titulo": "Ejecutivo de Ventas y servicios",
+     "inicio": "Septiembre 2010",
+     "fin": "Agosto 2015"
+    }
+   ],
+   "pares_misma_empresa": []
+  }
+ ],
+ "simulacion_global": {
+  "candidatos_activos": 687,
+  "con_duplicados": 166,
+  "empleos_sobrantes": 919,
+  "fichas_con_anios_a_la_baja": 77,
+  "muestra": [
+   {
+    "id": "b41b6c7b-1e68-4849-a151-105c75513f2e",
+    "nombre": "Luis Fernando Rojas Torres",
+    "empleos": 7,
+    "empleos_dedupe": 5,
+    "anios_antes": 21,
+    "anios_despues": 20,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "9d29a167-6ebd-464a-99f0-8067013bb668",
+    "nombre": "Ilana Lester Nosnik",
+    "empleos": 5,
+    "empleos_dedupe": 4,
+    "anios_antes": 22,
+    "anios_despues": 24,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "944fe8ed-ba25-44a5-a3b4-1bc0a6c00613",
+    "nombre": "Alberto Garza Cabañas",
+    "empleos": 17,
+    "empleos_dedupe": 13,
+    "anios_antes": 35,
+    "anios_despues": 34,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "b30ba878-0935-432c-82de-de87e12cc4e4",
+    "nombre": "Fausto Castillo Arballo",
+    "empleos": 4,
+    "empleos_dedupe": 3,
+    "anios_antes": 12,
+    "anios_despues": 14,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "437363a5-17ef-4dcc-b9b9-64801356de2d",
+    "nombre": "Allan David Méndez Castillo",
+    "empleos": 18,
+    "empleos_dedupe": 6,
+    "anios_antes": 11,
+    "anios_despues": 13,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "5cc2889f-e242-4dfa-bf59-91b632316df1",
+    "nombre": "Ricardo Cruz Navarrete",
+    "empleos": 10,
+    "empleos_dedupe": 5,
+    "anios_antes": 18,
+    "anios_despues": 17,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "89eaee03-666f-4f0c-a4d9-a658305374e0",
+    "nombre": "Gamaliel González Leines",
+    "empleos": 21,
+    "empleos_dedupe": 7,
+    "anios_antes": 21,
+    "anios_despues": 17,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "76b06d1e-5a36-4637-a932-4b0f3c25fc6e",
+    "nombre": "Mario Ulises Estévez Alcázar",
+    "empleos": 10,
+    "empleos_dedupe": 9,
+    "anios_antes": 27,
+    "anios_despues": 25,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "da5c01ea-2615-4823-9c1d-729560cb97f7",
+    "nombre": "Norberto Murillo Rosales",
+    "empleos": 11,
+    "empleos_dedupe": 9,
+    "anios_antes": 17,
+    "anios_despues": 14,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "2f79b016-8893-4802-9595-d573d9438b9f",
+    "nombre": "C. Alejandra Romero Arriaga",
+    "empleos": 10,
+    "empleos_dedupe": 7,
+    "anios_antes": 19,
+    "anios_despues": 12,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "842588a8-33c5-4c75-a879-acf5dbf5a052",
+    "nombre": "Monserrat Rodríguez Valadez",
+    "empleos": 6,
+    "empleos_dedupe": 4,
+    "anios_antes": 6,
+    "anios_despues": 4,
+    "fusionada": false,
+    "empleos_sin_fecha": 1
+   },
+   {
+    "id": "6b4d0106-89ef-437a-98e0-4ee9b12ee675",
+    "nombre": "Diana Estrada López",
+    "empleos": 15,
+    "empleos_dedupe": 8,
+    "anios_antes": 28,
+    "anios_despues": 28,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "c17cd002-ab4a-4b1e-af7c-7db3b3989a18",
+    "nombre": "Juan Manuel Herrera Guerra",
+    "empleos": 8,
+    "empleos_dedupe": 6,
+    "anios_antes": 25,
+    "anios_despues": 23,
+    "fusionada": false,
+    "empleos_sin_fecha": 3
+   },
+   {
+    "id": "21f8608e-971c-469d-86df-e49f134123c2",
+    "nombre": "Juan José Hernández",
+    "empleos": 5,
+    "empleos_dedupe": 3,
+    "anios_antes": 29,
+    "anios_despues": 29,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "3bb8ca13-23c3-46db-986a-59324ac694af",
+    "nombre": "Alejandro E. Tobón Reyes",
+    "empleos": 16,
+    "empleos_dedupe": 8,
+    "anios_antes": 32,
+    "anios_despues": 30,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "b9d8254d-ad98-4ccf-9951-218d6cdd9e41",
+    "nombre": "Alfonso Martínez Puente Morales",
+    "empleos": 14,
+    "empleos_dedupe": 7,
+    "anios_antes": 20,
+    "anios_despues": 22,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "2c0f5336-5775-4d24-85a7-5a8aa5876e5c",
+    "nombre": "Fernando Alfredo Aguilar",
+    "empleos": 8,
+    "empleos_dedupe": 4,
+    "anios_antes": 32,
+    "anios_despues": 34,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "f30cf63d-67b0-48b4-8661-b6d4ea64c367",
+    "nombre": "Jardany Alonso Navarrete Romero",
+    "empleos": 18,
+    "empleos_dedupe": 9,
+    "anios_antes": 12,
+    "anios_despues": 12,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "9e7c8063-3dbb-4d8e-a95f-dcc576962b7f",
+    "nombre": "Álvaro A. Martínez Carbajal",
+    "empleos": 12,
+    "empleos_dedupe": 6,
+    "anios_antes": 17,
+    "anios_despues": 17,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "b3a06c9a-72b9-4d38-aaf9-9b390eccfb51",
+    "nombre": "Miguel Amir Bernal Hernández",
+    "empleos": 12,
+    "empleos_dedupe": 6,
+    "anios_antes": 5,
+    "anios_despues": 7,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "9293a154-7cd7-47fc-9599-7a49ee24ac9a",
+    "nombre": "Carlos Uribe Bello",
+    "empleos": 4,
+    "empleos_dedupe": 2,
+    "anios_antes": 2,
+    "anios_despues": 4,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "7b63b712-6830-42fe-add2-d7efc0402ece",
+    "nombre": "César Villegas Ortega",
+    "empleos": 2,
+    "empleos_dedupe": 1,
+    "anios_antes": 11,
+    "anios_despues": 12,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "b3810402-9cce-4b80-90e9-cbb491b604bd",
+    "nombre": "David Arturo Arenas González",
+    "empleos": 6,
+    "empleos_dedupe": 4,
+    "anios_antes": 15,
+    "anios_despues": 21,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "f50c7a75-b322-4571-b55a-7ec4a300160d",
+    "nombre": "David Israel Sánchez Jiménez",
+    "empleos": 10,
+    "empleos_dedupe": 5,
+    "anios_antes": 16,
+    "anios_despues": 16,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   },
+   {
+    "id": "7e75ab55-cb9c-4234-9796-ee7cf8c7e254",
+    "nombre": "David Ceballos Sierra",
+    "empleos": 7,
+    "empleos_dedupe": 4,
+    "anios_antes": 26,
+    "anios_despues": 29,
+    "fusionada": false,
+    "empleos_sin_fecha": 0
+   }
+  ]
+ },
+ "sin_empleos": [
+  {
+   "id": "4391381b-5356-4e34-a26d-3a9e6b974828",
+   "nombre": "Ricardo Domínguez Castrejón",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "9ddb7005-fda7-4b33-acde-ee892ff1cd77",
+   "nombre": "María José Coca Candia",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "7d7dabba-099a-4c2a-ae1c-143f91f28643",
+   "nombre": "Juan Fernando Villaseñor Lopez",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "38fd7e63-1cc3-4fed-a7e2-cc14f865f170",
+   "nombre": "Antonio Alegria",
+   "empresa_actual": null,
+   "anios": 20
+  },
+  {
+   "id": "28263f81-3d75-4627-b923-8def9815ebdb",
+   "nombre": "José Antonio Aboytes López",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "ea50bda4-a5f1-4789-a5a0-8794feaa9654",
+   "nombre": "Eric Sierra González",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "a55795c9-eae1-46ca-ac16-ca7726984ac1",
+   "nombre": "José Antonio Gachuz Osorio",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "d8f4e0f6-26aa-4644-bfe5-9f119d7b0c42",
+   "nombre": "John Mitchell Gonzalez",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "7b2d3d67-a112-4c57-8a6e-5effdb7239fe",
+   "nombre": "Ariadna Sánchez",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "feb4c7ef-35d4-4525-b553-3521108f0a8f",
+   "nombre": "Brenda Cazna",
+   "empresa_actual": null,
+   "anios": null
+  },
+  {
+   "id": "4d63f4cd-a6d6-4536-82ea-7af723c909e9",
+   "nombre": "Eduardo Acosta Barreto",
+   "empresa_actual": null,
+   "anios": 4
+  }
+ ],
+ "sin_anios": [
+  {
+   "id": "4391381b-5356-4e34-a26d-3a9e6b974828",
+   "nombre": "Ricardo Domínguez Castrejón",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "9ddb7005-fda7-4b33-acde-ee892ff1cd77",
+   "nombre": "María José Coca Candia",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "7d7dabba-099a-4c2a-ae1c-143f91f28643",
+   "nombre": "Juan Fernando Villaseñor Lopez",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "28263f81-3d75-4627-b923-8def9815ebdb",
+   "nombre": "José Antonio Aboytes López",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "ea50bda4-a5f1-4789-a5a0-8794feaa9654",
+   "nombre": "Eric Sierra González",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "a55795c9-eae1-46ca-ac16-ca7726984ac1",
+   "nombre": "José Antonio Gachuz Osorio",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "d8f4e0f6-26aa-4644-bfe5-9f119d7b0c42",
+   "nombre": "John Mitchell Gonzalez",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "7b2d3d67-a112-4c57-8a6e-5effdb7239fe",
+   "nombre": "Ariadna Sánchez",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "feb4c7ef-35d4-4525-b553-3521108f0a8f",
+   "nombre": "Brenda Cazna",
+   "empleos": 0,
+   "anios": null
+  },
+  {
+   "id": "41605064-3ae0-497b-8368-d61766a54368",
+   "nombre": "Sergio Rodrigo Lopez Basurto",
+   "empleos": 10,
+   "anios": null
+  }
+ ]
+}

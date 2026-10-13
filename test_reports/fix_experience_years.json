@@ -1,0 +1,88 @@
+{
+ "aplicado": true,
+ "fichas": [
+  {
+   "id": "dc56d0a9-58c9-4d10-8cd3-55880d799f5a",
+   "nombre": "Mario Gutiérrez",
+   "anterior": 17,
+   "original_pre_dedupe": 23,
+   "union_periodos": 17,
+   "nuevo": 17
+  },
+  {
+   "id": "d96c26d5-c662-408b-afbd-918376f79a75",
+   "nombre": "Cesia González Jiménez",
+   "anterior": 9,
+   "original_pre_dedupe": 13,
+   "union_periodos": 9,
+   "nuevo": 10
+  },
+  {
+   "id": "b883a114-103e-4ea6-b0a7-db2bcf772886",
+   "nombre": "Gabriela Martínez",
+   "anterior": 14,
+   "original_pre_dedupe": 15,
+   "union_periodos": 14,
+   "nuevo": 15
+  },
+  {
+   "id": "b6a2faba-d3a2-4ad9-ab17-6e3a7b5828f4",
+   "nombre": "Jose Abel Espinosa Valdivieso",
+   "anterior": 12,
+   "original_pre_dedupe": 15,
+   "union_periodos": 12,
+   "nuevo": 12
+  },
+  {
+   "id": "edb922d0-d581-478f-80cd-5b54238bd692",
+   "nombre": "Alejandra Cabrera Bustamante",
+   "anterior": 2,
+   "original_pre_dedupe": 3,
+   "union_periodos": 2,
+   "nuevo": 2
+  },
+  {
+   "id": "99b9ca71-80b8-4239-b318-de664cf2c6fd",
+   "nombre": "Berenice Gómora Camargo",
+   "anterior": 9,
+   "original_pre_dedupe": 14,
+   "union_periodos": 9,
+   "nuevo": 10
+  },
+  {
+   "id": "de52747c-6084-4b62-987e-a2b6abc273e8",
+   "nombre": "David Andrés Montiel Salgado",
+   "anterior": 5,
+   "original_pre_dedupe": 10,
+   "union_periodos": 5,
+   "nuevo": 5
+  },
+  {
+   "id": "e76b9e48-5650-4d08-9a02-ac736f2e304e",
+   "nombre": "Humberto David Hernández Pérez",
+   "anterior": 19,
+   "original_pre_dedupe": 20,
+   "union_periodos": 19,
+   "nuevo": 19
+  },
+  {
+   "id": "d6b24d00-626a-4047-a257-cfc18397eae8",
+   "nombre": "Carolina Correa",
+   "anterior": 22,
+   "original_pre_dedupe": 23,
+   "union_periodos": 22,
+   "nuevo": 22
+  },
+  {
+   "id": "ac8cc2f4-c6ad-4e60-8429-51ef0224fa2b",
+   "nombre": "Martín Buendía Torres",
+   "anterior": 7,
+   "original_pre_dedupe": 15,
+   "union_periodos": 7,
+   "nuevo": 7
+  }
+ ],
+ "omitidas": [],
+ "resto_base_cambios_mayores_2_anios": 276,
+ "resto_base_revisadas": 659
+}

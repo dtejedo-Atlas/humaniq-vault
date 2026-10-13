@@ -7,6 +7,7 @@ import { CandidateClassificationFields } from '../components/CandidateClassifica
 import CVVersionHistory from '../components/CVVersionHistory';
 import AssignJobDialog from '../components/AssignJobDialog';
 import { PlacedBadge, isPlacedCandidate } from '../components/CandidateBadges';
+import { CandidateNotices, AgeEstimateLine } from '../components/CandidateNotices';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -105,6 +106,7 @@ const CandidateDetailPage = () => {
   const [candidate, setCandidate] = useState(null);
   const [editingIndustry, setEditingIndustry] = useState(null);
   const [savingIndustry, setSavingIndustry] = useState(null);
+  const [notices, setNotices] = useState(null);
   const [loading, setLoading] = useState(true);
   const [classifying, setClassifying] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -151,6 +153,7 @@ const CandidateDetailPage = () => {
   useEffect(() => {
     fetchCandidate();
     loadStatusConfig();
+    candidatesAPI.getNotices(id).then((res) => setNotices(res.data)).catch(() => setNotices(null));
   }, [id]);
 
   useEffect(() => {
@@ -163,8 +166,7 @@ const CandidateDetailPage = () => {
     }
   }, [candidate?.id]);
 
-  const saveCompanyIndustry = async (index, value) => {
-    setSavingIndustry(index);
+  const saveCompanyIndustry = async (index, value) => {    setSavingIndustry(index);
     try {
       await candidatesAPI.setPreviousCompanyIndustry(id, index, value);
       setCandidate((prev) => {
@@ -648,6 +650,11 @@ const CandidateDetailPage = () => {
                     <CardTitle className="text-2xl flex items-center gap-3 flex-wrap">
                       {candidate.full_name}
                       {isPlacedCandidate(candidate) && <PlacedBadge />}
+                      <CandidateNotices
+                        stability={notices?.stability_alert}
+                        age={notices?.age_estimate}
+                        candidateId={candidate.id}
+                      />
                     </CardTitle>
                     {candidate.current_title && (
                       <CardDescription className="text-base mt-2">
@@ -655,6 +662,10 @@ const CandidateDetailPage = () => {
                         {candidate.current_company && ` @ ${candidate.current_company}`}
                       </CardDescription>
                     )}
+                    <div className="mt-2 space-y-1">
+                      <AgeEstimateLine age={notices?.age_estimate} />
+                    </div>
+
                   </div>
                   
                   {/* Status Dropdown */}
