@@ -76,5 +76,7 @@ kept_inv = collapse_duplicates(rows_inv, {'1': esp, '2': eng}, today=TODAY)
 check('se conserva el de mejor puntuación', len(kept_inv) == 1 and kept_inv[0]['candidate_id'] == '2',
       str([r['candidate_id'] for r in kept_inv]))
 
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

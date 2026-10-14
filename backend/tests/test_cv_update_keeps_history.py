@@ -8,6 +8,11 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv('/app/backend/.env')
+
+if 'pytest' in sys.modules and os.environ.get('ALLOW_LIVE_DB_TESTS') != '1':
+    import pytest
+    pytest.skip('prueba contra la API en vivo: córrela como script o con ALLOW_LIVE_DB_TESTS=1',
+                allow_module_level=True)
 sys.path.insert(0, '/app/backend')
 from auth import create_access_token  # noqa: E402
 
@@ -42,6 +47,8 @@ names_after = [c.get('company_name') for c in history_after]
 ok_names = all(name in names_after for name in names_before)
 print(('PASS  ' if ok_update else 'FAIL  ') + 'update-cv responde 200')
 print(('PASS  ' if ok_history and ok_names else 'FAIL  ') + 'trayectoria conservada tras CV sin empleos')
-print('antes:', names_before)
-print('después:', names_after)
-sys.exit(0 if (ok_update and ok_history and ok_names) else 1)
+
+if __name__ == '__main__':
+    print('antes:', names_before)
+    print('después:', names_after)
+    sys.exit(0 if (ok_update and ok_history and ok_names) else 1)

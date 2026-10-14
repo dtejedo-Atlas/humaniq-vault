@@ -13,6 +13,11 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv('/app/backend/.env')
+
+if 'pytest' in sys.modules and os.environ.get('ALLOW_LIVE_DB_TESTS') != '1':
+    import pytest
+    pytest.skip('prueba contra la API en vivo: córrela como script o con ALLOW_LIVE_DB_TESTS=1',
+                allow_module_level=True)
 sys.path.insert(0, '/app/backend')
 from auth import create_access_token  # noqa: E402
 
@@ -90,5 +95,7 @@ record('tercer lote sin 429 tras liberar cuota', third.status_code == 200, f'sta
 if third.status_code == 200:
     poll(third.json()['batch_id'])
 
-print('\nTOTAL', sum(1 for _, ok, _ in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok, _ in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok, _ in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok, _ in results) else 1)

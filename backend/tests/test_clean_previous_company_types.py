@@ -49,5 +49,7 @@ check('lista mixta conserva los empleos válidos',
 check('industria válida intacta en lista mixta', history[1]['company_industry'] == 'manufacturing')
 check('caliber con tipo inválido → None', history[2]['company_caliber'] is None)
 
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

@@ -160,3 +160,7 @@ frontend/node_modules/.cache/default-development/6.pack
 frontend/node_modules/.cache/default-development/10.pack
 frontend/node_modules/.cache/default-development/5.pack
 frontend/node_modules/.cache/default-development/8.pack
+
+# Datos personales de candidatos: no se suben al repo
+test_reports/
+memory/backups/

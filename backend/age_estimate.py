@@ -88,25 +88,32 @@ def estimate_age(candidate: Dict, today: Optional[date] = None) -> Dict:
     today = today or date.today()
     first_job = first_job_year(candidate)
     career_years = (today.year - first_job[0]) if first_job else None
+    try:
+        declared_years = int(float(candidate.get('years_experience')))
+    except (TypeError, ValueError):
+        declared_years = None
+    if declared_years is not None and declared_years <= 0:
+        declared_years = None
 
     estimate = _explicit_age(candidate, today) or _graduation(candidate, today)
     if estimate is None and first_job:
-        # Lapso desde el primer empleo (los huecos no reducen la edad)
+        # Los CV ejecutivos listan solo los últimos 10-15 años: el primer empleo listado subestima
+        # la carrera, así que se toma el mayor entre ese lapso y los años declarados.
+        if declared_years is not None:
+            career_years = max(career_years, declared_years)
         age = career_years + FIRST_JOB_AGE
+        detalle = f'Primer empleo {first_job[0]}' + (f' ({first_job[1]})' if first_job[1] else '')
+        if declared_years is not None and declared_years > (today.year - first_job[0]):
+            detalle = (f'{declared_years} años de experiencia declarados · '
+                       f'primer empleo listado {first_job[0]}')
         estimate = {'edad_estimada': age, 'rango_min': age - 3, 'rango_max': age + 3, 'fuente': 'primer_empleo',
-                    'detalle': f'Primer empleo {first_job[0]}' + (f' ({first_job[1]})' if first_job[1] else ''),
-                    'confianza': 'media'}
-    if estimate is None:
-        try:
-            years = int(float(candidate.get('years_experience')))
-        except (TypeError, ValueError):
-            years = None
-        if years and years > 0:
-            age = years + EXPERIENCE_BASE_AGE
-            estimate = {'edad_estimada': age, 'rango_min': age - 4, 'rango_max': age + 4,
-                        'fuente': 'years_experience',
-                        'detalle': f'{years} años de experiencia declarados', 'confianza': 'baja'}
-            career_years = career_years if career_years is not None else years
+                    'detalle': detalle, 'confianza': 'media'}
+    if estimate is None and declared_years is not None:
+        age = declared_years + EXPERIENCE_BASE_AGE
+        estimate = {'edad_estimada': age, 'rango_min': age - 4, 'rango_max': age + 4,
+                    'fuente': 'years_experience',
+                    'detalle': f'{declared_years} años de experiencia declarados', 'confianza': 'baja'}
+        career_years = career_years if career_years is not None else declared_years
     if estimate is None:
         return {'edad_estimada': None, 'rango_min': None, 'rango_max': None, 'fuente': None, 'detalle': None,
                 'confianza': None, 'años_carrera': None, 'notificacion': False}

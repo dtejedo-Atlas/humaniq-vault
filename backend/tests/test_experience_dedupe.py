@@ -154,5 +154,7 @@ check('empleo abierto cuenta hasta hoy',
 check('sin fechas no hay valor de años',
       experience_years_from_history([{'company_name': 'A', 'title': 'Director'}], hoy) is None)
 
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

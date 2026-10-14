@@ -62,5 +62,7 @@ check('sin fechas no calcula años', total_experience_years(sin_fechas, NOW) is 
 rows = trajectory_profile(simultaneo, NOW)
 check('trayectoria conserva un renglón por empleo', len(rows) == 2 and all(r['years'] > 0 for r in rows))
 
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

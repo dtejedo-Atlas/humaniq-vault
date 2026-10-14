@@ -9,6 +9,7 @@
 - **12 fichas sin empleos / sin años**: RESUELTO el 14-oct (re-parseadas con respaldo). Validar los datos nuevos.
 
 ### Propuestas del agente SIN APROBAR (no implementar sin OK)
+- Sanear las suites antiguas estilo pytest (18 fallos + 126 errores por falta de fixtures de API/admin) para que `pytest backend/tests` quede en verde.
 - Cambiar el `window.open` de "abrir ficha del duplicado" (`CandidateDetailPage.js:612`) por navegación interna: dentro del panel de vista previa (iframe) el bloqueador de pop-ups de Chrome puede cancelarlo.
 - Purgar de verdad las 92 fichas sintéticas con borrado lógico y la vacante de prueba.
 - Limpiar las 7 fichas de revisión manual con la regla estricta tras revisarlas una por una.

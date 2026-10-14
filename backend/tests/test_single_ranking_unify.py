@@ -95,5 +95,7 @@ check('base sin bono se conserva aparte', by_id['a']['base_score'] == 60)
 check('sin motor único no hay bono', AIRefineService.unify([row('a', 60)], crit, set(), None, False)[0]['criteria_bonus'] == 0)
 check('final nunca pasa de 100', AIRefineService.unify([row('a', 97)], crit, set(), None, True)[0]['final_score'] == 100)
 
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

@@ -82,5 +82,7 @@ check('si la ficha conservada no tiene empleos, se copian los del duplicado',
 check('si no tiene educación ni certificaciones, se copian',
       len(updates2.get('education') or []) == 1 and len(updates2.get('certifications') or []) == 1)
 
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+if __name__ == '__main__':
+
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

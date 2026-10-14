@@ -10,9 +10,12 @@ import requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+_SKIP_MSG = 'test_duplicates_trash_jobs_cycle: escribe en la base compartida. Actívala con ALLOW_LIVE_DB_TESTS=1.'
 if os.environ.get('ALLOW_LIVE_DB_TESTS') != '1':
-    print('SKIP  test_duplicates_trash_jobs_cycle: escribe en la base compartida. '
-          'Actívala con ALLOW_LIVE_DB_TESTS=1.')
+    if 'pytest' in sys.modules:
+        import pytest
+        pytest.skip(_SKIP_MSG, allow_module_level=True)
+    print('SKIP  ' + _SKIP_MSG)
     sys.exit(0)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

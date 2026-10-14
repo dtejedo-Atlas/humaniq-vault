@@ -115,6 +115,8 @@ def used_fonts(data):
 
 
 flag_cases()
-asyncio.run(pdf_cases())
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+
+if __name__ == '__main__':
+    asyncio.run(pdf_cases())
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

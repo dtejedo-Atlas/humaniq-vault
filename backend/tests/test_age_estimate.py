@@ -58,6 +58,26 @@ e = estimate_age({'previous_companies': [{'company_name': 'Uno', 'title': 'Becar
                                          {'company_name': 'Dos', 'title': 'Analista', 'start_date': '2000-01'}]}, TODAY)
 check('ignora puestos de becario/prácticas', '2000' in e['detalle'], e['detalle'])
 
+# 5b. CV ejecutivo recortado: manda el mayor entre el lapso listado y los años declarados
+caso_ochoa = {'years_experience': 25,
+              'previous_companies': [{'company_name': 'AT&T', 'title': 'Director Comercial', 'start_date': '2015-03'}]}
+o = estimate_age(caso_ochoa, TODAY)
+check('CV recortado: 25 años declarados mandan sobre el primer empleo listado',
+      o['edad_estimada'] == 47 and (o['rango_min'], o['rango_max']) == (44, 50), str(o))
+check('CV recortado: años_carrera = 25 y sin notificación',
+      o['años_carrera'] == 25 and o['notificacion'] is False, str(o))
+check('CV recortado: el detalle menciona ambos datos',
+      o['detalle'] == '25 años de experiencia declarados · primer empleo listado 2015', o['detalle'])
+o26 = estimate_age({**caso_ochoa, 'years_experience': 26}, TODAY)
+check('26 años declarados sí notifican',
+      o26['notificacion'] is True and o26['edad_estimada'] == 48, str(o26))
+o_corto = estimate_age({'years_experience': 5,
+                        'previous_companies': [{'company_name': 'Uno', 'title': 'Gerente', 'start_date': '2000-01'}]},
+                       TODAY)
+check('si el primer empleo listado es más antiguo que lo declarado, manda el primer empleo',
+      o_corto['años_carrera'] == TODAY.year - 2000 and 'Primer empleo 2000' in o_corto['detalle'],
+      str(o_corto))
+
 # 6. Edad explícita manda y es de confianza alta
 f = estimate_age({'age': 45, 'previous_companies': [{'company_name': 'X', 'title': 'Y', 'start_date': '1990-01'}]}, TODAY)
 check('edad declarada tiene prioridad y confianza alta',
@@ -100,6 +120,8 @@ async def tabla():
               f"{'SÍ' if a['notificacion'] else 'no':5}  {(a['detalle'] or '')[:52]}")
 
 
-asyncio.run(tabla())
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+
+if __name__ == '__main__':
+    asyncio.run(tabla())
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)

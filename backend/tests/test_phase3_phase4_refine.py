@@ -3,6 +3,11 @@ import os
 import sys
 import time
 import requests
+
+if 'pytest' in sys.modules and os.environ.get('ALLOW_LIVE_DB_TESTS') != '1':
+    import pytest
+    pytest.skip('prueba contra la API en vivo: córrela como script o con ALLOW_LIVE_DB_TESTS=1',
+                allow_module_level=True)
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))

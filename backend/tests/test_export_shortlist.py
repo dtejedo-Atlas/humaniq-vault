@@ -90,6 +90,8 @@ async def main():
         check('PDF sin acción recomendada', 'Entrevistar' not in text and 'Prioridad baja' not in text)
 
 
-asyncio.run(main())
-print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
-sys.exit(0 if all(ok for _, ok in results) else 1)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+    print('\nTOTAL', sum(1 for _, ok in results if ok), '/', len(results))
+    sys.exit(0 if all(ok for _, ok in results) else 1)
