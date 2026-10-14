@@ -8,7 +8,7 @@ Regla: años = (inicio del primer empleo, sin prácticas/becario → fin del úl
 - Si la ficha no tiene fechas utilizables, no se toca.
 - Sin `--apply` solo muestra la tabla (no escribe nada).
 
-Uso: python tests/fix_experience_years.py [--apply]
+Uso: python scripts/fix_experience_years.py [--apply]
 """
 import asyncio
 import json
@@ -93,4 +93,5 @@ async def main():
     print(f"\nAños corregidos en {len(targets)} fichas (reversible con years_experience_pre_fix).")
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

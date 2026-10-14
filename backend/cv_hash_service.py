@@ -1,6 +1,7 @@
 """Hashes SHA-256 de CVs: prevención de cargas repetidas y detección de CVs idénticos."""
 import hashlib
 import logging
+import unicodedata
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional
@@ -21,7 +22,17 @@ FILL_SCALAR_FIELDS = [
     "industry", "functional_area", "presentation_area", "presentation_subarea",
     "seniority", "years_experience", "city", "state", "country", "ai_summary",
 ]
-FILL_LIST_FIELDS = ["skills", "languages", "previous_companies", "tags"]
+FILL_LIST_FIELDS = ["skills", "languages", "previous_companies", "tags", "education", "certifications"]
+# Listas que NUNCA se concatenan (solo se copian si la ficha conservada no tiene nada): el CV es
+# idéntico, así que el duplicado no aporta registros nuevos y concatenar repetía el mismo empleo
+# o el mismo estudio con otro formato de fecha o de nombre.
+NO_APPEND_LIST_FIELDS = {"previous_companies", "education", "certifications"}
+
+
+def _text_key(value) -> str:
+    """Clave de comparación para listas simples: sin mayúsculas, acentos ni espacios de más."""
+    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode()
+    return " ".join(text.casefold().split())
 
 
 def compute_hashes(file_data: bytes, file_type: Optional[str] = None, text: Optional[str] = None) -> Dict:
@@ -278,15 +289,20 @@ class CVHashService:
                 incoming = extra.get(field) or []
                 if not isinstance(current, list) or not isinstance(incoming, list):
                     continue
+                if field in NO_APPEND_LIST_FIELDS:
+                    # El CV es idéntico: el historial del duplicado no aporta empleos nuevos y
+                    # concatenarlo duplica el mismo empleo con otro formato de fecha.
+                    if not current and incoming:
+                        updates[field] = incoming
+                    continue
                 merged = list(current)
-                seen = {str(v).casefold() for v in current if not isinstance(v, dict)}
+                seen = {_text_key(v) for v in current if not isinstance(v, dict)}
                 for item in incoming:
                     if isinstance(item, dict):
-                        if item not in merged:
-                            merged.append(item)
-                    elif str(item).casefold() not in seen:
+                        continue  # listas de objetos solo se copian cuando la ficha está vacía
+                    if _text_key(item) not in seen:
                         merged.append(item)
-                        seen.add(str(item).casefold())
+                        seen.add(_text_key(item))
                 if len(merged) > len(current):
                     updates[field] = merged
         if updates:

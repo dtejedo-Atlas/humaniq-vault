@@ -1,0 +1,748 @@
+{
+ "sinteticas": [
+  {
+   "id": "e75df560-272d-44ba-b902-e859a0638a7b",
+   "nombre": "Test Candidate Atlas",
+   "email": "test.candidate@example.com",
+   "creada": "2026-03-24T01:13:51.302864+00:00",
+   "borrada": true,
+   "origen": "API Test"
+  },
+  {
+   "id": "5a242806-04ec-467c-bae2-1b99d0943e61",
+   "nombre": "Test Candidate Atlas",
+   "email": "test.candidate@example.com",
+   "creada": "2026-03-24T01:14:04.574640+00:00",
+   "borrada": true,
+   "origen": "API Test"
+  },
+  {
+   "id": "9fac809f-2ed0-4c43-a54d-cab0acaf31ca",
+   "nombre": "José Muñoz García",
+   "email": "jose.munoz@example.com",
+   "creada": "2026-03-24T02:46:30.391016+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "40f67bbc-b822-4dff-8a03-83c818f2a95b",
+   "nombre": "Test Cv",
+   "email": null,
+   "creada": "2026-03-24T03:15:46.996518+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "c0640598-72b8-415d-9e09-02f9e536a0af",
+   "nombre": "TEST_DeleteCandidate",
+   "email": "test_delete@example.com",
+   "creada": "2026-03-27T23:02:45.974153+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "44b3f885-33c8-436a-ac1a-82b624e4da7a",
+   "nombre": "TEST_HiddenCandidate",
+   "email": "test_hidden@example.com",
+   "creada": "2026-03-27T23:02:46.379651+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "7b8a27af-79d0-4520-80d3-989c087b805f",
+   "nombre": "TEST_RestoreCandidate",
+   "email": "test_restore@example.com",
+   "creada": "2026-03-27T23:02:46.813525+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "ce58b482-02f4-47d9-b149-7fb4fd41c7cd",
+   "nombre": "TEST_RestrictCandidate",
+   "email": "test_restrict@example.com",
+   "creada": "2026-03-27T23:02:47.702240+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "b8511f7a-fed8-4650-a81d-83a384a1baff",
+   "nombre": "TEST_TraceabilityCandidate",
+   "email": "test_trace@example.com",
+   "creada": "2026-03-27T23:02:48.113900+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "3b8d741a-bc7c-4411-9cb3-634a060c09f7",
+   "nombre": "TEST_UnrestrictCandidate",
+   "email": "test_unrestrict@example.com",
+   "creada": "2026-03-27T23:02:48.527320+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "50c0358b-1e63-437e-8cae-a14abc90b5e4",
+   "nombre": "TEST_DeleteCandidate",
+   "email": "test_delete@example.com",
+   "creada": "2026-03-27T23:03:17.311236+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "759a98d6-a7ef-45a8-86d0-de488526ff58",
+   "nombre": "TEST_HiddenCandidate",
+   "email": "test_hidden@example.com",
+   "creada": "2026-03-27T23:03:17.755576+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "4d41c6de-8271-4126-bfaa-4683dc55e4e1",
+   "nombre": "TEST_RestoreCandidate",
+   "email": "test_restore@example.com",
+   "creada": "2026-03-27T23:03:18.239512+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "1597a8d8-2dbc-4548-95ad-0b6f5d9d05ed",
+   "nombre": "TEST_NotDeletedCandidate",
+   "email": "test_notdeleted@example.com",
+   "creada": "2026-03-27T23:03:18.740485+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "034a93ac-20b7-4b38-b63b-fbf54ddc9cd1",
+   "nombre": "TEST_RestrictCandidate",
+   "email": "test_restrict@example.com",
+   "creada": "2026-03-27T23:03:19.324386+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "eefbfd99-f9a6-4228-bab4-c0d7ec543d2d",
+   "nombre": "TEST_TraceabilityCandidate",
+   "email": "test_trace@example.com",
+   "creada": "2026-03-27T23:03:19.685468+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "ae2df139-35c9-4c30-8076-e40671a131b4",
+   "nombre": "TEST_UnrestrictCandidate",
+   "email": "test_unrestrict@example.com",
+   "creada": "2026-03-27T23:03:20.156812+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "76d1563e-1f49-4838-bc65-6b58906dbd6d",
+   "nombre": "PRUEBA E2E #1365",
+   "email": "prueba.e2e.268@test.com",
+   "creada": "2026-04-14T01:25:05.699239+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "fd451b56-d354-4dd9-8a1c-8d672608d021",
+   "nombre": "Test Upload Cv",
+   "email": null,
+   "creada": "2026-06-29T22:30:22.723843+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "fd5e052d-6f5e-4e07-8d1b-7ed089dfd6f6",
+   "nombre": "TEST_RESILIENCE Candidato Uno",
+   "email": "test_resilience_one@example.com",
+   "creada": "2026-06-30T00:59:33.323214+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "ad984f85-29da-48a3-b0eb-bdd51885f3b2",
+   "nombre": "TEST_RESILIENCE Candidato Uno",
+   "email": "test_resilience_one@example.com",
+   "creada": "2026-06-30T01:49:38.131100+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "869ef543-0ba7-476d-9c63-4427bb51c06e",
+   "nombre": "TEST_RESILIENCE Candidato Uno",
+   "email": "test_resilience_one@example.com",
+   "creada": "2026-06-30T01:50:41.221878+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "e703d9b6-4f53-48c5-aafb-969adcdd579f",
+   "nombre": "TEST_DeleteCandidate",
+   "email": "test_delete@example.com",
+   "creada": "2026-06-30T01:50:58.259079+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "891ea4c6-dea6-4506-b789-4847d9ce4f86",
+   "nombre": "TEST_HiddenCandidate",
+   "email": "test_hidden@example.com",
+   "creada": "2026-06-30T01:50:58.610160+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "f408b37b-c2bc-4c8d-8059-71e7b864b736",
+   "nombre": "TEST_RestoreCandidate",
+   "email": "test_restore@example.com",
+   "creada": "2026-06-30T01:50:59.188020+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "e1a256f7-187b-46f0-86b9-24e0b05cf3b2",
+   "nombre": "TEST_NotDeletedCandidate",
+   "email": "test_notdeleted@example.com",
+   "creada": "2026-06-30T01:50:59.593525+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "5c798e9c-2a28-4c4a-a868-2224731587ff",
+   "nombre": "TEST_RestrictCandidate",
+   "email": "test_restrict@example.com",
+   "creada": "2026-06-30T01:51:00.125310+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "70eef0cf-240d-4d6c-b86d-d19b387bfc5c",
+   "nombre": "TEST_TraceabilityCandidate",
+   "email": "test_trace@example.com",
+   "creada": "2026-06-30T01:51:00.429210+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "b00eab9b-3483-4ec0-91d0-774c99bc2fd4",
+   "nombre": "TEST_UnrestrictCandidate",
+   "email": "test_unrestrict@example.com",
+   "creada": "2026-06-30T01:51:00.857417+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "6a8f181e-aed3-498f-b7e9-73626f4eb4bd",
+   "nombre": "José Muñoz García",
+   "email": "jose.munoz.test@example.com",
+   "creada": "2026-06-30T01:52:30.978209+00:00",
+   "borrada": true,
+   "origen": "UTF8 Test"
+  },
+  {
+   "id": "9fbcea19-f6f7-4988-b2ba-c0675b60ae28",
+   "nombre": "Test Clasificacion Baja Confianza",
+   "email": "test_baja_confianza@example.com",
+   "creada": "2026-06-30T02:06:27.304647+00:00",
+   "borrada": true,
+   "origen": "Test Manual"
+  },
+  {
+   "id": "afdd174d-fdc0-4bf1-8726-b42a479588fa",
+   "nombre": "Test Para Corregir",
+   "email": "test_corregir@example.com",
+   "creada": "2026-06-30T02:06:52.777930+00:00",
+   "borrada": true,
+   "origen": "Test Manual"
+  },
+  {
+   "id": "262068b3-0dae-4e49-b94e-8ff62a3a4e79",
+   "nombre": "Ana García López",
+   "email": "ana.garcía.lópez@example.com",
+   "creada": "2026-06-30T02:07:13.245041+00:00",
+   "borrada": true,
+   "origen": "Test Manual"
+  },
+  {
+   "id": "f59e1ab1-86f8-4731-9b8f-1e99023d9e98",
+   "nombre": "Roberto Sánchez",
+   "email": "roberto.sánchez@example.com",
+   "creada": "2026-06-30T02:07:13.250322+00:00",
+   "borrada": true,
+   "origen": "Test Manual"
+  },
+  {
+   "id": "ac3e41b1-db56-4e2f-9f10-0b3a23535c1c",
+   "nombre": "María Fernández",
+   "email": "maría.fernández@example.com",
+   "creada": "2026-06-30T02:07:13.250757+00:00",
+   "borrada": true,
+   "origen": "Test Manual"
+  },
+  {
+   "id": "44cfdb4c-4e27-47b2-abb8-b95c4ca83fd7",
+   "nombre": "TEST_RESILIENCE Candidato Uno",
+   "email": "test_resilience_one@example.com",
+   "creada": "2026-07-02T03:08:06.051950+00:00",
+   "borrada": true,
+   "origen": "CV Upload"
+  },
+  {
+   "id": "bf1a6e2c-67f9-4fd3-b332-8399a616d44d",
+   "nombre": "TEST_DeleteCandidate",
+   "email": "test_delete@example.com",
+   "creada": "2026-07-02T03:08:34.051989+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "88c9d400-7613-4022-89f0-399f33ef0df8",
+   "nombre": "TEST_HiddenCandidate",
+   "email": "test_hidden@example.com",
+   "creada": "2026-07-02T03:08:34.711589+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "d0ed3685-96f0-4beb-91f6-d5d0c7480398",
+   "nombre": "TEST_RestoreCandidate",
+   "email": "test_restore@example.com",
+   "creada": "2026-07-02T03:08:35.773980+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "c83ec275-8f4b-46ee-b0de-370471503e46",
+   "nombre": "TEST_NotDeletedCandidate",
+   "email": "test_notdeleted@example.com",
+   "creada": "2026-07-02T03:08:36.698627+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "5da7e340-6f0c-4103-bcda-422ce3c552a9",
+   "nombre": "TEST_RestrictCandidate",
+   "email": "test_restrict@example.com",
+   "creada": "2026-07-02T03:08:37.955394+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "a6534553-c6a0-439b-8d3e-26c93879a361",
+   "nombre": "TEST_TraceabilityCandidate",
+   "email": "test_trace@example.com",
+   "creada": "2026-07-02T03:08:38.643751+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "c0646989-0552-4a4f-a7d1-4416e22e5928",
+   "nombre": "TEST_UnrestrictCandidate",
+   "email": "test_unrestrict@example.com",
+   "creada": "2026-07-02T03:08:39.493643+00:00",
+   "borrada": true,
+   "origen": "Test"
+  },
+  {
+   "id": "e587bc85-815c-479a-b7b0-f4efe12b4707",
+   "nombre": "José Muñoz García",
+   "email": "jose.munoz.test@example.com",
+   "creada": "2026-07-02T03:10:35.472466+00:00",
+   "borrada": true,
+   "origen": "UTF8 Test"
+  },
+  {
+   "id": "695ab630-0d9c-4541-97c4-5cdb801abd80",
+   "nombre": "TEST_Assign Candidate One",
+   "email": "test_assign_one_1783221442@example.com",
+   "creada": "2026-07-05T03:17:22.908338+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "25e9692b-ad68-4f3b-81f7-eb69eb4595ae",
+   "nombre": "TEST_Assign Candidate Two",
+   "email": "test_assign_two_1783221442@example.com",
+   "creada": "2026-07-05T03:17:23.094366+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "a765b0c2-2601-4b54-af9e-c6c37b508ca2",
+   "nombre": "TEST_ActivityLog Candidate",
+   "email": "test_activity_1783221449@example.com",
+   "creada": "2026-07-05T03:17:29.468146+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "b2f733f0-547c-4309-9765-2e5f8b8f0df4",
+   "nombre": "TEST_Assign Candidate One",
+   "email": "test_assign_one_1783221873@example.com",
+   "creada": "2026-07-05T03:24:33.459523+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "f5dcf6f3-81d3-4a01-ac3e-5268a21ab78c",
+   "nombre": "TEST_Assign Candidate Two",
+   "email": "test_assign_two_1783221873@example.com",
+   "creada": "2026-07-05T03:24:33.656945+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "d7231037-ad28-4289-bec8-44a58f95a4bf",
+   "nombre": "TEST_ActivityLog Candidate",
+   "email": "test_activity_1783221879@example.com",
+   "creada": "2026-07-05T03:24:39.604584+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "9408ca14-8017-464c-a445-eb6a44d08d0b",
+   "nombre": "TEST_E2E Candidate 1783221967",
+   "email": "test_e2e_cand_1783221967@example.com",
+   "creada": "2026-07-05T03:26:07.236549+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "4d670efe-a5fb-426d-9bf1-5d48034e7fab",
+   "nombre": "TEST_E2E Candidate 1783222450",
+   "email": "test_e2e_cand_1783222450@example.com",
+   "creada": "2026-07-05T03:34:10.731009+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "1ee7f9e1-ff37-4394-aca2-237ac8e92688",
+   "nombre": "TEST_Badge Verificacion",
+   "email": "test_badge@test.com",
+   "creada": "2026-07-05T03:38:42.468361+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "179310e1-0f42-4a40-8a5f-5b6e3a02ae38",
+   "nombre": "TEST_Etapas Simple",
+   "email": "test_etapas@test.com",
+   "creada": "2026-07-05T03:47:07.368363+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "ef89094e-db3c-4afc-9896-af7373f4f2ab",
+   "nombre": "TEST_Assign Candidate One",
+   "email": "test_assign_one_1783285090@example.com",
+   "creada": "2026-07-05T20:58:11.059747+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "bb3435ff-f22f-43ae-af15-585f3ad21414",
+   "nombre": "TEST_Assign Candidate Two",
+   "email": "test_assign_two_1783285091@example.com",
+   "creada": "2026-07-05T20:58:11.275763+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "96f36071-25e6-4403-bfbe-27f903e7d44e",
+   "nombre": "TEST_ActivityLog Candidate",
+   "email": "test_activity_1783285098@example.com",
+   "creada": "2026-07-05T20:58:18.168296+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "ca9319b7-628c-4fed-9a2f-58a749713157",
+   "nombre": "TEST_Notas Ajuste",
+   "email": "test_notas_aj@test.com",
+   "creada": "2026-07-05T20:58:41.861242+00:00",
+   "borrada": true,
+   "origen": null
+  },
+  {
+   "id": "e223c4a0-0ed5-427a-b47c-1d9d15347dd2",
+   "nombre": "TEST_Repro Lote Prod",
+   "email": "test_repro_p@pruebacarga.mx",
+   "creada": "2026-07-07T00:04:26.224459+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "5948e1b7-f088-43ec-8a6f-fc91017c6875",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:12:47.086843+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "ead5d219-8798-495e-a3f9-6f67ded89c6a",
+   "nombre": "TEST_Carga Paralela 1",
+   "email": "test_par1@pruebacarga.mx",
+   "creada": "2026-07-07T00:12:47.109993+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "956cbbda-3424-416c-9c03-f2caaff6a0a4",
+   "nombre": "TEST_Carga Paralela 2",
+   "email": "test_par2@pruebacarga.mx",
+   "creada": "2026-07-07T00:12:56.550770+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "692c4585-b121-49d0-b6e5-ce48d4af8490",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:13:25.889177+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "2df1dad2-0e84-4402-80ad-2ebb574b66ab",
+   "nombre": "TEST_Carga Paralela 3",
+   "email": "test_par3@pruebacarga.mx",
+   "creada": "2026-07-07T00:13:35.152572+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "d72bda7e-17b7-49cc-998b-fe9f36da5ce9",
+   "nombre": "TEST_Carga Paralela 4",
+   "email": "test_par4@pruebacarga.mx",
+   "creada": "2026-07-07T00:13:43.931450+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "4bae0644-a41c-48f0-b5e7-d3958446b418",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:14:02.063897+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "e75e6e1f-97a9-4568-96d3-6793e40cdfe1",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:14:02.095268+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "ae269cad-db02-429c-bce8-26cd5e394b61",
+   "nombre": "TEST_Carga Paralela 1",
+   "email": "test_par1@pruebacarga.mx",
+   "creada": "2026-07-07T00:16:13.593064+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "cadf2571-ba5a-41dd-96b6-65d361ba2146",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:16:13.593835+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "3fcfe355-4dcf-476f-8af2-9e90ecf2399e",
+   "nombre": "TEST_Carga Paralela 2",
+   "email": "test_par2@pruebacarga.mx",
+   "creada": "2026-07-07T00:16:13.624167+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "549590fa-d4a7-4358-9fe7-1d7640a85d2e",
+   "nombre": "TEST_Carga Paralela 3",
+   "email": "test_par3@pruebacarga.mx",
+   "creada": "2026-07-07T00:16:50.781137+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "03850009-127f-4f6b-a2a4-7961dd2f20f9",
+   "nombre": "TEST_Carga Paralela 4",
+   "email": "test_par4@pruebacarga.mx",
+   "creada": "2026-07-07T00:16:59.363827+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "3b6472b3-4192-4a38-a543-5fedda2612c9",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:17:16.724356+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "fad4e4d1-34f1-42a8-bea9-f6aa10d78e81",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:17:28.147892+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "5eaf8f79-d874-4e6a-8196-17d339ef1cb2",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:17:40.554378+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "b025eb54-51e9-434d-9504-79dd1594beb5",
+   "nombre": "TEST_Carga Paralela 0",
+   "email": "test_par0@pruebacarga.mx",
+   "creada": "2026-07-07T00:17:55.271775+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "9c4d2cb8-3175-41a0-a2b6-fb36dfc0d1e8",
+   "nombre": "Ana Batch694cc47f Ramírez",
+   "email": "ana.batch694cc47f.ramírez@example.com",
+   "creada": "2026-07-07T00:28:26.684879+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "75e12df5-1d90-4c4d-a699-bc2c1b07c5ab",
+   "nombre": "Carla Batch694cc47f Gómez",
+   "email": "carla.batch694cc47f.gómez@example.com",
+   "creada": "2026-07-07T00:28:26.755213+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "f84af3de-faae-48bc-b9f1-6067be5ecf19",
+   "nombre": "Bruno Batch694cc47f Salazar",
+   "email": "bruno.batch694cc47f.salazar@example.com",
+   "creada": "2026-07-07T00:28:26.874892+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "e1103bd6-02ed-4813-babe-eb370b926786",
+   "nombre": "Daniel Batch694cc47f Núñez",
+   "email": "daniel.batch694cc47f.núñez@example.com",
+   "creada": "2026-07-07T00:28:39.778685+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "ec8813db-fc4f-4950-a8ef-8b6caf174888",
+   "nombre": "Carla Batch2b051712 Gómez",
+   "email": "carla.batch2b051712.gómez@example.com",
+   "creada": "2026-07-07T00:33:31.557034+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "02412e18-7421-4d69-a202-f238d14aeb18",
+   "nombre": "Bruno Batch2b051712 Salazar",
+   "email": "bruno.batch2b051712.salazar@example.com",
+   "creada": "2026-07-07T00:33:31.767498+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "0820be6f-4dc6-4bf5-8daa-a40e0709141a",
+   "nombre": "Ana Batch2b051712 Ramírez",
+   "email": "ana.batch2b051712.ramírez@example.com",
+   "creada": "2026-07-07T00:33:32.117882+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "f74b7b8a-bc82-43bc-a58d-7340983ef488",
+   "nombre": "Daniel Batch2b051712 Núñez",
+   "email": "daniel.batch2b051712.núñez@example.com",
+   "creada": "2026-07-07T00:33:43.040831+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "b8c3b42f-4f3d-4510-bb16-f5338e719c55",
+   "nombre": "Bruno Batch0f2dfd26 Salazar",
+   "email": "bruno.batch0f2dfd26.salazar@example.com",
+   "creada": "2026-07-07T00:38:36.504890+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "8031a7fe-73e5-4a07-a450-733be22a10a9",
+   "nombre": "Carla Batch0f2dfd26 Gómez",
+   "email": "carla.batch0f2dfd26.gómez@example.com",
+   "creada": "2026-07-07T00:38:36.612809+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "b3cd68ce-23f0-4856-8fba-ca4e477b73e7",
+   "nombre": "Ana Batch0f2dfd26 Ramírez",
+   "email": "ana.batch0f2dfd26.ramírez@example.com",
+   "creada": "2026-07-07T00:38:36.811593+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "4e64ed0b-e1dc-4491-ab11-ab916269dc26",
+   "nombre": "Daniel Batch0f2dfd26 Núñez",
+   "email": "daniel.batch0f2dfd26.núñez@example.com",
+   "creada": "2026-07-07T00:38:49.222445+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "effc94ff-4e52-40c2-bc9c-bc575eb518d9",
+   "nombre": "Ana Batch31e815fc Ramírez",
+   "email": "ana.batch31e815fc.ramírez@example.com",
+   "creada": "2026-07-07T00:40:13.407741+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "43b3cf7f-8b82-4f0c-abe3-b2170e6031d7",
+   "nombre": "Carla Batch31e815fc Gómez",
+   "email": "carla.batch31e815fc.gómez@example.com",
+   "creada": "2026-07-07T00:40:13.411625+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "ddbdbb35-1860-4644-9ec7-9ef3900452f8",
+   "nombre": "Bruno Batch31e815fc Salazar",
+   "email": "bruno.batch31e815fc.salazar@example.com",
+   "creada": "2026-07-07T00:40:13.519038+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  },
+  {
+   "id": "aea41e89-1105-4775-b664-8f6ac4a96476",
+   "nombre": "Daniel Batch31e815fc Núñez",
+   "email": "daniel.batch31e815fc.núñez@example.com",
+   "creada": "2026-07-07T00:40:27.320031+00:00",
+   "borrada": true,
+   "origen": "CV Upload (Batch)"
+  }
+ ],
+ "vacantes_prueba": 1,
+ "usuarios_prueba": 0,
+ "con_datos": {
+  "education": 0,
+  "certifications": 0
+ },
+ "educacion_repetida": [],
+ "certificaciones_repetidas": []
+}

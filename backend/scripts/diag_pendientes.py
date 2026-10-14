@@ -1,6 +1,6 @@
 """Diagnóstico SOLO LECTURA: años bajados por dedupe, caso Humberto, fichas sin empleos.
 
-No escribe nada. Uso: python tests/diag_pendientes.py
+No escribe nada. Uso: python scripts/diag_pendientes.py
 """
 import asyncio
 import json
@@ -127,4 +127,5 @@ async def main():
     print(f"\nReporte: {path}  (solo lectura, no se escribió nada en Mongo)")
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

@@ -3,7 +3,7 @@
 Por cada ficha: ¿el CV original es legible?, cuántos caracteres se extraen (nativo vs OCR),
 y qué extraería el parser (empleos, años, puesto actual).
 
-Uso: python tests/dryrun_reparse_empty.py
+Uso: python scripts/dryrun_reparse_empty.py
 """
 import asyncio
 import json
@@ -68,4 +68,5 @@ async def main():
     print(f"\nReporte: {REPORT}  (modo prueba: no se escribió nada en Mongo)")
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

@@ -6,7 +6,7 @@
 - Los años se recalculan como lapso del primer al último empleo menos huecos de 12+ meses.
 - Sin `--apply` solo muestra el reporte (no escribe nada).
 
-Uso: python tests/dedupe_merged_experience.py [--apply] [--only "Nombre"]
+Uso: python scripts/dedupe_merged_experience.py [--apply] [--only "Nombre"]
 """
 import asyncio
 import json
@@ -77,4 +77,5 @@ async def main():
     print(f'Limpieza aplicada a {len(affected)} fichas (reversible con previous_companies_pre_dedupe).')
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

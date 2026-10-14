@@ -1,4 +1,9 @@
-"""Verifica el flujo de CV idénticos con fichas sintéticas (no toca datos reales)."""
+"""Verifica el flujo de CV idénticos con fichas sintéticas (no toca datos reales).
+
+OJO: inserta fichas sintéticas en la MISMA base de Atlas que usan preview y producción, así que
+está desactivada por defecto. Para correrla: ALLOW_LIVE_DB_TESTS=1 API_URL=... ADMIN_EMAIL=...
+ADMIN_PASSWORD=... python tests/test_identical_cv_flow.py
+"""
 import os
 import sys
 import uuid
@@ -6,6 +11,11 @@ import hashlib
 import requests
 from datetime import datetime, timezone
 from pathlib import Path
+
+if os.environ.get('ALLOW_LIVE_DB_TESTS') != '1':
+    print('SKIP  test_identical_cv_flow: escribe en la base compartida. '
+          'Actívala con ALLOW_LIVE_DB_TESTS=1.')
+    sys.exit(0)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.db_connection import get_db

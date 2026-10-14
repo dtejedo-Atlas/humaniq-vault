@@ -1,10 +1,19 @@
-"""Pruebas del ciclo: eliminar duplicados, papelera, archivo de vacantes y cron."""
+"""Pruebas del ciclo: eliminar duplicados, papelera, archivo de vacantes y cron.
+
+OJO: inserta datos sintéticos en la base compartida (preview = producción). Desactivada por
+defecto; actívala con ALLOW_LIVE_DB_TESTS=1.
+"""
 import os
 import sys
 import uuid
 import requests
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+
+if os.environ.get('ALLOW_LIVE_DB_TESTS') != '1':
+    print('SKIP  test_duplicates_trash_jobs_cycle: escribe en la base compartida. '
+          'Actívala con ALLOW_LIVE_DB_TESTS=1.')
+    sys.exit(0)
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.db_connection import get_db

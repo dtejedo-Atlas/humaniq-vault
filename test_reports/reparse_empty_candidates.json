@@ -1,0 +1,343 @@
+{
+ "aplicado": true,
+ "stamp": "20261014_165646",
+ "fichas": [
+  {
+   "id": "4391381b-5356-4e34-a26d-3a9e6b974828",
+   "nombre": "Ricardo Domínguez Castrejón",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "city",
+    "current_company",
+    "current_title",
+    "languages",
+    "linkedin_url",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 4,
+    "anios": 17,
+    "puesto": "Gerente de Relaciones Laborales",
+    "empresa": "Servicios Liverpool, S.A. de C.V. (Corporativo Suburbia)"
+   },
+   "no_sobrescrito": [
+    "email",
+    "phone"
+   ]
+  },
+  {
+   "id": "9ddb7005-fda7-4b33-acde-ee892ff1cd77",
+   "nombre": "María José Coca Candia",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "city",
+    "languages",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 4,
+    "anios": 6,
+    "puesto": null,
+    "empresa": null
+   },
+   "no_sobrescrito": [
+    "email",
+    "phone"
+   ]
+  },
+  {
+   "id": "7d7dabba-099a-4c2a-ae1c-143f91f28643",
+   "nombre": "Juan Fernando Villaseñor Lopez",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "languages",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 3,
+    "anios": 21,
+    "puesto": null,
+    "empresa": null
+   },
+   "no_sobrescrito": [
+    "email",
+    "phone"
+   ]
+  },
+  {
+   "id": "38fd7e63-1cc3-4fed-a7e2-cc14f865f170",
+   "nombre": "Antonio Alegria",
+   "antes": {
+    "empleos": 0,
+    "anios": 20,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "current_company",
+    "current_title",
+    "previous_companies"
+   ],
+   "despues": {
+    "empleos": 9,
+    "anios": 20,
+    "puesto": "National Operations Manager",
+    "empresa": "Kispy Kreme Mexico"
+   },
+   "no_sobrescrito": [
+    "city",
+    "email",
+    "languages",
+    "phone",
+    "skills",
+    "years_experience"
+   ]
+  },
+  {
+   "id": "28263f81-3d75-4627-b923-8def9815ebdb",
+   "nombre": "José Antonio Aboytes López",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "languages",
+    "linkedin_url",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 6,
+    "anios": 25,
+    "puesto": null,
+    "empresa": null
+   },
+   "no_sobrescrito": [
+    "email",
+    "phone"
+   ]
+  },
+  {
+   "id": "ea50bda4-a5f1-4789-a5a0-8794feaa9654",
+   "nombre": "Eric Sierra González",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "city",
+    "current_company",
+    "current_title",
+    "languages",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 8,
+    "anios": 20,
+    "puesto": "Contralor General",
+    "empresa": "Mainland Farms"
+   },
+   "no_sobrescrito": [
+    "email",
+    "phone"
+   ]
+  },
+  {
+   "id": "a55795c9-eae1-46ca-ac16-ca7726984ac1",
+   "nombre": "José Antonio Gachuz Osorio",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "city",
+    "current_company",
+    "current_title",
+    "languages",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 1,
+    "anios": 25,
+    "puesto": "Director de Auditoría",
+    "empresa": "PricewaterhouseCoopers, S.C. (PwC)"
+   },
+   "no_sobrescrito": [
+    "email",
+    "phone"
+   ]
+  },
+  {
+   "id": "d8f4e0f6-26aa-4644-bfe5-9f119d7b0c42",
+   "nombre": "John Mitchell Gonzalez",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "current_company",
+    "current_title",
+    "email",
+    "languages",
+    "linkedin_url",
+    "phone",
+    "previous_companies",
+    "skills",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 7,
+    "anios": 11,
+    "puesto": "Especialista Retail Trade-Marketing",
+    "empresa": "VCP Tecnología"
+   },
+   "no_sobrescrito": []
+  },
+  {
+   "id": "7b2d3d67-a112-4c57-8a6e-5effdb7239fe",
+   "nombre": "Ariadna Sánchez",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": "Project Manager/Scrum Master/Business Analyst",
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "previous_companies",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 7,
+    "anios": 18,
+    "puesto": "Project Manager/Scrum Master/Business Analyst",
+    "empresa": null
+   },
+   "no_sobrescrito": [
+    "email",
+    "languages",
+    "linkedin_url",
+    "phone",
+    "skills"
+   ]
+  },
+  {
+   "id": "feb4c7ef-35d4-4525-b553-3521108f0a8f",
+   "nombre": "Brenda Cazna",
+   "antes": {
+    "empleos": 0,
+    "anios": null,
+    "puesto": null,
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "city",
+    "current_company",
+    "current_title",
+    "previous_companies",
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 5,
+    "anios": 25,
+    "puesto": "Responsable del área jurídica",
+    "empresa": "Servicios Legales CAB"
+   },
+   "no_sobrescrito": [
+    "email",
+    "languages",
+    "phone",
+    "skills"
+   ]
+  },
+  {
+   "id": "4d63f4cd-a6d6-4536-82ea-7af723c909e9",
+   "nombre": "Eduardo Acosta Barreto",
+   "antes": {
+    "empleos": 0,
+    "anios": 4,
+    "puesto": "Project Manager TI",
+    "empresa": null
+   },
+   "campos_rellenados": [
+    "previous_companies"
+   ],
+   "despues": {
+    "empleos": 3,
+    "anios": 4,
+    "puesto": "Project Manager TI",
+    "empresa": null
+   },
+   "no_sobrescrito": [
+    "current_title",
+    "email",
+    "languages",
+    "linkedin_url",
+    "phone",
+    "skills",
+    "years_experience"
+   ]
+  },
+  {
+   "id": "41605064-3ae0-497b-8368-d61766a54368",
+   "nombre": "Sergio Rodrigo Lopez Basurto",
+   "antes": {
+    "empleos": 10,
+    "anios": null,
+    "puesto": null,
+    "empresa": "B3xclusive"
+   },
+   "campos_rellenados": [
+    "years_experience"
+   ],
+   "despues": {
+    "empleos": 10,
+    "anios": 17,
+    "puesto": null,
+    "empresa": "B3xclusive"
+   },
+   "no_sobrescrito": [
+    "city",
+    "current_company",
+    "email",
+    "languages",
+    "phone",
+    "previous_companies",
+    "skills"
+   ]
+  }
+ ]
+}

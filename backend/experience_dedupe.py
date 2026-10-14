@@ -147,6 +147,49 @@ def _preserve_trajectory(group: List[Dict], kept: Dict) -> Dict:
     return result
 
 
+def collapse_strict_duplicates(history: List[Dict], tolerance: int = 2) -> List[Dict]:
+    """Colapsa el MISMO empleo listado dos veces (±N meses), conservando el registro más completo.
+
+    Se queda con la entrada de descripción más larga, completa sus campos vacíos con los del resto
+    y anota los títulos distintos en la descripción ("También listado como: …").
+    Mantiene el orden original del historial.
+    """
+    groups = strict_duplicates(history, tolerance)
+    if not groups:
+        return list(history or [])
+
+    replacement, drop = {}, set()
+    for group in groups:
+        best = max(group, key=lambda e: (len(str(e.get('description') or '')), _richness(e)))
+        merged = dict(best)
+        for member in group:
+            if member is not best:
+                merged = _merge_pair(merged, member)
+        otros = []
+        for member in group:
+            title = str(member.get('title') or '').strip()
+            if title and title.casefold() != str(merged.get('title') or '').strip().casefold() \
+                    and title not in otros:
+                otros.append(title)
+        if otros:
+            nota = 'También listado como: ' + '; '.join(otros)
+            description = str(merged.get('description') or '').strip()
+            if nota not in description:
+                merged['description'] = f"{description}\n{nota}".strip() if description else nota
+        # El registro conservado ocupa la posición de la primera aparición (no se mueve el orden)
+        first = group[0]
+        replacement[id(first)] = merged
+        for member in group[1:]:
+            drop.add(id(member))
+
+    kept = []
+    for entry in history or []:
+        if id(entry) in drop:
+            continue
+        kept.append(replacement.get(id(entry), entry))
+    return kept
+
+
 def experience_years_from_history(history: List[Dict], today_months: Optional[int] = None) -> Optional[int]:
     """Años de experiencia = lapso del primer empleo (sin prácticas) al último, menos huecos de 12+ meses.
 

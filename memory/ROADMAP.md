@@ -1,9 +1,21 @@
 # Humaniq Talent Vault — Pendientes
 
-## P0 — Decisiones del usuario pendientes (2026-10-13)
+## P0 — Decisiones del usuario pendientes (2026-10-14)
 - **Audita y despliega**: código listo y probado en preview, **sin desplegar** por instrucción. El usuario pidió push a GitHub (botón "Save to Github" del chat) y auditar la lista de archivos antes del deploy.
-- **135 fichas no fusionadas con el mismo empleo repetido** (843 empleos, regla estricta ±2 meses) en `test_reports/strict_duplicates_report.json`: decidir si se limpian. Hoy NO se tocan.
-- **12 fichas sin empleos / sin años**: el re-parseo en modo prueba llenaría datos en todas (`test_reports/dryrun_reparse_empty.json`). Decidir si se aplica.
+- **135 fichas no fusionadas con el mismo empleo repetido**: RESUELTO el 14-oct. Causa raíz corregida en código y 128 fichas limpiadas (831 empleos). Quedan **7 fichas para revisión manual** (Luis Fernando Rojas Torres, Juan José Hernández, Alejandro Arellano Flores, Ana Lucia Treviño Gómez, Angel Gutierrez, Anel Lizbeth Díaz Prado, Daniela Alejandra Aguilar Aguilar): 12 empleos repetidos sin evidencia de limpieza de CV idéntico.
+- **92 fichas sintéticas de prueba en Atlas**, todas con borrado lógico: decidir si se purgan de verdad. Hoy no estorban al ranking.
+- **Años de experiencia**: en 53 de las 128 fichas limpiadas el recálculo con la regla nueva diferiría más de 2 años del valor guardado. No se tocaron por instrucción.
+- **Bug "Chrome ha bloqueado esta página" al abrir el perfil de José Luis Reyes Arroyo**: NO reproducible en el entorno (ficha, CV PDF y CV DOCX abren bien, sin CSP ni X-Frame-Options en las respuestas, sin navegación a data:/blob: en pestaña nueva). Pendiente: código de error exacto de Chrome y captura del usuario.
+- **12 fichas sin empleos / sin años**: RESUELTO el 14-oct (re-parseadas con respaldo). Validar los datos nuevos.
+
+### Propuestas del agente SIN APROBAR (no implementar sin OK)
+- Cambiar el `window.open` de "abrir ficha del duplicado" (`CandidateDetailPage.js:612`) por navegación interna: dentro del panel de vista previa (iframe) el bloqueador de pop-ups de Chrome puede cancelarlo.
+- Purgar de verdad las 92 fichas sintéticas con borrado lógico y la vacante de prueba.
+- Limpiar las 7 fichas de revisión manual con la regla estricta tras revisarlas una por una.
+- Pasar `dedupe_experience` también al re-parseo y a la carga inicial (hoy solo corre en fusión y en el script).
+- Guardar la fecha de alta de cada empleo (`added_at`) en `previous_companies` para poder auditar de dónde salió cada entrada.
+- Mostrar en la ficha un aviso cuando el historial tenga el mismo empleo repetido, con botón "colapsar" manual.
+- Alinear el resumen de la ficha con el del PDF (hoy la ficha todavía muestra "# Resumen Profesional Ejecutivo" con markdown crudo).
 - **Años de experiencia del resto de la base**: 276 de 659 fichas cambiarían más de 2 años con la regla nueva. No recalculado por decisión del usuario.
 - **Quitar el flag `single_ranking` y la ruta vieja**: solo después de 2 semanas estables en producción. No hacerlo antes.
 - Revisar y fusionar manualmente las fichas marcadas como "Posible duplicado" en el ranking.

@@ -3,7 +3,8 @@ import sys
 
 sys.path.insert(0, '/app/backend')
 from experience_dedupe import (  # noqa: E402
-    dedupe_experience, experience_years_from_history, is_same_job, normalize_company, strict_duplicates,
+    collapse_strict_duplicates, dedupe_experience, experience_years_from_history, is_same_job,
+    normalize_company, strict_duplicates,
 )
 
 results = []
@@ -114,6 +115,27 @@ check('la regla estricta detecta el empleo repetido',
       len(strict_duplicates(strict)) == 1 and len(strict_duplicates(strict)[0]) == 2)
 check('la regla estricta no toca puestos secuenciales por año', strict_duplicates(movistar) == [])
 check('la regla estricta no colapsa el paraguas de Coca-Cola', strict_duplicates(coca) == [])
+
+# Colapso con la regla estricta: conserva la descripción más larga y anota el otro título
+colapsado = collapse_strict_duplicates(strict)
+check('el colapso estricto deja 2 empleos', len(colapsado) == 2, str(len(colapsado)))
+check('el colapso conserva el orden original del historial',
+      'Telcel' in colapsado[0]['company_name'] and colapsado[-1]['title'] == 'Gerente',
+      str([(e['company_name'], e['title']) for e in colapsado]))
+check('el colapso no toca puestos secuenciales por año',
+      collapse_strict_duplicates(movistar) == movistar)
+check('el colapso no toca el paraguas de Coca-Cola', len(collapse_strict_duplicates(coca)) == len(coca))
+largo = [
+    {'company_name': 'ACME', 'title': 'Gerente', 'start_date': '2015-01', 'end_date': '2019-01',
+     'description': 'corta'},
+    {'company_name': 'ACME', 'title': 'Gerente General', 'start_date': '2015-02', 'end_date': '2019-02',
+     'description': 'descripción mucho más larga con detalle del rol'},
+]
+colapso_largo = collapse_strict_duplicates(largo)
+check('se conserva la entrada con la descripción más larga',
+      len(colapso_largo) == 1 and colapso_largo[0]['description'].startswith('descripción mucho más larga'))
+check('el título distinto queda anotado en la descripción',
+      'También listado como: Gerente' in colapso_largo[0]['description'], colapso_largo[0]['description'])
 
 # Años de experiencia: lapso del primer empleo al último menos huecos de 12+ meses
 hist = [

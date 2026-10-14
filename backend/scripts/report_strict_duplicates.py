@@ -3,7 +3,7 @@
 Regla estricta: mismo empleador + inicio dentro de ±2 meses + fin dentro de ±2 meses
 (es decir, el mismo empleo capturado dos veces). Los ascensos y puestos secuenciales no entran.
 
-No escribe nada. Uso: python tests/report_strict_duplicates.py
+No escribe nada. Uso: python scripts/report_strict_duplicates.py
 """
 import asyncio
 import json
@@ -54,4 +54,5 @@ async def main():
     print(f"\nReporte completo: {REPORT}  (solo lectura, nada se escribió)")
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())
