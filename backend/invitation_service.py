@@ -4,7 +4,13 @@ import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
 
+# La invitación dura 7 días (el reset sigue siendo corto por seguridad)
 TOKEN_TTL_HOURS = 48
+TTL_HOURS_BY_PURPOSE = {"invitation": 24 * 7, "reset": 48}
+
+
+def ttl_hours(purpose: str) -> int:
+    return TTL_HOURS_BY_PURPOSE.get(purpose, TOKEN_TTL_HOURS)
 
 
 def _hash(token: str) -> str:
@@ -24,7 +30,7 @@ async def create_token(db, user_id: str, purpose: str, created_by_id: str) -> st
         "user_id": user_id,
         "token_hash": _hash(token),
         "purpose": purpose,
-        "expires_at": (now + timedelta(hours=TOKEN_TTL_HOURS)).isoformat(),
+        "expires_at": (now + timedelta(hours=ttl_hours(purpose))).isoformat(),
         "used_at": None,
         "created_by": created_by_id,
         "created_at": now.isoformat(),

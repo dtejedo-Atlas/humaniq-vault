@@ -9,9 +9,13 @@ logger = logging.getLogger(__name__)
 # Respaldo explícito cuando la clave gestionada CORS_ORIGINS llega como comodín ("*"),
 # que nunca es utilizable con credenciales. Se puede sustituir con HUMANIQ_CORS_ORIGINS.
 FALLBACK_ORIGINS = (
+    'https://vault.humaniq.com.mx',
     'https://atlas-recruiting-ai.emergent.host',
     'https://atlas-recruiting-ai.preview.emergentagent.com',
 )
+
+# Dominio propio del cliente: siempre permitido, aunque la configuración del ambiente no lo traiga.
+REQUIRED_ORIGINS = ('https://vault.humaniq.com.mx',)
 
 
 def get_cors_origins():
@@ -32,7 +36,7 @@ def get_cors_origins():
         if ('*' in origin or parsed.scheme not in ('https', 'http') or not parsed.netloc
                 or parsed.username or parsed.password or parsed.path or parsed.query or parsed.fragment):
             raise RuntimeError('CORS_ORIGINS contiene un origen no válido; no se permiten comodines con credenciales')
-    return list(dict.fromkeys(values))
+    return list(dict.fromkeys(list(REQUIRED_ORIGINS) + values))
 
 
 class PreviewAwareCORSMiddleware(CORSMiddleware):

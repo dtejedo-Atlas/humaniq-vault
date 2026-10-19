@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const LoginPage = () => {
@@ -44,11 +44,14 @@ const LoginPage = () => {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-sm mb-4">
-            <Sparkles className="w-8 h-8 text-cyan-400" />
-          </div>
+          <img
+            src="/humaniq-logo.png"
+            alt="Humaniq"
+            className="h-12 w-auto mx-auto mb-4"
+            data-testid="login-humaniq-logo"
+          />
           <h1 className="text-3xl font-bold text-slate-900">Humaniq Talent Vault</h1>
-          <p className="text-slate-600 mt-2">Plataforma de reclutamiento ejecutivo con IA</p>
+          <p className="text-slate-600 mt-2">Plataforma Inteligente de Selección de Personal</p>
         </div>
 
         <Card>

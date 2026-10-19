@@ -1,6 +1,10 @@
 # Humaniq Talent Vault — Pendientes
 
-## P0 — Decisiones del usuario pendientes (2026-10-14)
+## P0 — Decisiones del usuario pendientes (2026-10-19)
+- **Primera tarea después del piloto**: "olvidé mi contraseña" autoservicio (endpoint público con respuesta genérica que no revela si el correo existe, límite de intentos por correo/IP, token de un solo uso con enlace al dominio propio y revocación de sesiones al cambiar contraseña). Durante el piloto el reset lo dispara el admin desde Usuarios (decisión del usuario, 19-oct).
+- **Revocación de sesiones JWT** al cambiar o restablecer contraseña: sigue pendiente (hoy los JWT viven 7 días sin revocación). No tocar la autenticación durante el piloto.
+
+## P0 — Decisiones anteriores (2026-10-14)
 - **Audita y despliega**: código listo y probado en preview, **sin desplegar** por instrucción. El usuario pidió push a GitHub (botón "Save to Github" del chat) y auditar la lista de archivos antes del deploy.
 - **135 fichas no fusionadas con el mismo empleo repetido**: RESUELTO el 14-oct. Causa raíz corregida en código y 128 fichas limpiadas (831 empleos). Quedan **7 fichas para revisión manual** (Luis Fernando Rojas Torres, Juan José Hernández, Alejandro Arellano Flores, Ana Lucia Treviño Gómez, Angel Gutierrez, Anel Lizbeth Díaz Prado, Daniela Alejandra Aguilar Aguilar): 12 empleos repetidos sin evidencia de limpieza de CV idéntico.
 - **92 fichas sintéticas de prueba en Atlas**, todas con borrado lógico: decidir si se purgan de verdad. Hoy no estorban al ranking.

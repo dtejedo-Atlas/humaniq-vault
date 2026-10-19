@@ -5377,6 +5377,21 @@ SINGLE_RANKING_SETTING = "single_ranking"
 SINGLE_RANKING_ENV = os.environ.get("SINGLE_RANKING")
 
 
+def public_app_url(requested_origin: Optional[str] = None) -> str:
+    """Origen que se usa en los enlaces de correo.
+
+    Siempre gana `PUBLIC_APP_URL` (dominio propio del cliente). Si no está configurada, se acepta el
+    origen que mandó el frontend solo si está en la lista de orígenes autorizados; de lo contrario se
+    usa el primero de esa lista. Nunca se confía ciegamente en el origen del cliente.
+    """
+    configured = (os.environ.get("PUBLIC_APP_URL") or "").strip().rstrip("/")
+    if configured:
+        return configured
+    allowed = get_cors_origins()
+    candidate = (requested_origin or "").strip().rstrip("/")
+    return candidate if candidate in allowed else allowed[0]
+
+
 async def single_ranking_active() -> bool:
     """Motor único ENCENDIDO por defecto en todos los ambientes.
 
@@ -6058,7 +6073,7 @@ async def create_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
     token = await invitation_service.create_token(db, new_user["id"], "invitation", current_user.id)
-    setup_link = f"{user_data.origin.rstrip('/')}/set-password?token={token}"
+    setup_link = f"{public_app_url(user_data.origin)}/set-password?token={token}"
 
     email_sent, email_error = True, None
     try:
@@ -6090,7 +6105,7 @@ async def resend_invitation(
         )
 
     token = await invitation_service.create_token(db, user_id, "invitation", current_user.id)
-    setup_link = f"{payload.origin.rstrip('/')}/set-password?token={token}"
+    setup_link = f"{public_app_url(payload.origin)}/set-password?token={token}"
     try:
         await send_invitation_email(target["email"], target.get("name", ""), setup_link)
     except Exception as e:
@@ -6119,7 +6134,7 @@ async def send_password_reset(
         )
 
     token = await invitation_service.create_token(db, user_id, "reset", current_user.id)
-    reset_link = f"{payload.origin.rstrip('/')}/set-password?token={token}"
+    reset_link = f"{public_app_url(payload.origin)}/set-password?token={token}"
     try:
         await send_password_reset_email(target["email"], target.get("name", ""), reset_link)
     except Exception as e:
@@ -6505,6 +6520,9 @@ async def export_job_shortlist(
     - Solo Admin puede incluir información de contacto
     - Máximo 20 candidatos por exportación
     """
+    if include_scores and current_user.role not in (UserRole.SUPER_ADMIN, UserRole.ADMIN):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Solo admins pueden incluir la puntuación interna en el export")
     try:
         job_doc_full = await db.jobs.find_one({"id": job_id}, {"_id": 0})
         if not job_doc_full:
