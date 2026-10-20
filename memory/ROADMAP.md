@@ -1,6 +1,13 @@
 # Humaniq Talent Vault — Pendientes
 
-## P0 — Decisiones del usuario pendientes (2026-10-19)
+## P0 — Decisiones del usuario pendientes (2026-10-20)
+- **No quedan cuentas de prueba activas en producción**: para cualquier verificación futura hay que pedirle al usuario que reactive `test_utf8@atlas.com` o cree una cuenta de prueba nueva.
+- **Las 3 consultoras (Ximena, Alejandra, Berenice) deben aceptar su invitación antes del 27-oct**; si vence, reenviarla desde Usuarios.
+- **Confirmación pendiente del usuario**: que sus dos cuentas (diego@humaniq.com.mx y dtejedo@gmail.com) entren en vault.humaniq.com.mx (no tenemos sus contraseñas, así que el agente no pudo probarlas; el arreglo de CORS es independiente de la cuenta y se validó con cuentas de prueba en escritorio y celular).
+- **Login con Google desde el dominio propio**: pendiente de confirmar si Emergent Auth necesita autorizar vault.humaniq.com.mx.
+- **Reglas del piloto vigentes**: nada de scripts que escriban en la base ni pruebas contra ella sin aprobación; si una consultora reporta un error, diagnóstico de solo lectura y reporte, sin correcciones en caliente.
+
+## P0 — Decisiones anteriores (2026-10-19)
 - **Primera tarea después del piloto**: "olvidé mi contraseña" autoservicio (endpoint público con respuesta genérica que no revela si el correo existe, límite de intentos por correo/IP, token de un solo uso con enlace al dominio propio y revocación de sesiones al cambiar contraseña). Durante el piloto el reset lo dispara el admin desde Usuarios (decisión del usuario, 19-oct).
 - **Revocación de sesiones JWT** al cambiar o restablecer contraseña: sigue pendiente (hoy los JWT viven 7 días sin revocación). No tocar la autenticación durante el piloto.
 

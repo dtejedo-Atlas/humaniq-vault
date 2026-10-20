@@ -1,5 +1,24 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-19/20 — Piloto en producción: login en el dominio propio, permisos de consultora y altas
+**Bug del login en https://vault.humaniq.com.mx — RESUELTO.** Causa raíz (confirmada con logs de producción por el agente de despliegue): el preflight CORS se rechazaba (`OPTIONS /api/auth/login 400`, Disallowed CORS origin) porque el origen `vault.humaniq.com.mx` no estaba en los permitidos; el bundle de producción llama a la API con `REACT_APP_BACKEND_URL=https://atlas-recruiting-ai.emergent.host`. No había problema de cuentas ni de contraseñas.
+- `backend/cors_config.py`: el dominio propio entra en la lista de respaldo y en `REQUIRED_ORIGINS`, que se fusiona SIEMPRE con lo que traiga `HUMANIQ_CORS_ORIGINS`/`CORS_ORIGINS`. Sin comodines, fail-closed.
+- `backend/server.py`: `public_app_url()` arma los enlaces de invitación y reset con `PUBLIC_APP_URL` (ya no con el `origin` del navegador, que era confiar en el cliente).
+- `backend/invitation_service.py`: `ttl_hours()` por propósito — invitación 7 días (168 h), reset 48 h. Verificado en producción: el token real vence exactamente a los 7 días.
+- Secretos de producción (los puso el usuario): `PUBLIC_APP_URL=https://vault.humaniq.com.mx` y `OPENAI_API_KEY` nueva (la anterior daba 401 invalid_api_key y rompía embeddings).
+- Verificado por el agente de pruebas en producción (`test_reports/iteration_37.json`): preflight 200 con ACAO explícito para vault y 400 para un origen ajeno; login de admin en escritorio y celular (390x844); flujo de invitación completo (validate 200, set-password 200, token reusado inválido); login/logout/login; correo no invitado → 401; reset disparado por admin → `sent:true` sin mostrar contraseñas.
+
+**Permisos de consultora (recruiter) corregidos y re-verificados** (`test_reports/iteration_38.json`, todo pasa):
+- `export_service.can_export_job()`: la consultora ya exporta el PDF versión cliente de CUALQUIER vacante (la base es universal). Antes daba 403 si no era la creadora.
+- `server.export_job_shortlist()`: `include_scores=true` responde 403 a roles no admin (la plantilla ya no imprime puntajes).
+- `frontend/src/App.js`: `/admin`, `/users`, `/duplicates` y `/trash` requieren admin (`<ProtectedRoute adminOnly>`); la consultora es redirigida al dashboard. `Sidebar.js`: "Duplicados" ya no se muestra a consultora.
+- Tope diario de IA: consultora US$5/día, admin y super admin US$25/día; al alcanzarlo responde 429 con "Tope diario de IA alcanzado: gastado US$X + estimado US$Y > US$5/día".
+
+**Login (cambio visual pedido)**: logotipo de Humaniq (`/humaniq-logo.png`) y texto "Plataforma Inteligente de Selección de Personal".
+
+**Altas y bajas en producción (solo lo autorizado)**: invitación reenviada a xsanchez@humaniq.com.mx, arosas@hqts.com.mx y brangel@hqts.com.mx (`sent:true`, vencen el 27-oct); `diego+prueba@humaniq.com.mx` creada como consultora para la prueba y desactivada al terminar; `test_utf8@atlas.com` y `superadmin@atlas.com` desactivadas (eran cuentas de prueba con rol administrador en producción). Majo Coca ya existía (`majo@humaniq.com.mx`). Patricia Sáez sigue inactiva y fuera de todas las listas activas (el selector de asignación usa `/users/recruiters`, que filtra por `is_active`). Las tres desactivaciones verificadas: login devuelve 403 "Cuenta desactivada".
+
+
 ## 2026-10-14 (tercera parte) — Edad con CV recortado, datos personales fuera del repo y pytest completo
 - **`age_estimate.py`**: cuando la fuente es `primer_empleo`, `años_carrera` = el MAYOR entre (año actual − primer empleo listado) y `years_experience`; edad = años_carrera + 22, rango ±3, y la notificación usa ese mismo valor. Detalle: "25 años de experiencia declarados · primer empleo listado 2015" (si lo declarado supera al lapso listado; si no, se mantiene "Primer empleo AAAA (empresa)"). Edgar Ochoa pasó de 33 a **47 (44–50)**. Pruebas nuevas: 25 años → 47 / 44–50 / sin aviso; 26 años → con aviso; primer empleo más antiguo que lo declarado → manda el primer empleo. `test_age_estimate.py` 17/17.
 - **Datos personales fuera de GitHub**: `test_reports/` y `memory/backups/` agregados a `.gitignore` y sacados del índice con `git rm -r --cached` (los 109 reportes y los 5 respaldos siguen en el servidor). `git ls-files` ya no devuelve ninguna ruta de esas carpetas.
