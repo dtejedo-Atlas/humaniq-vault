@@ -1,6 +1,8 @@
 # Humaniq Talent Vault — Product Requirements Document
 
-> Última sesión: 2026-10-13 — chips informativos rediseñados, PDF del shortlist con paleta y fuentes Humaniq incrustadas, flag del motor único encendido por defecto (apagable con `app_settings.single_ranking` o `SINGLE_RANKING=false`), export y pantalla con el mismo ranking, dedupe transitivo con trayectoria preservada. Detalle en `CHANGELOG.md`; decisiones abiertas en `ROADMAP.md`. **Nada desplegado.**
+> Última sesión: 2026-10-20 (tarde) — prueba de acceso del piloto ejecutada en producción (https://vault.humaniq.com.mx): flujo correo→enlace→contraseña→login, matriz de permisos de consultora (todo lo permitido 200, todo lo prohibido 403), export PDF versión cliente sin puntuaciones, móvil sin desbordamiento; cuenta de prueba desactivada al terminar e invitación reenviada solo a Ximena. Pendiente: confirmación en logs de producción de que los embeddings de OpenAI responden 200, y las pruebas de login con contraseña/Google de las cuentas del usuario. Detalle en `CHANGELOG.md`.
+>
+> Sesión previa: 2026-10-13 — chips informativos rediseñados, PDF del shortlist con paleta y fuentes Humaniq incrustadas, flag del motor único encendido por defecto (apagable con `app_settings.single_ranking` o `SINGLE_RANKING=false`), export y pantalla con el mismo ranking, dedupe transitivo con trayectoria preservada. Detalle en `CHANGELOG.md`; decisiones abiertas en `ROADMAP.md`. **Nada desplegado.**
 
 
 ## Objetivo original

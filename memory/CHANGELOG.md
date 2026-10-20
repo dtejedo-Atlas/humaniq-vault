@@ -1,5 +1,22 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-20 (tarde) — Prueba de acceso del piloto en producción (vault.humaniq.com.mx)
+Ejecutado contra **producción**, con token administrativo efímero de `dtejedo@gmail.com` (firmado con el mismo `JWT_SECRET_KEY`; el JWT se queda en memoria/tmp del contenedor).
+- Redespliegue lanzado tras actualizar `OPENAI_API_KEY` y `PUBLIC_APP_URL` en Secrets. **Pendiente**: confirmación del agente de despliegue de que los embeddings responden 200 en producción. La `OPENAI_API_KEY` del entorno de preview sí responde 200 (1536 dims, `text-embedding-3-small`); 691 de 723 candidatos activos tienen embedding.
+- CORS de producción verificado por preflight: `access-control-allow-origin: https://vault.humaniq.com.mx` ✓.
+- Flujo correo → enlace → contraseña → login probado de punta a punta en producción con `diego+prueba@humaniq.com.mx` (recruiter): reset real enviado por Resend (`last_event: delivered`) con enlace `https://vault.humaniq.com.mx/set-password?token=***` ✓. Esto confirma que `PUBLIC_APP_URL` en producción es la correcta.
+- Permisos de consultora verificados en producción (API + UI):
+  - PUEDE: ver dashboard, vacantes (botón "Nueva Vacante" visible), Subir CVs (individual y Modo Lote), ranking unificado (49 candidatos), "Afinar con IA" alcance top (3/3 evaluados, US$0.0191, criterio de prueba borrado después), ficha y descarga de CV (PDF 143 KB), notas, búsqueda híbrida (50 resultados) y export del shortlist en PDF versión cliente (5 candidatos, **sin puntuaciones internas ni datos de contacto**, verificado leyendo el PDF).
+  - NO PUEDE (403 real): `GET /users`, `GET /users/recruiters`, `PUT /admin/ai-models`, `POST /duplicates/identical-cv/delete-extras`, `POST /jobs/{id}/ai-refine` con `scope=all`, `POST /exports/job/{id}?include_scores=true`. Las rutas `/users`, `/admin`, `/trash` y `/duplicates` redirigen a `/dashboard`.
+  - Lecturas de configuración (`GET /admin/ai-models`, `GET /duplicates/identical-cv`) devuelven 200 pero con `can_edit:false` / `can_delete:false`; la UI no muestra esas secciones.
+  - La ficha de un candidato no asignado aparece en "Modo solo lectura" (política de asignaciones intacta).
+- Móvil (390×844): login y dashboard correctos, `scrollWidth` = 390, sin desbordamiento.
+- Al cerrar: `diego+prueba@humaniq.com.mx` desactivada. Login con contraseña correcta → **403 "Cuenta desactivada"** y el token de la sesión previa → 403.
+- Invitación reenviada a `xsanchez@humaniq.com.mx` (Resend `delivered`, enlace a vault, vence 27-oct). **Alejandra Rosas y Berenice Rangel NO se tocaron**: ya habían usado su invitación del 20-oct, ya tienen contraseña y Alejandra ya inició sesión; reenviarles invitación habría dado 400 y un reset les habría invalidado la contraseña.
+- `superadmin@atlas.com` y `test_utf8@atlas.com` ya estaban desactivadas desde la sesión anterior: no hizo falta escribir nada.
+- Observación menor (no corregida, sin autorización): la página `/set-password` muestra un ícono genérico en vez del logotipo de Humaniq que sí aparece en `/login`.
+- NO probado por el agente (requiere al usuario): login con contraseña de `diego@humaniq.com.mx` y `dtejedo@gmail.com`, login con Google, y confirmación de bandeja de entrada vs spam.
+
 ## 2026-10-19/20 — Piloto en producción: login en el dominio propio, permisos de consultora y altas
 **Bug del login en https://vault.humaniq.com.mx — RESUELTO.** Causa raíz (confirmada con logs de producción por el agente de despliegue): el preflight CORS se rechazaba (`OPTIONS /api/auth/login 400`, Disallowed CORS origin) porque el origen `vault.humaniq.com.mx` no estaba en los permitidos; el bundle de producción llama a la API con `REACT_APP_BACKEND_URL=https://atlas-recruiting-ai.emergent.host`. No había problema de cuentas ni de contraseñas.
 - `backend/cors_config.py`: el dominio propio entra en la lista de respaldo y en `REQUIRED_ORIGINS`, que se fusiona SIEMPRE con lo que traiga `HUMANIQ_CORS_ORIGINS`/`CORS_ORIGINS`. Sin comodines, fail-closed.
