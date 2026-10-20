@@ -32,7 +32,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage';
 axios.defaults.baseURL = process.env.REACT_APP_BACKEND_URL;
 
 // Protected Route Component
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -45,6 +45,10 @@ const ProtectedRoute = ({ children }) => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && !['admin', 'super_admin'].includes(user.role)) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
@@ -173,7 +177,7 @@ function AppRoutes() {
       <Route
         path="/admin"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <AdminPage />
           </ProtectedRoute>
         }
@@ -189,7 +193,7 @@ function AppRoutes() {
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <UsersPage />
           </ProtectedRoute>
         }
@@ -197,7 +201,7 @@ function AppRoutes() {
       <Route
         path="/duplicates"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <DuplicatesPage />
           </ProtectedRoute>
         }
@@ -205,7 +209,7 @@ function AppRoutes() {
       <Route
         path="/trash"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <TrashPage />
           </ProtectedRoute>
         }

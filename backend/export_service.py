@@ -157,16 +157,16 @@ class ExportService:
         return user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]
     
     async def can_export_job(self, user: User, job_id: str) -> bool:
-        """Verifica si el usuario puede exportar shortlist de una vacante"""
-        if user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN]:
+        """Verifica si el usuario puede exportar shortlist de una vacante.
+
+        La base es universal: una consultora ve todas las vacantes, así que también puede exportar
+        el PDF versión cliente de cualquiera de ellas (los puntajes internos siguen siendo solo admin).
+        """
+        if user.role in [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.RECRUITER]:
             return True
-        
-        # Recruiter puede exportar si creó la vacante
+
         job = await self.db.jobs.find_one({"id": job_id})
-        if job and job.get("created_by") == user.id:
-            return True
-        
-        return False
+        return bool(job and job.get("created_by") == user.id)
     
     # ========== DATA PREPARATION ==========
     
