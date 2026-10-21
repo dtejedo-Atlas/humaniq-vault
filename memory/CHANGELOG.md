@@ -1,5 +1,12 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-21 — Backfill de embeddings y ajustes del login
+- **Embeddings**: `backend/scripts/backfill_missing_embeddings.py` (nuevo, dry-run por defecto, escribe solo con `--apply`). Generados los **32 embeddings faltantes**, 0 fallidos. **Cobertura final: 723/723 candidatos activos** (1536 dims, `text-embedding-3-small`). Solo se escribieron los campos `embedding` y `embedding_updated_at`.
+  - Se ejecutó desde el entorno de preview porque **la `OPENAI_API_KEY` de producción sigue inválida** (401 `invalid_api_key`, clave terminada en `…Le0A`); preview y producción comparten la misma base Atlas, así que el backfill quedó escrito en los datos reales.
+  - **PENDIENTE DEL USUARIO**: reemplazar `OPENAI_API_KEY` en Deployment Panel → Secrets (guardar ANTES de redesplegar). Mientras no se arregle, **todo CV nuevo que suban las consultoras se guardará sin embedding**.
+  - Confirmado por el agente de despliegue: `PUBLIC_APP_URL` correcta en prod, sin errores de CORS. Incidencia menor: un pod OOMKilled (exit 137, tier 512Mi) el 20-oct 23:26Z, se recuperó solo; no relacionado con el 401.
+- **LoginPage** (ediciones visuales del usuario): el `h1` ahora dice solo "Talent Vault" (el logotipo Humaniq ya va arriba) y el pie dice "Plataforma de reclutamiento inteligente Humaniq Headhunters 2026. Todos los derechos reservados.". Verificado en preview; **en producción se ven hasta el próximo despliegue**.
+
 ## 2026-10-20 (tarde) — Prueba de acceso del piloto en producción (vault.humaniq.com.mx)
 Ejecutado contra **producción**, con token administrativo efímero de `dtejedo@gmail.com` (firmado con el mismo `JWT_SECRET_KEY`; el JWT se queda en memoria/tmp del contenedor).
 - Redespliegue lanzado tras actualizar `OPENAI_API_KEY` y `PUBLIC_APP_URL` en Secrets. **Pendiente**: confirmación del agente de despliegue de que los embeddings responden 200 en producción. La `OPENAI_API_KEY` del entorno de preview sí responde 200 (1536 dims, `text-embedding-3-small`); 691 de 723 candidatos activos tienen embedding.
