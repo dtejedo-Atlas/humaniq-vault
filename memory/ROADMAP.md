@@ -49,6 +49,11 @@
 - Baja de Patricia Sáez aplicada y cuenta conservada; acceso con sesión comprobado con HTTP 403.
 - Verificación específica de login con contraseña correcta: pendiente porque no se dispone de esa contraseña. No restablecerla ni modificar el flujo de autenticación para fabricar un resultado 403.
 
+## Después del piloto (comprometido con el usuario el 2026-10-20)
+- **P1 — "Olvidé mi contraseña" autoservicio** desde la pantalla de login (durante el piloto el reset lo dispara un admin desde Usuarios). Primera tarea post-piloto.
+- **P2 — Logotipo en `/set-password`**: esa pantalla muestra un ícono genérico en vez del logotipo de Humaniq que sí aparece en `/login`. El usuario pidió explícitamente NO cambiarlo durante el piloto.
+- **Reporte de cierre del piloto (lo pedirá el usuario el 30-oct)**: reporte de SOLO LECTURA por consultora con inicios de sesión, vacantes creadas, CVs subidos, veces que usó "Afinar con IA" y PDFs exportados. Decisión explícita: **NO construir un panel/dashboard** de "pulso del piloto"; es un reporte puntual, no una funcionalidad.
+
 ## P1 — Validación del usuario
 - Esperar exclusivamente ajustes y pruebas concretas que solicite el usuario durante el uso real.
 - No ejecutar pruebas destructivas sobre la base compartida de producción.

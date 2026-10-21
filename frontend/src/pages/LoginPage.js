@@ -50,7 +50,7 @@ const LoginPage = () => {
             className="h-12 w-auto mx-auto mb-4"
             data-testid="login-humaniq-logo"
           />
-          <h1 className="text-3xl font-bold text-slate-900">Humaniq Talent Vault</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Talent Vault</h1>
           <p className="text-slate-600 mt-2">Plataforma Inteligente de Selección de Personal</p>
         </div>
 
@@ -135,7 +135,7 @@ const LoginPage = () => {
         </Card>
 
         <p className="text-center text-xs text-slate-500 mt-6">
-          Plataforma para reclutamiento ejecutivo en México y Latinoamérica
+          Plataforma de reclutamiento inteligente Humaniq Headhunters 2026. Todos los derechos reservados.
         </p>
       </div>
     </div>
