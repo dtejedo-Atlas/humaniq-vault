@@ -1,5 +1,9 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-21 (tarde) — OPENAI_API_KEY resuelta en producción
+- El usuario reemplazó la `OPENAI_API_KEY` en Secrets (18:20:49Z) y redesplegó (run 005cf7d1, éxito 18:28:40Z). El agente de despliegue confirmó en los logs de producción: **cero líneas de 401 / invalid_api_key / "Error getting query embedding"**, `Generated embedding for job ...` a las 18:32:40Z y `POST /api/search/hybrid?use_semantic=true` → **200 OK** (x3). Pod Ready, `restart_count=0`, sin OOMKilled en el run activo (el OOM del 20-oct fue en un run anterior).
+- Backfill final de embeddings: **3 candidatos procesados, 0 fallidos** (los CVs subidos mientras la llave estaba rota). **Cobertura: 727/727 candidatos activos con embedding**, 0 pendientes. Solo se escribieron `embedding` y `embedding_updated_at`.
+
 ## 2026-10-21 — Backfill de embeddings y ajustes del login
 - **Embeddings**: `backend/scripts/backfill_missing_embeddings.py` (nuevo, dry-run por defecto, escribe solo con `--apply`). Generados los **32 embeddings faltantes**, 0 fallidos. **Cobertura final: 723/723 candidatos activos** (1536 dims, `text-embedding-3-small`). Solo se escribieron los campos `embedding` y `embedding_updated_at`.
   - Se ejecutó desde el entorno de preview porque **la `OPENAI_API_KEY` de producción sigue inválida** (401 `invalid_api_key`, clave terminada en `…Le0A`); preview y producción comparten la misma base Atlas, así que el backfill quedó escrito en los datos reales.
