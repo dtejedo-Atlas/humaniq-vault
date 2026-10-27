@@ -1,5 +1,25 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-27 (tarde) — Benchmark Haiku 5.5 vs Sonnet 5.5 sobre CVs reales
+- `backend/scripts/benchmark_haiku_vs_sonnet.py` (nuevo, **solo lectura**): fuerza el modelo por tarea (monkeypatch de `ai_model_config.get_model`), corre `parse_resume` + `classify_candidate` sobre CVs reales de `cv_fulltext` y compara campo por campo + costo estimado (misma convención de tokens que `ai_refine_service`: chars/4).
+- Resultado con 3 CVs reales (Rafael Gonzalez 7260 chars, Arturo Alvarado 2677, Manuel Amezcua 5080):
+  - **Historial laboral: 13 de 13 empleos idénticos** (empresa, puesto, fecha inicio, fecha fin). Años de experiencia, área funcional, subárea y seniority: **idénticos en los 3**.
+  - Diferencias: 1 industria distinta de 3 (`manufacturing` vs `construction` en un perfil mixto), ±1 habilidad en 2 CVs, y un acento en un nombre (Haiku escribió "González", Sonnet "Gonzalez").
+  - Costo promedio por CV (parseo+clasificación): **Sonnet US$0.0270 vs Haiku US$0.0097 → 64% menos**. Velocidad: **sin diferencia real** (17.2s vs 17.7s).
+  - Volumen actual: ~150 CVs/mes → ahorro de solo **~US$2.6/mes** si se moviera todo el parseo a Haiku. Por eso la recomendación es NO mover parseo ni fit: el ahorro no compensa el riesgo de extracción.
+- Confirmado el identificador exacto del modelo: **`claude-haiku-5-5`**, con llamada real vía `LlmChat(...).with_model("anthropic", "claude-haiku-5-5")` respondiendo correctamente (smoke + 6 llamadas del benchmark).
+- Decisión del usuario: la aprobación final queda **después del piloto**; por ahora Haiku 5.5 solo está asignado al Resumen ejecutivo y **sin desplegar**.
+
+## 2026-10-27 — Claude Haiku 5.5, selector de modelos limpio y reporte del piloto
+- `backend/ai_model_config.py`:
+  - **Claude Haiku 5.5** (`claude-haiku-5-5`) agregado y asignado a la tarea `summary` (Resumen ejecutivo, la de mayor volumen). Verificado contra el gateway de la Emergent LLM Key con una llamada real (`LlmChat` → `anthropic/claude-haiku-5-5`) que respondió correctamente.
+  - **Selector reducido a 3 modelos**: Opus 5.5 (máxima calidad), Sonnet 5.5 (recomendado), Haiku 5.5 (rápido y económico). Retirados Sonnet 5, Sonnet 4.6, Sonnet 4.5 y Haiku 4.5.
+  - `MODEL_PRICING` conserva los precios de los modelos retirados para que las estimaciones de costo de evaluaciones históricas sigan siendo correctas.
+  - **Sin escrituras en base**: el documento `ai_model_config` tenía `summary` fijado a `claude-haiku-4-5-20251001`; al salir ese id de `MODEL_IDS`, `_load()` lo ignora y cae al nuevo default. Verificado en `GET /api/admin/ai-models`: `summary → claude-haiku-5-5`.
+  - Nota: `classification_refinement.py` sigue con `claude-sonnet-4-5-20250929` fijo en código (fuera del selector); no se tocó.
+- `backend/scripts/pilot_report.py` (nuevo, **solo lectura**): reporte por consultora con último acceso, vacantes creadas, CVs subidos, usos de "Afinar con IA", PDFs exportados, notas y asignaciones, con rango de fechas (`--from/--to`). Limitación conocida: la plataforma **no guarda historial de inicios de sesión**, solo `users.last_login`; para contar logins habría que registrar un evento `login` en `activity_logs` (pendiente de autorización del usuario).
+- Pendiente de desplegar a producción (junto con los textos del login): el cambio de modelos **no está en vivo** hasta el primer deploy después del piloto.
+
 ## 2026-10-21 (tarde) — OPENAI_API_KEY resuelta en producción
 - El usuario reemplazó la `OPENAI_API_KEY` en Secrets (18:20:49Z) y redesplegó (run 005cf7d1, éxito 18:28:40Z). El agente de despliegue confirmó en los logs de producción: **cero líneas de 401 / invalid_api_key / "Error getting query embedding"**, `Generated embedding for job ...` a las 18:32:40Z y `POST /api/search/hybrid?use_semantic=true` → **200 OK** (x3). Pod Ready, `restart_count=0`, sin OOMKilled en el run activo (el OOM del 20-oct fue en un run anterior).
 - Backfill final de embeddings: **3 candidatos procesados, 0 fallidos** (los CVs subidos mientras la llave estaba rota). **Cobertura: 727/727 candidatos activos con embedding**, 0 pendientes. Solo se escribieron `embedding` y `embedding_updated_at`.

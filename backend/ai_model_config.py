@@ -13,10 +13,7 @@ CACHE_TTL_SECONDS = 60
 AVAILABLE_MODELS = [
     {"id": "claude-opus-5-5", "label": "Claude Opus 5.5", "tier": "máxima calidad"},
     {"id": "claude-sonnet-5-5", "label": "Claude Sonnet 5.5", "tier": "recomendado"},
-    {"id": "claude-sonnet-5", "label": "Claude Sonnet 5", "tier": "equilibrado"},
-    {"id": "claude-sonnet-4-6", "label": "Claude Sonnet 4.6", "tier": "equilibrado"},
-    {"id": "claude-sonnet-4-5-20250929", "label": "Claude Sonnet 4.5", "tier": "anterior"},
-    {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5", "tier": "rápido y económico"},
+    {"id": "claude-haiku-5-5", "label": "Claude Haiku 5.5", "tier": "rápido y económico"},
 ]
 MODEL_IDS = {m["id"] for m in AVAILABLE_MODELS}
 
@@ -35,7 +32,7 @@ TASKS = {
     "summary": {
         "label": "Resumen ejecutivo",
         "description": "Resumen corto del perfil (alto volumen)",
-        "default": "claude-haiku-4-5-20251001",
+        "default": "claude-haiku-5-5",
     },
     "job_parsing": {
         "label": "Parseo de vacante",
@@ -68,6 +65,9 @@ TASKS = {
 MODEL_PRICING = {
     "claude-opus-5-5": (15.0, 75.0),
     "claude-sonnet-5-5": (3.0, 15.0),
+    "claude-haiku-5-5": (1.0, 5.0),
+    # Modelos retirados del selector: se conservan sus precios para estimar costos
+    # históricos de evaluaciones ya guardadas en base.
     "claude-sonnet-5": (3.0, 15.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     "claude-sonnet-4-5-20250929": (3.0, 15.0),

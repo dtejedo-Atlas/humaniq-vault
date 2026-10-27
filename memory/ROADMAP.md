@@ -50,7 +50,7 @@
 - Verificación específica de login con contraseña correcta: pendiente porque no se dispone de esa contraseña. No restablecerla ni modificar el flujo de autenticación para fabricar un resultado 403.
 
 ## Después del piloto (comprometido con el usuario el 2026-10-20)
-- **P2 — Agregar Claude Haiku 5.5 a los modelos seleccionables** (`backend/ai_model_config.py`): es el único modelo nuevo de Anthropic que aporta valor real aquí. Sustituiría a `claude-haiku-4-5-20251001` en la tarea `summary` (alto volumen: ~30% más rápido y más barato). Ya están Opus 5.5 y Sonnet 5.5, que son los tope de línea actuales, así que no hay nada más que agregar; `claude-fable-5-1` es para tareas agénticas largas y no justifica su costo en este producto. Incluye actualizar `MODEL_PRICING` y, si se quiere, retirar de la lista Sonnet 4.5/4.6 para no confundir a los admins. Decidido con el usuario el 2026-10-21: **no se toca durante el piloto**.
+- ~~**P2 — Agregar Claude Haiku 5.5 a los modelos seleccionables**~~ → **HECHO el 2026-10-27**: Haiku 5.5 agregado y asignado al Resumen ejecutivo; selector reducido a Opus 5.5 / Sonnet 5.5 / Haiku 5.5. Falta desplegarlo a producción (va junto con los textos del login, en el primer deploy después del piloto).
 
 - **P1 — "Olvidé mi contraseña" autoservicio** desde la pantalla de login (durante el piloto el reset lo dispara un admin desde Usuarios). Primera tarea post-piloto.
 - **P2 — Logotipo en `/set-password`**: esa pantalla muestra un ícono genérico en vez del logotipo de Humaniq que sí aparece en `/login`. El usuario pidió explícitamente NO cambiarlo durante el piloto.
