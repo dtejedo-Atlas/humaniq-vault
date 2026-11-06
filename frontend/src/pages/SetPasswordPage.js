@@ -5,7 +5,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
-import { Sparkles, Loader2, AlertCircle, KeyRound } from 'lucide-react';
+import { Loader2, AlertCircle, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -58,10 +58,13 @@ export default function SetPasswordPage() {
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-sm mb-4">
-            <Sparkles className="w-8 h-8 text-cyan-400" />
-          </div>
-          <h1 className="text-3xl font-bold text-slate-900">Humaniq Talent Vault</h1>
+          <img
+            src="/humaniq-logo.png"
+            alt="Humaniq"
+            className="h-12 w-auto mx-auto mb-4"
+            data-testid="set-password-humaniq-logo"
+          />
+          <h1 className="text-3xl font-bold text-slate-900">Talent Vault</h1>
         </div>
 
         <Card>

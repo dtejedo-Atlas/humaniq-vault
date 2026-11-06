@@ -1,5 +1,18 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-27 (cierre) — Logo en /set-password y correcciones puntuales de industria
+- **`/set-password`**: el cuadro genérico con el ícono Sparkles se reemplazó por el logotipo real de Humaniq (`/humaniq-logo.png`, `data-testid="set-password-humaniq-logo"`) y el título quedó como "Talent Vault", igual que el login. Verificado en preview: la imagen carga (`naturalWidth > 0`). Sumado al mismo paquete sin desplegar.
+- **Opus 5.5 se queda** en el Análisis IA del match (decisión del usuario). **No se hizo recálculo masivo** del segundo paso de clasificación tras el cambio de modelo: se recalculará solo cuando cada CV se vuelva a usar.
+- **Correcciones de industria aplicadas** con `backend/scripts/apply_industry_fixes.py` (lista cerrada, NO es un reclasificador automático; dry-run por defecto):
+  - 12 candidatos con `industry` corregida: Daniela Quintero→education, Danyella Arroyo→healthcare, Christian Castro→manufacturing, Marco A. Luna→manufacturing, Carlos Uribe→technology, Fernando Padrón→food_beverage, Diego Ramírez→consumer_goods, Alexandra Juarez→industrial_services, Teresa Segura→healthcare, Alejandro Cancino→manufacturing, Luis Anibal Leal→healthcare, Carlos Josué López→transportation.
+  - 5 etiquetas de EMPRESA corregidas a food_beverage (la persona ya estaba bien): Llano Colorado y Casa Pedro Domecq (Alberto Curis), Del Fruto Refresquera (Fernando Bárcenas), Alimentaria Artesanal x2 (Rafael Gonzalez).
+  - **Andreina Rios Riera: sin tocar**, por indicación del usuario.
+  - Respaldo previo de cada documento completo en la colección `doc_backups` (batch `industry_fixes_2026_10_27`, 15 documentos) y en archivos JSON bajo `/app/memory/backups/industry_fixes_2026_10_27/`. Cada doc modificado lleva `industry_corrected_at` y `industry_corrected_batch`.
+  - Verificado: los filtros de industria obligatoria de Alejandro Cancino, Luis Anibal Leal y Carlos Josué López pasan a `no_cumple_importante` en las 3 vacantes con industria obligatoria.
+  - Pendiente menor: los embeddings de esos 12 candidatos no se regeneraron (el texto indexado incluye la industria). No se tocó nada más, por instrucción explícita.
+- **Reporte del piloto** (`scripts/pilot_report.py`) ya incluye la columna "Entradas" alimentada por `login_events`; arranca en 0 porque la bitácora acaba de activarse.
+- Estado del paquete: **listo y sin desplegar**, a la espera de que el usuario guarde en GitHub y audite.
+
 ## 2026-10-27 (noche, 2) — Paquete listo para UN solo deploy + corrección del análisis de industria
 
 ### Cambios de código (NO desplegados, a petición del usuario)
