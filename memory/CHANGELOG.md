@@ -1,5 +1,34 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-27 (noche, 2) — Paquete listo para UN solo deploy + corrección del análisis de industria
+
+### Cambios de código (NO desplegados, a petición del usuario)
+- **Textos del login** (ya estaban): `h1` = "Talent Vault", pie = "Plataforma de reclutamiento inteligente Humaniq Headhunters 2026…".
+- **"Olvidé mi contraseña" autoservicio**:
+  - `POST /api/auth/forgot-password` (público) en `server.py`. Respuesta SIEMPRE idéntica (`FORGOT_PASSWORD_MESSAGE`), exista o no el correo, esté activa o no la cuenta.
+  - Límite de intentos en `password_reset_attempts`: 3 por correo y 10 por IP por hora (`RESET_MAX_PER_EMAIL`, `RESET_MAX_PER_IP`, ventana de 60 min). IP real leída de `x-forwarded-for` (helper `client_ip`).
+  - Reutiliza `invitation_service.create_token(..., 'reset')`: un solo uso, 48 h, invalida los tokens previos del usuario. Enlace armado con `public_app_url(origin)` → https://vault.humaniq.com.mx.
+  - Frontend: `pages/ForgotPasswordPage.js` + ruta pública `/forgot-password` en `App.js` + enlace "¿Olvidaste tu contraseña?" bajo el campo de contraseña en `LoginPage.js`.
+- **Bitácora de accesos**: nueva colección `login_events` (solo inserciones) alimentada por `record_login_event()` en el login con contraseña y en el de Google. Guarda user_id, email, rol, método, IP y user-agent. No toca el documento del usuario. Índices creados al arranque (`login_events`, `password_reset_attempts`).
+- **Modelos de IA**: Haiku 5.5 solo en Resumen ejecutivo; Sonnet 5.5 en parseo de CV, clasificación, parseo de vacante, match textual, Afinar con IA y fit; Opus 5.5 en Análisis IA del match. `classification_refinement.py` migrado de `claude-sonnet-4-5-20250929` (retirado) a `claude-sonnet-5-5` — OJO: el digest de caché del segundo paso incluye el modelo, así que un recheck recalcularía.
+- **Selector**: la única tarea guardada en base que apuntaba a un modelo retirado era `summary` (`claude-haiku-4-5-20251001`) y cae automáticamente a `claude-haiku-5-5`; las demás ya apuntaban a modelos vigentes. No se escribió nada en base.
+
+### Pruebas ejecutadas (preview, contra la base real)
+- forgot-password: correo inexistente → 200 genérico y **0 tokens creados**; correo real → 200 genérico, token creado con expiración exacta a 48 h, correo `delivered` por Resend con enlace a vault; 4 peticiones seguidas al mismo correo → **solo 3 tokens** (la 4ª bloqueada, misma respuesta); cuenta desactivada → 200 genérico y **0 tokens**.
+- Token: el anterior queda inválido al emitirse uno nuevo; `set-password` con el vigente → 200; reutilizarlo → 400; login con la contraseña nueva → 200; con la vieja → 401.
+- `login_events`: registro insertado con método `password`, IP y user-agent.
+- Modelos: llamada real a `claude-opus-5-5`, `claude-sonnet-5-5` y `claude-haiku-5-5` → las tres responden.
+- UI: enlace visible en el login, página `/forgot-password` funcional y mensaje genérico en pantalla.
+- Cuenta de prueba `diego+prueba@humaniq.com.mx` reactivada para probar y **desactivada de nuevo al terminar** (contraseña quedó en `PilotoNuevo2026!`).
+
+### CORRECCIÓN IMPORTANTE a la auditoría de industria del mensaje anterior
+Al revisar caso por caso se encontró que `previous_companies` **no siempre incluye al empleador actual**, y que `candidates.industry` suele reflejar justamente el empleo actual. Por eso la cifra de "143 perfiles mal clasificados" estaba inflada:
+- De los 143 marcados: **55 son TIPO A** (el empleador actual SÍ está en la trayectoria pero con otra industria → inconsistencia real dentro del mismo registro) y **88 son TIPO B** (el empleador actual no está en la trayectoria → la industria viene de ese empleo y es legítima).
+- De los 32 de un solo giro: **13 son TIPO A** y 19 son TIPO B.
+- De los 20 veredictos de knockout que cambiarían: **solo 4 son TIPO A**; los otros 16 son falsa alarma.
+- Matiz adicional del TIPO A: no siempre se equivoca `candidates.industry`; en varios casos (p. ej. Rafael Gonzalez, "Alimentaria Artesanal" etiquetada `consumer_goods`) el error está en la etiqueta de la empresa.
+- Scripts: `scripts/audit_industry_consistency.py` (sin cambios) y las consultas de tipificación quedaron documentadas aquí. NO se escribió nada en base.
+
 ## 2026-10-27 (noche) — Auditoría de industria y evaluación Opus vs Sonnet (ambas SOLO LECTURA)
 - `backend/scripts/audit_industry_consistency.py` (nuevo, solo lectura): compara `candidates.industry` contra las industrias de la trayectoria (`previous_companies[].company_industry`). Resultado sobre 762 candidatos activos: 12.5% de un solo giro coincidente, 60.5% giro mixto con industria dentro de su trayectoria, **14.6% giro mixto con industria FUERA de su trayectoria (111)**, **4.2% de un solo giro con industria distinta (32)**, 5.4% sin industrias en trayectoria, 2.9% sin industria.
   - Patrón dominante: confusión entre categorías vecinas (consumer_goods↔food_beverage, pharmaceutical↔healthcare, manufacturing↔industrial_services). Ej.: Alberto Garza (food_beverage x13) etiquetado `consumer_goods`; Danyella Arroyo (healthcare x6) etiquetada `pharmaceutical`.

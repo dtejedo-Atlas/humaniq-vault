@@ -87,6 +87,15 @@ const LoginPage = () => {
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required
                 />
+                <div className="mt-2 text-right">
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs text-slate-500 hover:text-slate-900"
+                    data-testid="forgot-password-link"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </Link>
+                </div>
               </div>
 
               <Button

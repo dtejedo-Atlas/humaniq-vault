@@ -37,8 +37,11 @@ def main(date_from: str, date_to: str):
     def count_logs(action, uid):
         return db.activity_logs.count_documents({"action": action, "user_id": uid, "timestamp": rng})
 
+    def count_logins(uid):
+        return db.login_events.count_documents({"user_id": uid, "created_at": rng})
+
     print(f"\nREPORTE DEL PILOTO — {date_from} a {date_to}  (solo lectura)\n")
-    header = (f"{'Consultora':34s} {'Rol':12s} {'Último acceso':17s} "
+    header = (f"{'Consultora':34s} {'Rol':12s} {'Último acceso':17s} {'Entradas':>9s} "
               f"{'Vac.':>5s} {'CVs':>5s} {'IA':>4s} {'PDFs':>5s} {'Notas':>6s} {'Asig.':>6s}")
     print(header)
     print("-" * len(header))
@@ -54,25 +57,27 @@ def main(date_from: str, date_to: str):
         pdfs = db.exports.count_documents({"user_id": uid, "created_at": rng})
         notes = count_logs("note_added", uid)
         assigns = count_logs("candidate_assigned", uid)
+        logins = count_logins(uid)
 
         if not any([jobs, cvs, refines, pdfs, notes, assigns]) and not u.get("last_login"):
             continue
 
         name = (u.get("name") or u.get("email", ""))[:33]
         estado = u.get("role", "") + ("" if u.get("is_active") else " (baja)")
-        print(f"{name:34s} {estado[:12]:12s} {fmt(u.get('last_login')):17s} "
+        print(f"{name:34s} {estado[:12]:12s} {fmt(u.get('last_login')):17s} {logins:9d} "
               f"{jobs:5d} {cvs:5d} {refines:4d} {pdfs:5d} {notes:6d} {assigns:6d}")
         for k, v in zip(totals, (jobs, cvs, refines, pdfs, notes, assigns)):
             totals[k] += v
 
     print("-" * len(header))
-    print(f"{'TOTAL':34s} {'':12s} {'':17s} {totals['jobs']:5d} {totals['cvs']:5d} "
+    print(f"{'TOTAL':34s} {'':12s} {'':17s} {'':9s} {totals['jobs']:5d} {totals['cvs']:5d} "
           f"{totals['refines']:4d} {totals['pdfs']:5d} {totals['notes']:6d} {totals['assigns']:6d}")
 
-    print("\nColumnas: Vac.=vacantes creadas · CVs=CVs subidos · IA=veces que usó "
-          "\"Afinar con IA\" · PDFs=shortlists exportados · Notas · Asig.=candidatos asignados")
-    print("Nota: 'Último acceso' es la última sesión registrada; la plataforma no guarda "
-          "el historial completo de inicios de sesión.\n")
+    print("\nColumnas: Entradas=inicios de sesión registrados · Vac.=vacantes creadas · "
+          "CVs=CVs subidos · IA=veces que usó \"Afinar con IA\" · PDFs=shortlists exportados · "
+          "Notas · Asig.=candidatos asignados")
+    print("Nota: 'Entradas' solo cuenta desde que se activó la bitácora de accesos; "
+          "'Último acceso' sí refleja toda la historia.\n")
 
 
 if __name__ == "__main__":

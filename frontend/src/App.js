@@ -26,6 +26,7 @@ import TrashPage from './pages/TrashPage';
 import ClassificationReviewPage from './pages/ClassificationReviewPage';
 import AuthCallback from './pages/AuthCallback';
 import SetPasswordPage from './pages/SetPasswordPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 
 // Configure axios defaults
@@ -220,6 +221,9 @@ function AppRoutes() {
 
       {/* Set password (público, vía token de email) */}
       <Route path="/set-password" element={<SetPasswordPage />} />
+
+      {/* Olvidé mi contraseña (público, autoservicio) */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
       {/* Cambiar contraseña (usuarios autenticados) */}
       <Route

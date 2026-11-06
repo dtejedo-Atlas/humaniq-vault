@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header, Query, Response, Body
+from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, UploadFile, File, Form, Header, Query, Response, Body, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -283,6 +283,15 @@ async def startup():
     index_result = await cv_hash_service.ensure_indexes()
     logger.info(f"CV hash unique index: {index_result}")
 
+    # Índices de seguridad de acceso: bitácora de inicios de sesión e intentos de reset
+    try:
+        await db.login_events.create_index([("user_id", 1), ("created_at", -1)])
+        await db.password_reset_attempts.create_index([("email", 1), ("created_at", -1)])
+        await db.password_reset_attempts.create_index([("ip", 1), ("created_at", -1)])
+        logger.info("✓ Índices de login_events y password_reset_attempts listos")
+    except Exception as e:
+        logger.error(f"✗ No se pudieron crear los índices de acceso: {e}")
+
 
 # ============= DEPENDENCY FUNCTIONS =============
 
@@ -381,8 +390,33 @@ async def register():
     )
 
 
+def client_ip(request: Request) -> str:
+    """IP real del cliente detrás del ingress de Kubernetes."""
+    forwarded = (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    if forwarded:
+        return forwarded
+    return request.client.host if request.client else "desconocida"
+
+
+async def record_login_event(user_doc: dict, method: str, request: Request) -> None:
+    """Registra el inicio de sesión en una colección propia (solo inserciones)."""
+    try:
+        await db.login_events.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_doc.get("id"),
+            "email": user_doc.get("email"),
+            "role": user_doc.get("role"),
+            "method": method,
+            "ip": client_ip(request),
+            "user_agent": (request.headers.get("user-agent") or "")[:300],
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logger.warning(f"No se pudo registrar el inicio de sesión de {user_doc.get('email')}: {e}")
+
+
 @api_router.post("/auth/login", response_model=Token)
-async def login(credentials: UserLogin):
+async def login(credentials: UserLogin, request: Request):
     """Login user"""
     user_doc = await db.users.find_one({"email": credentials.email}, {"_id": 0})
     
@@ -415,6 +449,7 @@ async def login(credentials: UserLogin):
         {"email": credentials.email},
         {"$set": {"last_login": datetime.now(timezone.utc).isoformat()}}
     )
+    await record_login_event(user_doc, "password", request)
     
     # Create access token
     access_token = create_access_token({"sub": credentials.email})
@@ -448,7 +483,7 @@ EMERGENT_SESSION_DATA_URL = "https://demobackend.emergentagent.com/auth/v1/env/o
 
 
 @api_router.post("/auth/google/session", response_model=Token)
-async def google_session(payload: GoogleSessionRequest):
+async def google_session(payload: GoogleSessionRequest, request: Request):
     """Intercambia el session_id de Google (Emergent Auth) por un JWT propio.
 
     Solo emails ya registrados pueden entrar. Cuentas existentes se vinculan automáticamente.
@@ -497,6 +532,7 @@ async def google_session(payload: GoogleSessionRequest):
     if data.get("picture"):
         update_fields["picture"] = data["picture"]
     await db.users.update_one({"id": user_doc["id"]}, {"$set": update_fields})
+    await record_login_event(user_doc, "google", request)
 
     access_token = create_access_token({"sub": user_doc["email"]})
 
@@ -520,6 +556,62 @@ class SetPasswordRequest(_AuthBaseModel):
 class ChangePasswordRequest(_AuthBaseModel):
     current_password: str
     new_password: str
+
+
+class ForgotPasswordRequest(_AuthBaseModel):
+    email: _EmailStr
+    origin: Optional[str] = None
+
+
+# Respuesta siempre idéntica: nunca revela si el correo está registrado
+FORGOT_PASSWORD_MESSAGE = (
+    "Si el correo está registrado, en unos minutos recibirás un enlace para restablecer tu contraseña. "
+    "Revisa también tu carpeta de spam."
+)
+RESET_WINDOW_MINUTES = 60
+RESET_MAX_PER_EMAIL = 3
+RESET_MAX_PER_IP = 10
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(payload: ForgotPasswordRequest, request: Request):
+    """Autoservicio de restablecimiento (público). Enlace de un solo uso válido 48 h."""
+    email = payload.email.strip().lower()
+    ip = client_ip(request)
+    now = datetime.now(timezone.utc)
+    window = (now - timedelta(minutes=RESET_WINDOW_MINUTES)).isoformat()
+
+    await db.password_reset_attempts.insert_one({
+        "id": str(uuid.uuid4()),
+        "email": email,
+        "ip": ip,
+        "created_at": now.isoformat(),
+    })
+    by_email = await db.password_reset_attempts.count_documents(
+        {"email": email, "created_at": {"$gte": window}}
+    )
+    by_ip = await db.password_reset_attempts.count_documents(
+        {"ip": ip, "created_at": {"$gte": window}}
+    )
+    if by_email > RESET_MAX_PER_EMAIL or by_ip > RESET_MAX_PER_IP:
+        logger.warning(f"Límite de restablecimientos alcanzado (email={by_email}, ip={by_ip}) desde {ip}")
+        return {"message": FORGOT_PASSWORD_MESSAGE}
+
+    user_doc = await db.users.find_one(
+        {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}, {"_id": 0}
+    )
+    if user_doc and user_doc.get("is_active") is not False and user_doc.get("password_hash"):
+        token = await invitation_service.create_token(db, user_doc["id"], "reset", user_doc["id"])
+        reset_link = f"{public_app_url(payload.origin)}/set-password?token={token}"
+        try:
+            await send_password_reset_email(user_doc["email"], user_doc.get("name", ""), reset_link)
+            actor = SimpleNamespace(id=user_doc["id"], name=user_doc.get("name"), email=user_doc["email"])
+            await log_activity(actor, "password_reset_requested", "user", user_doc["id"],
+                               user_doc["email"], {"self_service": True, "ip": ip})
+        except Exception as e:
+            logger.error(f"Fallo al enviar el restablecimiento autoservicio: {e}")
+
+    return {"message": FORGOT_PASSWORD_MESSAGE}
 
 
 @api_router.post("/auth/validate-setup-token")

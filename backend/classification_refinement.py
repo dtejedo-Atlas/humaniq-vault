@@ -14,7 +14,7 @@ from humaniq_catalog import (build_humaniq_prompt_section, normalize_classificat
 from classification_evidence import ClassificationEvidence, employment_timeline
 
 SECOND_PASS_VERSION = 'classification-second-pass-v1'
-MODEL = 'claude-sonnet-4-5-20250929'
+MODEL = 'claude-sonnet-5-5'
 MANUAL_MESSAGE = 'No se pudo leer suficiente texto del archivo, incluso después de la extracción reforzada. Requiere captura manual.'
 
 
