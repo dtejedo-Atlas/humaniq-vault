@@ -1,5 +1,15 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-10-27 (noche) — Auditoría de industria y evaluación Opus vs Sonnet (ambas SOLO LECTURA)
+- `backend/scripts/audit_industry_consistency.py` (nuevo, solo lectura): compara `candidates.industry` contra las industrias de la trayectoria (`previous_companies[].company_industry`). Resultado sobre 762 candidatos activos: 12.5% de un solo giro coincidente, 60.5% giro mixto con industria dentro de su trayectoria, **14.6% giro mixto con industria FUERA de su trayectoria (111)**, **4.2% de un solo giro con industria distinta (32)**, 5.4% sin industrias en trayectoria, 2.9% sin industria.
+  - Patrón dominante: confusión entre categorías vecinas (consumer_goods↔food_beverage, pharmaceutical↔healthcare, manufacturing↔industrial_services). Ej.: Alberto Garza (food_beverage x13) etiquetado `consumer_goods`; Danyella Arroyo (healthcare x6) etiquetada `pharmaceutical`.
+  - Impacto medido en el motor: `candidate.industry` alimenta el 35% del componente IA (transferibilidad) y el knockout de industria obligatoria. Simulando la corrección al giro dominante en los 143 marcados: 1525 pares candidato-vacante cambian, Δxi promedio 0.103 (≈1.55 puntos de match, máximo 13.2), y **20 veredictos reales de knockout se invierten** en las 3 vacantes con industria obligatoria (casi todos `cumple → no_cumple`, es decir, hoy pasan candidatos que no deberían).
+- `backend/scripts/benchmark_opus_vs_sonnet.py` (nuevo, solo lectura): arma los mismos briefs que `AIMatchReviewService.review()` desde el ranking unificado real y pide el análisis a ambos modelos sin guardar nada.
+  - 2 vacantes reales ("Trainee Comercial" y "Director Comercial", 5 finalistas cada una): **10 de 10 veredictos de fit idénticos**, mismo orden de prioridad y mismas conclusiones de terna. Sonnet incluso detectó 1 brecha más en 3 de los 10 casos; Opus cita la evidencia con un poco más de precisión.
+  - Costo: **Opus 4.5x–4.9x más caro** (US$0.22 y US$0.31 por análisis vs US$0.044 y US$0.068 de Sonnet). Tiempo: empate (38.6s vs 35.6s; 52.4s vs 59.6s).
+  - Volumen real: solo **1 análisis guardado en 30 días**, así que el ahorro absoluto es insignificante; la recomendación es dejar Opus donde está mientras el uso sea bajo.
+- Ningún cambio de modelo aplicado: la decisión queda para después del piloto, como pidió el usuario.
+
 ## 2026-10-27 (tarde) — Benchmark Haiku 5.5 vs Sonnet 5.5 sobre CVs reales
 - `backend/scripts/benchmark_haiku_vs_sonnet.py` (nuevo, **solo lectura**): fuerza el modelo por tarea (monkeypatch de `ai_model_config.get_model`), corre `parse_resume` + `classify_candidate` sobre CVs reales de `cv_fulltext` y compara campo por campo + costo estimado (misma convención de tokens que `ai_refine_service`: chars/4).
 - Resultado con 3 CVs reales (Rafael Gonzalez 7260 chars, Arturo Alvarado 2677, Manuel Amezcua 5080):
