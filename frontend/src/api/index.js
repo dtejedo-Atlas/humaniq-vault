@@ -53,6 +53,7 @@ export const candidatesAPI = {
   getLatestBatch: () => axios.get(`${API_BASE}/candidates/upload-batches/latest`),
   getJobStatus: (jobId) => axios.get(`${API_BASE}/candidates/job/${jobId}`),
   retryJob: (jobId) => axios.post(`${API_BASE}/candidates/job/${jobId}/retry`),
+  retryFailedBatch: (batchId) => axios.post(`${API_BASE}/candidates/batch/${batchId}/retry-failed`),
   getQueueStats: () => axios.get(`${API_BASE}/candidates/queue-stats`),
   getDuplicates: (id) => axios.get(`${API_BASE}/candidates/${id}/duplicates`),
   dismissDuplicate: (candidateId, suggestionId) => 

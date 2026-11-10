@@ -912,6 +912,27 @@ async def retry_job(
     return {"message": "Job re-encolado para reintento", "job_id": job_id}
 
 
+@api_router.post("/candidates/batch/{batch_id}/retry-failed")
+async def retry_failed_batch(
+    batch_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Reintenta los CVs fallidos de un lote usando la copia respaldada del archivo."""
+    batch = await db.upload_batches.find_one({"batch_id": batch_id}, {"_id": 0, "user_id": 1})
+    if not batch:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lote no encontrado")
+    if batch["user_id"] != current_user.id and current_user.role not in (UserRole.ADMIN, UserRole.SUPER_ADMIN):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Este lote no es tuyo")
+
+    result = await background_processor.retry_failed_batch(batch_id)
+    if result["requeued"] == 0 and result["unrecoverable"]:
+        return {
+            **result,
+            "message": "Estos archivos ya no están respaldados en el servidor: vuelve a subirlos.",
+        }
+    return {**result, "message": f"{result['requeued']} CVs re-encolados para procesarse de nuevo."}
+
+
 @api_router.get("/candidates/{candidate_id}", response_model=Candidate)
 async def get_candidate(
     candidate_id: str,
@@ -2488,7 +2509,10 @@ async def upload_batch(
 @app.on_event("startup")
 async def prepare_ocr_dependencies():
     await asyncio.to_thread(ensure_ocr_runtime)
+    await background_processor.initialize()
+    await background_processor.start_workers(process_cv_job)
     await background_processor.sweep_orphan_batches()
+    await background_processor.resume_interrupted_jobs()
     async for batch in db.cv_recheck_batches.find({'status': {'$in': ['queued', 'processing']}}, {'_id': 0, 'batch_id': 1}):
         launch_recheck_batch(db, batch['batch_id'])
 

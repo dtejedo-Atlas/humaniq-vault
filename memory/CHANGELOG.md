@@ -1,5 +1,32 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-11-06/10 — Incidente de 21 CVs perdidos y recuperación automática de cargas
+### Incidente
+El 06-nov a las 21:05 UTC el usuario subió un lote de 32 CVs desde producción (`diego@humaniq.com.mx`, batch `a7ef10e9`). A las 21:06 corrió el despliegue del paquete aprobado, los pods se reiniciaron y **21 de los 32 jobs murieron a media carga** (11 completados). Todos quedaron con error `server_restart` y `recoverable: true`, sin `candidate_id` y sin archivo: los bytes vivían solo en memoria de la réplica (ver docstring de `background_processor.py`). No hubo datos corruptos ni duplicados; simplemente se perdieron los archivos. **Causa directa: desplegar mientras había una carga en curso.**
+
+### Arreglo (aprobado por el usuario: recuperación automática + botón de reintento)
+- `background_processor.py`:
+  - `ProcessingJob` ahora persiste `staged_path`, `content_type` y `user_id`.
+  - `add_job()` respalda cada archivo recibido en el almacenamiento de objetos (`atlas-talent-vault/staging/{job_id}.{ext}`) antes de encolarlo. Si el respaldo falla, la carga continúa igual (solo se pierde la capacidad de reanudar).
+  - `_process_job()` recupera los bytes del respaldo cuando ya no están en memoria.
+  - `_mark_orphan_job()` y `_mark_stale_jobs()` ahora **reanudan** el job si tiene respaldo, en vez de marcarlo fallido.
+  - Nuevos: `resume_job()`, `resume_interrupted_jobs()` (arranque) y `retry_failed_batch()`.
+  - El respaldo se purga (sobrescritura a 0 bytes) al completarse el job; en los fallidos se conserva para poder reintentar.
+  - `retry_job()` ya funciona aunque los bytes no estén en memoria.
+- `server.py`: el startup ahora inicializa workers y llama `resume_interrupted_jobs()`; nuevo endpoint `POST /api/candidates/batch/{batch_id}/retry-failed` (dueño del lote o admin).
+- `UploadPage.js`: aviso rojo con botón "Reintentar los N fallidos" cuando el lote tiene fallos (`data-testid="batch-retry-failed-button"`), más `candidatesAPI.retryFailedBatch`.
+
+### Pruebas (preview, con PDFs sintéticos; datos de prueba borrados al terminar)
+- Lote de 3 CVs + **reinicio forzado del backend a media carga** → al arrancar: "✓ 3 CVs interrumpidos reanudados automáticamente al arranque" y el pipeline siguió hasta `creating_candidate`. **Antes esto habría dado 3 fallos irrecuperables.**
+- `retry-failed` sobre un lote con respaldo → `requeued: 3`. Sobre el lote real `a7ef10e9` (sin respaldo) → `requeued: 0` y lista de los 21 archivos a volver a subir, con mensaje claro.
+- Carga exitosa → job `completed` y el objeto de respaldo quedó en 0 bytes (purgado).
+- UI verificada: el aviso y el botón aparecen solo cuando hay fallidos.
+- Limpieza: candidato de prueba `QA Respaldo Exitoso` con soft-delete; 5 jobs y 3 lotes de prueba eliminados.
+
+### Pendiente
+- **Sin desplegar**: el usuario audita antes. OJO: el propio despliegue reinicia los pods, así que conviene publicarlo cuando nadie esté subiendo CVs.
+- Los 21 CVs del incidente **no son recuperables desde el servidor**: hay que volver a subirlos (lista entregada al usuario).
+
 ## 2026-10-27 (cierre) — Logo en /set-password y correcciones puntuales de industria
 - **`/set-password`**: el cuadro genérico con el ícono Sparkles se reemplazó por el logotipo real de Humaniq (`/humaniq-logo.png`, `data-testid="set-password-humaniq-logo"`) y el título quedó como "Talent Vault", igual que el login. Verificado en preview: la imagen carga (`naturalWidth > 0`). Sumado al mismo paquete sin desplegar.
 - **Opus 5.5 se queda** en el Análisis IA del match (decisión del usuario). **No se hizo recálculo masivo** del segundo paso de clasificación tras el cambio de modelo: se recalculará solo cuando cada CV se vuelva a usar.

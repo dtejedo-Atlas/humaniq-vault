@@ -134,6 +134,20 @@ const UploadPage = () => {
     }
   };
 
+  const handleRetryFailedBatch = async () => {
+    try {
+      const { data } = await candidatesAPI.retryFailedBatch(batchStatus.batch_id);
+      refreshBatch();
+      if (data.requeued > 0) {
+        toast.success(`${data.requeued} CV(s) re-encolados para procesarse de nuevo`);
+      } else {
+        toast.error('Estos archivos ya no están respaldados: vuelve a subirlos');
+      }
+    } catch (error) {
+      toast.error('No se pudieron reintentar los CVs fallidos');
+    }
+  };
+
   const toggleJobExpand = (jobId) => {
     setExpandedJobs(prev => ({
       ...prev,
@@ -317,6 +331,25 @@ const UploadPage = () => {
                   </div>
                 </div>
               </div>
+
+              {stats.failed > 0 && (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-sm border border-red-200 bg-red-50 p-3">
+                  <p className="text-sm text-red-800">
+                    {stats.failed === 1
+                      ? 'Un CV no se procesó. Si el servidor se reinició a media carga, puedes reintentarlo sin volver a subir el archivo.'
+                      : `${stats.failed} CVs no se procesaron. Si el servidor se reinició a media carga, puedes reintentarlos sin volver a subir los archivos.`}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleRetryFailedBatch}
+                    data-testid="batch-retry-failed-button"
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    {stats.failed === 1 ? 'Reintentar el fallido' : `Reintentar los ${stats.failed} fallidos`}
+                  </Button>
+                </div>
+              )}
 
               {/* Lista de jobs */}
               <div className="space-y-2 max-h-96 overflow-y-auto">

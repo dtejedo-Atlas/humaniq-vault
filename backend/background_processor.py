@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import BaseModel
 from ai_workload_limits import reserve_batch, release_batch, try_cv_slot
+from storage_service import storage_service, APP_NAME
 import uuid
 import logging
 
@@ -59,6 +60,9 @@ class ProcessingJob(BaseModel):
     review_status: Optional[str] = None
     retry_count: int = 0
     stage_timings: Dict[str, int] = {}
+    staged_path: Optional[str] = None   # copia del archivo en almacenamiento, para reanudar tras un reinicio
+    content_type: Optional[str] = None
+    user_id: Optional[str] = None
 
     def __init__(self, **data):
         if data.get('created_at') is None:
@@ -85,7 +89,10 @@ class ProcessingJob(BaseModel):
             "extracted_email": self.extracted_email,
             "review_status": self.review_status,
             "retry_count": self.retry_count,
-            "stage_timings": self.stage_timings
+            "stage_timings": self.stage_timings,
+            "staged_path": self.staged_path,
+            "content_type": self.content_type,
+            "user_id": self.user_id,
         }
 
 
@@ -138,6 +145,7 @@ class BackgroundProcessor:
         self.queue: asyncio.Queue = None
         self.max_concurrent = max_concurrent
         self.workers_running = False
+        self._process_func = None
 
     async def initialize(self):
         if self.queue is None:
@@ -223,6 +231,9 @@ class BackgroundProcessor:
                         await lease.release()
                     await self.finish_batch_if_done(job.batch_id)
 
+                    if job.status in (JobStatus.COMPLETED, JobStatus.PARTIAL):
+                        await self._purge_staged_file(job.staged_path)
+
                     if job_id in self.file_data:
                         del self.file_data[job_id]
                     if job_id in self.file_metadata:
@@ -241,6 +252,11 @@ class BackgroundProcessor:
 
         file_data = self.file_data.get(job.job_id)
         file_metadata = self.file_metadata.get(job.job_id, {})
+
+        if not file_data and job.staged_path:
+            file_data = await self._load_staged_file(job.staged_path)
+            if file_data:
+                self.file_data[job.job_id] = file_data
 
         if not file_data:
             job.status = JobStatus.FAILED
@@ -274,7 +290,14 @@ class BackgroundProcessor:
                     job.status = JobStatus.FAILED
 
     async def _mark_orphan_job(self, job_id: str):
-        """Marca fallido un job cuyo archivo ya no está en memoria y libera la cuota si el lote terminó."""
+        """Reanuda el job si su archivo sigue respaldado; si no, lo marca fallido y libera la cuota."""
+        doc = await self.db.upload_jobs.find_one({"job_id": job_id}, {"_id": 0})
+        if doc and doc.get("staged_path") and doc.get("status") in (
+            JobStatus.PENDING.value, JobStatus.PROCESSING.value
+        ):
+            if await self.resume_job(doc):
+                return
+
         doc = await self.db.upload_jobs.find_one_and_update(
             {"job_id": job_id, "status": {"$in": [JobStatus.PENDING.value, JobStatus.PROCESSING.value]}},
             {"$set": {
@@ -324,7 +347,9 @@ class BackgroundProcessor:
             job_id=job_id,
             batch_id=batch_id,
             file_name=file_name,
-            file_size=len(file_data)
+            file_size=len(file_data),
+            content_type=content_type,
+            user_id=user_id,
         )
 
         self.jobs[job_id] = job
@@ -335,6 +360,10 @@ class BackgroundProcessor:
             "file_name": file_name
         }
 
+        # Copia del archivo en almacenamiento: si el pod se reinicia a media carga,
+        # el procesamiento se reanuda solo en vez de perderse.
+        job.staged_path = await self._stage_file(job_id, file_name, file_data, content_type)
+
         await self.persist_job(job)
         await self.db.upload_batches.update_one(
             {"batch_id": batch_id}, {"$push": {"jobs": job_id}}
@@ -344,6 +373,108 @@ class BackgroundProcessor:
 
         logger.info(f"Job {job_id} added to queue: {file_name}")
         return job
+
+    async def _stage_file(self, job_id: str, file_name: str, file_data: bytes,
+                          content_type: str) -> Optional[str]:
+        """Guarda el archivo recibido para poder reanudar tras un reinicio."""
+        ext = file_name.split(".")[-1].lower() if "." in file_name else "bin"
+        path = f"{APP_NAME}/staging/{job_id}.{ext}"
+        try:
+            await asyncio.to_thread(storage_service.put_object, path, file_data,
+                                    content_type or "application/octet-stream")
+            return path
+        except Exception as e:
+            logger.warning(f"No se pudo respaldar el archivo del job {job_id} ({file_name}): {e}")
+            return None
+
+    async def _load_staged_file(self, staged_path: str) -> Optional[bytes]:
+        try:
+            content, _ = await asyncio.to_thread(storage_service.get_object, staged_path)
+            return content or None
+        except Exception as e:
+            logger.warning(f"No se pudo recuperar el archivo respaldado {staged_path}: {e}")
+            return None
+
+    async def _purge_staged_file(self, staged_path: Optional[str]):
+        if not staged_path:
+            return
+        try:
+            await asyncio.to_thread(storage_service.delete_object, staged_path)
+        except Exception as e:
+            logger.warning(f"No se pudo purgar el archivo respaldado {staged_path}: {e}")
+
+    async def resume_job(self, doc: Dict) -> bool:
+        """Vuelve a poner en cola un job cuyo archivo sigue respaldado en almacenamiento."""
+        staged_path = doc.get("staged_path")
+        if not staged_path or not self._process_func:
+            return False
+
+        job_id = doc["job_id"]
+        job = ProcessingJob(
+            job_id=job_id,
+            batch_id=doc["batch_id"],
+            file_name=doc.get("file_name") or "",
+            file_size=doc.get("file_size") or 0,
+            staged_path=staged_path,
+            content_type=doc.get("content_type"),
+            user_id=doc.get("user_id"),
+            retry_count=(doc.get("retry_count") or 0) + 1,
+        )
+        job.status = JobStatus.PENDING
+        job.current_stage = "queued"
+        self.jobs[job_id] = job
+        self.file_metadata[job_id] = {
+            "content_type": doc.get("content_type"),
+            "user_id": doc.get("user_id"),
+            "file_name": doc.get("file_name"),
+        }
+        await self.persist_job(job)
+        await self.initialize()
+        if doc.get("user_id"):
+            try:
+                await reserve_batch(self.db, doc["user_id"], job.batch_id, 'upload', 1, self.owned_job_ids)
+            except Exception as e:
+                logger.warning(f"No se pudo reservar cuota al reanudar {job_id}: {e}")
+        await self.queue.put(job_id)
+        logger.info(f"Job {job_id} reanudado desde almacenamiento ({job.file_name})")
+        return True
+
+    async def resume_interrupted_jobs(self) -> int:
+        """Al arrancar: reanuda los jobs que quedaron a medias y tienen archivo respaldado."""
+        resumed = 0
+        cursor = self.db.upload_jobs.find(
+            {"status": {"$in": [JobStatus.PENDING.value, JobStatus.PROCESSING.value,
+                                JobStatus.FAILED.value]},
+             "staged_path": {"$ne": None},
+             "candidate_id": None},
+            {"_id": 0},
+        )
+        async for doc in cursor:
+            if doc["status"] == JobStatus.FAILED.value and not any(
+                (e or {}).get("recoverable") for e in (doc.get("errors") or [])
+            ):
+                continue
+            if await self.resume_job(doc):
+                resumed += 1
+        if resumed:
+            logger.info(f"✓ {resumed} CVs interrumpidos reanudados automáticamente al arranque")
+        return resumed
+
+    async def retry_failed_batch(self, batch_id: str) -> Dict:
+        """Reintenta los CVs fallidos de un lote cuyo archivo sigue respaldado."""
+        docs = await self.db.upload_jobs.find(
+            {"batch_id": batch_id,
+             "status": {"$in": [JobStatus.FAILED.value, JobStatus.CANCELLED.value]}},
+            {"_id": 0},
+        ).to_list(length=200)
+
+        requeued, unrecoverable = 0, []
+        for doc in docs:
+            if doc.get("staged_path") and await self.resume_job(doc):
+                requeued += 1
+            else:
+                unrecoverable.append(doc.get("file_name"))
+        return {"requeued": requeued, "unrecoverable": unrecoverable}
 
     async def finalize_batch(self, batch_id: str, submitted_files: List[Dict]):
         """Persist upload acknowledgement, including files rejected before queueing."""
@@ -395,6 +526,12 @@ class BackgroundProcessor:
                 age_min = 0
             limit = STALE_PROCESSING_MINUTES if status == JobStatus.PROCESSING.value else STALE_PENDING_MINUTES
             if age_min > limit:
+                # Si el archivo sigue respaldado, se reanuda en vez de darse por perdido.
+                if doc.get("staged_path") and await self.resume_job(doc):
+                    doc["status"] = JobStatus.PENDING.value
+                    doc["current_stage"] = "queued"
+                    updated.append(doc)
+                    continue
                 doc["status"] = JobStatus.FAILED.value
                 doc["current_stage"] = "failed"
                 doc["errors"] = (doc.get("errors") or []) + [{
@@ -474,6 +611,9 @@ class BackgroundProcessor:
             return False
 
         if job_id not in self.file_data:
+            if job.staged_path:
+                doc = await self.db.upload_jobs.find_one({"job_id": job_id}, {"_id": 0})
+                return bool(doc) and await self.resume_job(doc)
             logger.warning(f"Cannot retry job {job_id}: file data no longer in memory")
             return False
 
