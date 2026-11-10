@@ -460,6 +460,26 @@ class BackgroundProcessor:
             logger.info(f"✓ {resumed} CVs interrumpidos reanudados automáticamente al arranque")
         return resumed
 
+    async def purge_staged_uploads(self, older_than_days: int = 7) -> Dict:
+        """Borra los respaldos de carga con más de N días (los jobs ya terminaron hace mucho)."""
+        from datetime import timedelta
+        limite = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
+        docs = await self.db.upload_jobs.find(
+            {"staged_path": {"$ne": None}, "created_at": {"$lt": limite}},
+            {"_id": 0, "job_id": 1, "staged_path": 1},
+        ).to_list(length=1000)
+
+        purgados = 0
+        for doc in docs:
+            await self._purge_staged_file(doc["staged_path"])
+            await self.db.upload_jobs.update_one(
+                {"job_id": doc["job_id"]}, {"$set": {"staged_path": None}}
+            )
+            purgados += 1
+        if purgados:
+            logger.info(f"✓ {purgados} respaldos de carga purgados (más de {older_than_days} días)")
+        return {"purged": purgados, "older_than_days": older_than_days}
+
     async def retry_failed_batch(self, batch_id: str) -> Dict:
         """Reintenta los CVs fallidos de un lote cuyo archivo sigue respaldado."""
         docs = await self.db.upload_jobs.find(

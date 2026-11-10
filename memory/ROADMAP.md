@@ -50,7 +50,6 @@
 - Verificación específica de login con contraseña correcta: pendiente porque no se dispone de esa contraseña. No restablecerla ni modificar el flujo de autenticación para fabricar un resultado 403.
 
 ## Después del piloto (comprometido con el usuario el 2026-10-20)
-- **P2 — Purga de respaldos de carga (`atlas-talent-vault/staging/`)**: los archivos de jobs fallidos se conservan para poder reintentar; falta una limpieza periódica (p. ej. a los 7 días) para que no se acumulen.
 - **P2 — TTL de 30 días para `password_reset_attempts`** (acordado el 2026-10-27, NO hacer durante el piloto): hoy la colección que limita los intentos de "Olvidé mi contraseña" crece sin fin. Crear índice TTL (`expireAfterSeconds`) sobre un campo `created_at` de tipo fecha real (hoy se guarda como string ISO, así que el TTL necesita un campo `Date` nuevo, p. ej. `created_at_dt`) y purgar a los 30 días.
 - **P2 — Endurecer la obtención de la IP** (acordado el 2026-10-27, NO hacer durante el piloto): el límite por IP de `/api/auth/forgot-password` usa el helper `client_ip()`, que confía en el primer valor de `X-Forwarded-For`, y ese encabezado se puede falsear. Tomar la IP del extremo confiable (el último salto añadido por el ingress o `request.client.host`), o validar contra la lista de proxies conocidos.
 

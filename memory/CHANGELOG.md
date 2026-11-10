@@ -1,5 +1,18 @@
 # CHANGELOG - Humaniq Talent Vault
 
+## 2026-11-10 — Aviso de mantenimiento y purga automática de respaldos
+- **Aviso de mantenimiento** (para avisar a las consultoras antes de un despliegue):
+  - Backend: `GET /api/system/maintenance-notice` (cualquier usuario autenticado) y `PUT` (solo admin/super_admin), guardado en `system_settings` con id `maintenance_notice` (campos `active`, `message`, `scheduled_at`, `updated_by`). Queda registrado en la bitácora como `maintenance_notice_updated`.
+  - Frontend: `components/MaintenanceBanner.js` montado en `Layout` (se ve en TODAS las pantallas, refresca cada 2 min) y `components/MaintenanceNoticeCard.js` dentro de `/admin` (interruptor, fecha/hora opcional y mensaje editable con texto sugerido).
+  - Probado: lectura/encendido/apagado por API, consultora recibe **403** al intentar encenderlo, cartel visible en el dashboard y tarjeta visible en Admin. Se dejó **apagado**.
+- **Purga automática de respaldos de carga**:
+  - `background_processor.purge_staged_uploads(días)` borra el objeto y limpia `staged_path` de los jobs con más de 7 días.
+  - Endpoint `POST /api/cron/purge-upload-backups` con el mismo contrato que el cron existente (bearer `WEBHOOK_CRON_SECRET` en tiempo constante, idempotencia por `run_id` en `cron_runs`, ack inmediato y trabajo en background).
+  - `.emergent/crons.yml`: nueva entrada `purge-cv-backups`, diaria a las 07:30 UTC. Convive con `archive-stale-jobs` (07:00 UTC). Son 2 de los 5 crons permitidos.
+  - Probado en preview: sin token → 401, token incorrecto → 401, token válido → `accepted`, repetición del mismo `run_id` → `duplicate: true`. YAML validado.
+- Detalle de interfaz corregido: el cartel mostraba doble punto en la fecha ("02:00 a.m..").
+- Todo esto sigue **sin desplegar**, junto con la recuperación de cargas.
+
 ## 2026-11-06/10 — Incidente de 21 CVs perdidos y recuperación automática de cargas
 ### Incidente
 El 06-nov a las 21:05 UTC el usuario subió un lote de 32 CVs desde producción (`diego@humaniq.com.mx`, batch `a7ef10e9`). A las 21:06 corrió el despliegue del paquete aprobado, los pods se reiniciaron y **21 de los 32 jobs murieron a media carga** (11 completados). Todos quedaron con error `server_restart` y `recoverable: true`, sin `candidate_id` y sin archivo: los bytes vivían solo en memoria de la réplica (ver docstring de `background_processor.py`). No hubo datos corruptos ni duplicados; simplemente se perdieron los archivos. **Causa directa: desplegar mientras había una carga en curso.**

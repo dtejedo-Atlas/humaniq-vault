@@ -7071,6 +7071,75 @@ async def cron_archive_stale_jobs(payload: dict = Body(default={}), authorizatio
     return {"accepted": True, "run_id": run_id, "archive_after_days": ARCHIVE_AFTER_DAYS}
 
 
+# ============= CRON: PURGA DE RESPALDOS DE CARGA =============
+
+STAGED_UPLOAD_RETENTION_DAYS = 7
+
+
+@api_router.post("/cron/purge-upload-backups")
+async def cron_purge_upload_backups(payload: dict = Body(default={}), authorization: Optional[str] = Header(default=None)):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    secret = os.environ['WEBHOOK_CRON_SECRET']
+    token = (authorization or "").removeprefix("Bearer ").strip()
+    if not token or not hmac.compare_digest(token, secret):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autorizado")
+
+    run_id = payload.get("run_id") or str(uuid.uuid4())
+    already = await db.cron_runs.find_one({"run_id": run_id}, {"_id": 0, "run_id": 1})
+    if already:
+        return {"accepted": True, "duplicate": True, "run_id": run_id}
+
+    await db.cron_runs.insert_one({
+        "run_id": run_id,
+        "task": "purge-upload-backups",
+        "received_at": datetime.now(timezone.utc).isoformat(),
+    })
+    asyncio.create_task(background_processor.purge_staged_uploads(STAGED_UPLOAD_RETENTION_DAYS))
+    return {"accepted": True, "run_id": run_id, "retention_days": STAGED_UPLOAD_RETENTION_DAYS}
+
+
+# ============= AVISO DE MANTENIMIENTO =============
+
+class MaintenanceNotice(_AuthBaseModel):
+    active: bool = False
+    message: Optional[str] = None
+    scheduled_at: Optional[str] = None
+
+
+@api_router.get("/system/maintenance-notice")
+async def get_maintenance_notice(current_user: User = Depends(get_current_user)):
+    """Aviso que ven todas las consultoras cuando hay un despliegue programado."""
+    doc = await db.system_settings.find_one({"id": "maintenance_notice"}, {"_id": 0})
+    if not doc:
+        return {"active": False, "message": None, "scheduled_at": None}
+    return {
+        "active": doc.get("active", False),
+        "message": doc.get("message"),
+        "scheduled_at": doc.get("scheduled_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@api_router.put("/system/maintenance-notice")
+async def set_maintenance_notice(
+    payload: MaintenanceNotice,
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN])),
+):
+    """Enciende o apaga el cartel de mantenimiento (solo administradores)."""
+    doc = {
+        "id": "maintenance_notice",
+        "active": payload.active,
+        "message": (payload.message or "").strip() or None,
+        "scheduled_at": payload.scheduled_at,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "updated_by": current_user.email,
+    }
+    await db.system_settings.update_one({"id": "maintenance_notice"}, {"$set": doc}, upsert=True)
+    await log_activity(current_user, "maintenance_notice_updated", "system", "maintenance_notice",
+                       "Aviso de mantenimiento", {"active": payload.active})
+    return {k: v for k, v in doc.items() if k != "id"}
+
+
 # Include the router in the main app
 app.include_router(create_recheck_router(get_current_user, lambda: db, require_role([UserRole.ADMIN, UserRole.SUPER_ADMIN])))
 app.include_router(api_router)

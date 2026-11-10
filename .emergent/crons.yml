@@ -6,3 +6,10 @@ crons:
     # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
     method: POST
     enabled: true
+  - name: purge-cv-backups
+    description: "Borra los respaldos de cargas de CV con más de 7 días"
+    cron: "30 7 * * *"
+    endpoint: "{{BASE_URL}}/api/cron/purge-upload-backups"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    method: POST
+    enabled: true

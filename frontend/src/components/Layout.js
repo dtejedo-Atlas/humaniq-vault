@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import MaintenanceBanner from './MaintenanceBanner';
 
 const Layout = ({ children, title, subtitle }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -18,6 +19,7 @@ const Layout = ({ children, title, subtitle }) => {
       {menuOpen && <button data-testid="mobile-menu-backdrop" aria-label="Cerrar menú de navegación" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-black/30 lg:hidden" />}
       <div className="atlas-main">
         <Header title={title} subtitle={subtitle} menuOpen={menuOpen} onMenuToggle={() => setMenuOpen(open => !open)} />
+        <MaintenanceBanner />
         <div className="atlas-content">
           {children}
         </div>

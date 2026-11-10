@@ -9,6 +9,7 @@ import {
 import { Loader2, Sparkles, RotateCcw, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { aiAPI } from '../api';
+import MaintenanceNoticeCard from '../components/MaintenanceNoticeCard';
 
 const AdminPage = () => {
   const [config, setConfig] = useState(null);
@@ -126,6 +127,7 @@ const AdminPage = () => {
           )}
         </CardContent>
       </Card>
+      <MaintenanceNoticeCard />
     </Layout>
   );
 };

@@ -186,6 +186,11 @@ export const jobsAPI = {
 };
 
 // IA: modelos y análisis de match
+export const systemAPI = {
+  getMaintenanceNotice: () => axios.get(`${API_BASE}/system/maintenance-notice`),
+  setMaintenanceNotice: (notice) => axios.put(`${API_BASE}/system/maintenance-notice`, notice),
+};
+
 export const aiAPI = {
   getModels: () => axios.get(`${API_BASE}/admin/ai-models`),
   updateModels: (models) => axios.put(`${API_BASE}/admin/ai-models`, { models }),
