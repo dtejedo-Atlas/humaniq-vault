@@ -19,6 +19,7 @@ from enum import Enum
 from pydantic import BaseModel
 from ai_workload_limits import reserve_batch, release_batch, try_cv_slot
 from storage_service import storage_service, APP_NAME
+import os
 import uuid
 import socket
 import logging
@@ -35,6 +36,16 @@ POD_ID = f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
 WORKER_HEARTBEAT_SECONDS = 20   # cada réplica avisa que sigue viva
 WORKER_DEAD_SECONDS = 90        # sin aviso en este tiempo, sus reclamos se consideran huérfanos
 RECHECK_SECONDS = 120           # espera antes de volver a revisar jobs reclamados por otra réplica
+
+
+def upload_workers_enabled() -> bool:
+    """Variable de ambiente UPLOAD_WORKERS_ENABLED.
+
+    Ponla en "false" en cualquier entorno que comparta la base con producción (el preview)
+    para que NO procese, reanude ni reintente CVs. Si no existe vale "true" (producción).
+    Para probar cargas en preview hay que encenderla temporalmente.
+    """
+    return os.environ.get("UPLOAD_WORKERS_ENABLED", "true").strip().lower() != "false"
 
 
 class JobStatus(str, Enum):
@@ -178,6 +189,9 @@ class BackgroundProcessor:
 
     async def start_workers(self, process_func):
         if self.workers_running:
+            return
+        if not upload_workers_enabled():
+            logger.info("UPLOAD_WORKERS_ENABLED=false: esta instancia no procesa ni reanuda CVs")
             return
 
         self.workers_running = True
@@ -487,7 +501,7 @@ class BackgroundProcessor:
     async def resume_job(self, doc: Dict) -> bool:
         """Vuelve a poner en cola un job cuyo archivo sigue respaldado en almacenamiento."""
         staged_path = doc.get("staged_path")
-        if not staged_path or not self._process_func:
+        if not staged_path or not self._process_func or not upload_workers_enabled():
             return False
 
         job_id = doc["job_id"]
@@ -560,6 +574,8 @@ class BackgroundProcessor:
 
     async def resume_interrupted_jobs(self) -> int:
         """Al arrancar: reanuda los jobs que quedaron a medias y tienen archivo respaldado."""
+        if not upload_workers_enabled():
+            return 0
         resumed, deferred = await self._resume_scan()
         if deferred:
             # Reclamados por otra réplica viva (o recién caída): se retoman si esa réplica deja de latir.
@@ -621,6 +637,8 @@ class BackgroundProcessor:
 
     async def sweep_orphan_batches(self):
         """Al arrancar: cierra lotes huérfanos de réplicas muertas y libera su cuota."""
+        if not upload_workers_enabled():
+            return
         batch_ids = await self.db.upload_jobs.distinct(
             "batch_id", {"status": {"$in": [JobStatus.PENDING.value, JobStatus.PROCESSING.value]}}
         )
@@ -638,6 +656,8 @@ class BackgroundProcessor:
 
     async def _mark_stale_jobs(self, job_docs: List[Dict]) -> List[Dict]:
         """Marca como fallidos los jobs huérfanos de una réplica muerta (sin heartbeat)."""
+        if not upload_workers_enabled():
+            return job_docs  # instancia de solo lectura: no altera jobs de producción
         now = datetime.now(timezone.utc)
         updated = []
         for doc in job_docs:

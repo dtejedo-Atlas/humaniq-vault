@@ -404,3 +404,9 @@ Checkpoint previo: tag git `checkpoint-20261013_181452` (commit 75e76b8) + `/roo
 - **Ficha del duplicado**: `window.open` → `navigate()` en `CandidateDetailPage.js` (2 botones, con `data-testid`).
 - **Límite de reintentos**: `retry_failed_batch` no re-encola jobs con `retry_count >= 3`; los devuelve en `retry_limit_reached` con mensaje de volver a subir.
 - Pruebas: 12/12 de reclamos y límite contra mongod local desechable; 17/17 de sesiones contra preview con `diego+prueba` (reactivada y desactivada al terminar); navegación del duplicado en página normal e iframe, 0 pop-ups.
+
+## 2026-11-12 (tarde) — Cierre del paquete (pendiente de desplegar)
+- **`UPLOAD_WORKERS_ENABLED`** (documentada en `background_processor.upload_workers_enabled`): en "false" la instancia no arranca workers ni latido, no reanuda, no barre lotes ni marca jobs viejos, y subida/reintentos responden 503. Si falta vale "true". Debe quedar: preview (test) = false, producción (live) = true. Para probar cargas en preview hay que encenderla temporalmente.
+- **Aviso de sesión**: un 401 con el detalle exacto de cambio de contraseña cierra la sesión y el login muestra "Tu sesión se cerró porque la contraseña cambió. Inicia sesión de nuevo." (`session-closed-notice`). Otros 401 no lo muestran.
+- **Credenciales**: `test_credentials.md` ya no contiene ninguna contraseña. Hashes de `test_utf8@atlas.com` y `superadmin@atlas.com` reemplazados por valores aleatorios desconocidos (siguen inactivas). `diego+prueba` inactiva y con último reset.
+- Pruebas: sesiones 9/9, bandera 6/6 (+1 en true), aviso en navegador OK.

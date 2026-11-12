@@ -79,6 +79,6 @@
 ## Anotado el 2026-11-12 (NO hacer hasta que el usuario lo pida)
 - **P2 — TTL de 30 días para `cron_runs` y `password_reset_attempts`**: ambas colecciones crecen sin fin. Requiere un campo de fecha real (tipo `Date`, no string ISO) y un índice TTL `expireAfterSeconds` de 30 días.
 - **P2 — Fallo controlado si falta `WEBHOOK_CRON_SECRET`**: si la variable no está configurada, los endpoints `/api/cron/*` deben responder con un error claro (503 "cron no configurado") y dejarlo en el log, en vez de fallar de forma opaca o aceptar comparaciones contra un valor vacío.
-- **Observación (sin acción acordada)**: el preview usa la misma base Atlas que producción (`ATLAS_URI`), así que su backend actúa como una réplica más del procesador de CVs. Con el reclamo por réplica ya no duplica trabajo de un pod vivo, pero sí puede reanudar jobs de un pod de producción caído. Considerar desactivar los workers en preview con una variable de entorno.
+- ~~Workers del preview~~ → HECHO el 2026-11-12 con `UPLOAD_WORKERS_ENABLED` (false en preview, true en producción).
 - **Observación**: `resume_interrupted_jobs` (arranque) no tiene tope de reintentos; el tope de 3 solo aplica al reintento manual del lote, como se pidió.
 - **Observación**: `/app/memory/test_credentials.md` ya no está versionado, pero versiones antiguas siguen en el historial de git (commits previos a `3e04d64`). Las cuentas afectadas están desactivadas; para borrarlo del historial hay que reescribirlo (BFG/filter-repo) o rotar esas contraseñas.

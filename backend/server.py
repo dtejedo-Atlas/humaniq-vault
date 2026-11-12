@@ -66,7 +66,7 @@ import hmac
 from embedding_service import embedding_service
 from hybrid_search_service import HybridSearchService
 from text_utils import normalize_for_search
-from background_processor import background_processor, JobStatus, LatestBatchResponse
+from background_processor import background_processor, JobStatus, LatestBatchResponse, upload_workers_enabled
 from job_matching_service import JobMatchingService
 from user_service import UserService
 from assignment_service import AssignmentService
@@ -335,6 +335,15 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         user_doc['last_login'] = datetime.fromisoformat(user_doc['last_login'])
     
     return User(**user_doc)
+
+
+async def require_upload_workers():
+    """Bloquea cargas y reintentos donde UPLOAD_WORKERS_ENABLED=false (ver background_processor)."""
+    if not upload_workers_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Las cargas de CV están desactivadas en este entorno (UPLOAD_WORKERS_ENABLED=false)."
+        )
 
 
 def require_role(required_roles: List[UserRole]):
@@ -906,7 +915,7 @@ async def get_job_status(
     return job
 
 
-@api_router.post("/candidates/job/{job_id}/retry")
+@api_router.post("/candidates/job/{job_id}/retry", dependencies=[Depends(require_upload_workers)])
 async def retry_job(
     job_id: str,
     current_user: User = Depends(get_current_user)
@@ -925,7 +934,7 @@ async def retry_job(
     return {"message": "Job re-encolado para reintento", "job_id": job_id}
 
 
-@api_router.post("/candidates/batch/{batch_id}/retry-failed")
+@api_router.post("/candidates/batch/{batch_id}/retry-failed", dependencies=[Depends(require_upload_workers)])
 async def retry_failed_batch(
     batch_id: str,
     current_user: User = Depends(get_current_user)
@@ -2431,7 +2440,7 @@ async def process_cv_job(job, file_data: bytes, file_metadata: Dict) -> Dict:
     return result
 
 
-@api_router.post("/candidates/upload-batch")
+@api_router.post("/candidates/upload-batch", dependencies=[Depends(require_upload_workers)])
 async def upload_batch(
     files: List[UploadFile] = File(...),
     current_user: User = Depends(get_current_user)

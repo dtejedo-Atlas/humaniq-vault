@@ -3,6 +3,9 @@ import axios from 'axios';
 
 const AuthContext = createContext(null);
 
+export const SESSION_CLOSED_MESSAGE = 'Tu sesión se cerró porque la contraseña cambió. Inicia sesión de nuevo.';
+export const SESSION_CLOSED_KEY = 'atlas_session_closed';
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -15,6 +18,20 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('atlas_token'));
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const id = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401 && error.response?.data?.detail === SESSION_CLOSED_MESSAGE) {
+          sessionStorage.setItem(SESSION_CLOSED_KEY, '1');
+          logout();
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(id);
+  }, []);
 
   useEffect(() => {
     if (token) {
@@ -49,6 +66,7 @@ export const AuthProvider = ({ children }) => {
     setToken(access_token);
     setUser(userData);
     localStorage.setItem('atlas_token', access_token);
+    sessionStorage.removeItem(SESSION_CLOSED_KEY);
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
     
     return userData;
@@ -64,6 +82,7 @@ export const AuthProvider = ({ children }) => {
     setToken(access_token);
     setUser(userData);
     localStorage.setItem('atlas_token', access_token);
+    sessionStorage.removeItem(SESSION_CLOSED_KEY);
     axios.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
 
     return userData;

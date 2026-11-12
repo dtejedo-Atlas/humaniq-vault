@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth, SESSION_CLOSED_MESSAGE, SESSION_CLOSED_KEY } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -12,6 +12,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [sessionClosed] = useState(() => sessionStorage.getItem(SESSION_CLOSED_KEY) === '1');
   
   const [formData, setFormData] = useState({
     email: '',
@@ -62,6 +63,15 @@ const LoginPage = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {sessionClosed && (
+              <div
+                className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+                data-testid="session-closed-notice"
+                role="alert"
+              >
+                {SESSION_CLOSED_MESSAGE}
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="email">Email</Label>
