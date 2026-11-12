@@ -609,7 +609,8 @@ const CandidateDetailPage = () => {
                           size="sm" 
                           variant="outline" 
                           className="text-xs h-6"
-                          onClick={() => window.open(`/candidates/${dup.candidate_id}`, '_blank')}
+                          data-testid={`duplicate-view-button-${dup.candidate_id}`}
+                          onClick={() => navigate(`/candidates/${dup.candidate_id}`)}
                         >
                           Ver
                         </Button>
@@ -625,7 +626,8 @@ const CandidateDetailPage = () => {
                           size="sm" 
                           variant="ghost" 
                           className="text-xs h-6"
-                          onClick={() => window.open(`/candidates/${dup.candidate_id}`, '_blank')}
+                          data-testid={`duplicate-view-button-${dup.candidate_id}`}
+                          onClick={() => navigate(`/candidates/${dup.candidate_id}`)}
                         >
                           Ver
                         </Button>

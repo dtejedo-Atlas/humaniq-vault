@@ -320,6 +320,15 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             detail="Cuenta desactivada"
         )
     
+    # Sesiones emitidas antes del último cambio de contraseña quedan revocadas.
+    # Un token antiguo sin iat sigue válido hasta expirar (transición).
+    changed_at, issued_at = user_doc.get('password_changed_at'), payload.get('iat')
+    if changed_at and issued_at is not None and issued_at < datetime.fromisoformat(changed_at).timestamp():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu sesión se cerró porque la contraseña cambió. Inicia sesión de nuevo."
+        )
+
     if isinstance(user_doc.get('created_at'), str):
         user_doc['created_at'] = datetime.fromisoformat(user_doc['created_at'])
     if user_doc.get('last_login') and isinstance(user_doc['last_login'], str):
@@ -648,7 +657,8 @@ async def set_password(payload: SetPasswordRequest):
         )
     await db.users.update_one(
         {"id": user_doc["id"]},
-        {"$set": {"password_hash": get_password_hash(payload.password)}}
+        {"$set": {"password_hash": get_password_hash(payload.password),
+                  "password_changed_at": datetime.now(timezone.utc).isoformat()}}
     )
     await invitation_service.consume_token(db, payload.token)
     actor = SimpleNamespace(id=user_doc["id"], name=user_doc.get("name"), email=user_doc["email"])
@@ -677,10 +687,13 @@ async def change_password(payload: ChangePasswordRequest, current_user: User = D
         )
     await db.users.update_one(
         {"email": current_user.email},
-        {"$set": {"password_hash": get_password_hash(payload.new_password)}}
+        {"$set": {"password_hash": get_password_hash(payload.new_password),
+                  "password_changed_at": datetime.now(timezone.utc).isoformat()}}
     )
     await log_activity(current_user, "password_changed", "user", current_user.id, current_user.email)
-    return {"message": "Contraseña actualizada correctamente"}
+    # Las demás sesiones quedan revocadas; esta recibe un token nuevo para no cerrarse.
+    return {"message": "Contraseña actualizada correctamente",
+            "access_token": create_access_token({"sub": current_user.email})}
 
 
 def filter_by_presentation(candidates: list, area: Optional[str], subarea: Optional[str]) -> list:
@@ -925,12 +938,17 @@ async def retry_failed_batch(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Este lote no es tuyo")
 
     result = await background_processor.retry_failed_batch(batch_id)
-    if result["requeued"] == 0 and result["unrecoverable"]:
-        return {
-            **result,
-            "message": "Estos archivos ya no están respaldados en el servidor: vuelve a subirlos.",
-        }
-    return {**result, "message": f"{result['requeued']} CVs re-encolados para procesarse de nuevo."}
+    parts = []
+    if result["requeued"]:
+        parts.append(f"{result['requeued']} CVs re-encolados para procesarse de nuevo.")
+    if result["retry_limit_reached"]:
+        parts.append(
+            f"{len(result['retry_limit_reached'])} archivo(s) ya se reintentaron 3 veces y no son recuperables: "
+            f"vuelve a subirlos ({', '.join(n or 'sin nombre' for n in result['retry_limit_reached'])})."
+        )
+    if result["unrecoverable"]:
+        parts.append(f"{len(result['unrecoverable'])} archivo(s) ya no están respaldados en el servidor: vuelve a subirlos.")
+    return {**result, "message": " ".join(parts) or "No hay CVs fallidos en este lote."}
 
 
 @api_router.get("/candidates/{candidate_id}", response_model=Candidate)
@@ -7154,5 +7172,9 @@ app.add_middleware(
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    try:
+        await background_processor.shutdown()
+    except Exception as e:
+        logger.warning(f"No se pudo liberar los reclamos al apagar: {e}")
     client.close()
 

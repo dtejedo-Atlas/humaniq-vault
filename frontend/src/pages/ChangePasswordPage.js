@@ -28,10 +28,14 @@ export default function ChangePasswordPage() {
     }
     try {
       setSaving(true);
-      await axios.post(`${API}/api/auth/change-password`, {
+      const { data } = await axios.post(`${API}/api/auth/change-password`, {
         current_password: current,
         new_password: newPassword
       });
+      if (data.access_token) {
+        localStorage.setItem('atlas_token', data.access_token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`;
+      }
       toast.success('Contraseña actualizada correctamente');
       setCurrent('');
       setNewPassword('');

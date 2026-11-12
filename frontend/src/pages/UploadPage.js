@@ -140,8 +140,12 @@ const UploadPage = () => {
       refreshBatch();
       if (data.requeued > 0) {
         toast.success(`${data.requeued} CV(s) re-encolados para procesarse de nuevo`);
-      } else {
-        toast.error('Estos archivos ya no están respaldados: vuelve a subirlos');
+      }
+      if (data.retry_limit_reached?.length) {
+        toast.error(`${data.retry_limit_reached.length} archivo(s) ya se reintentaron 3 veces y no son recuperables: vuelve a subirlos`);
+      }
+      if (data.unrecoverable?.length) {
+        toast.error('Algunos archivos ya no están respaldados: vuelve a subirlos');
       }
     } catch (error) {
       toast.error('No se pudieron reintentar los CVs fallidos');

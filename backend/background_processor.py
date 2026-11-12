@@ -13,13 +13,14 @@ huérfanos se marcan como fallidos vía detección de staleness en el polling.
 """
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from enum import Enum
 from pydantic import BaseModel
 from ai_workload_limits import reserve_batch, release_batch, try_cv_slot
 from storage_service import storage_service, APP_NAME
 import uuid
+import socket
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,13 @@ logger = logging.getLogger(__name__)
 # Umbrales de staleness (job sin heartbeat → se asume réplica muerta)
 STALE_PROCESSING_MINUTES = 10   # un job en proceso actualiza updated_at en cada etapa
 STALE_PENDING_MINUTES = 12      # tras 12 min en cola sin arrancar, se asume réplica muerta
+MAX_RETRIES = 3                 # tope de reintentos manuales por CV
+
+# Identidad de ESTE proceso: distingue réplicas y también reinicios dentro del mismo pod
+POD_ID = f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
+WORKER_HEARTBEAT_SECONDS = 20   # cada réplica avisa que sigue viva
+WORKER_DEAD_SECONDS = 90        # sin aviso en este tiempo, sus reclamos se consideran huérfanos
+RECHECK_SECONDS = 120           # espera antes de volver a revisar jobs reclamados por otra réplica
 
 
 class JobStatus(str, Enum):
@@ -175,10 +183,41 @@ class BackgroundProcessor:
         self.workers_running = True
         self._process_func = process_func
 
+        await self._beat()
+        asyncio.create_task(self._heartbeat_loop())
         for i in range(self.max_concurrent):
             asyncio.create_task(self._worker(i))
 
         logger.info(f"Started {self.max_concurrent} background workers")
+
+    async def _beat(self):
+        try:
+            await self.db.upload_workers.update_one(
+                {"pod_id": POD_ID}, {"$set": {"last_seen": _now_iso()}}, upsert=True
+            )
+        except Exception as e:
+            logger.warning(f"No se pudo registrar el latido de la réplica: {e}")
+
+    async def _heartbeat_loop(self):
+        limite = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        await self.db.upload_workers.delete_many({"last_seen": {"$lt": limite}})
+        while self.workers_running:
+            await asyncio.sleep(WORKER_HEARTBEAT_SECONDS)
+            await self._beat()
+
+    async def shutdown(self):
+        """Apagado ordenado: los reclamos de esta réplica quedan libres de inmediato."""
+        self.workers_running = False
+        await self.db.upload_workers.delete_one({"pod_id": POD_ID})
+
+    async def _pod_alive(self, pod_id: str) -> bool:
+        if pod_id == POD_ID:
+            return True
+        doc = await self.db.upload_workers.find_one({"pod_id": pod_id}, {"_id": 0, "last_seen": 1})
+        if not doc:
+            return False
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(doc["last_seen"])).total_seconds()
+        return age < WORKER_DEAD_SECONDS
 
     async def _worker(self, worker_id: int):
         logger.info(f"Worker {worker_id} started")
@@ -195,6 +234,14 @@ class BackgroundProcessor:
                     if not job:
                         # Los bytes ya no están en esta réplica: el job queda fallido, no pendiente para siempre.
                         await self._mark_orphan_job(job_id)
+                    self.queue.task_done()
+                    continue
+
+                if not await self._still_owner(job_id):
+                    logger.info(f"Job {job_id} lo reanudó otra réplica: se descarta aquí")
+                    self.jobs.pop(job_id, None)
+                    self.file_data.pop(job_id, None)
+                    self.file_metadata.pop(job_id, None)
                     self.queue.task_done()
                     continue
 
@@ -227,6 +274,7 @@ class BackgroundProcessor:
                         )
 
                     await self.persist_job(job)
+                    await self._release_resume_claim(job_id)
                     if lease:
                         await lease.release()
                     await self.finish_batch_if_done(job.batch_id)
@@ -365,6 +413,11 @@ class BackgroundProcessor:
         job.staged_path = await self._stage_file(job_id, file_name, file_data, content_type)
 
         await self.persist_job(job)
+        # La réplica que recibió el archivo es su dueña: otra solo lo toma si esta muere.
+        await self.db.upload_jobs.update_one(
+            {"job_id": job_id},
+            {"$set": {"resume_claimed_by": POD_ID, "resume_claimed_at": _now_iso()}},
+        )
         await self.db.upload_batches.update_one(
             {"batch_id": batch_id}, {"$push": {"jobs": job_id}}
         )
@@ -403,6 +456,34 @@ class BackgroundProcessor:
         except Exception as e:
             logger.warning(f"No se pudo purgar el archivo respaldado {staged_path}: {e}")
 
+    async def _claim_resume(self, job_id: str) -> bool:
+        """Reclamo atómico: solo una réplica reanuda el job. Solo se le quita a una réplica muerta."""
+        doc = await self.db.upload_jobs.find_one({"job_id": job_id}, {"_id": 0, "resume_claimed_by": 1})
+        if doc is None:
+            return False
+        owner = doc.get("resume_claimed_by")
+        if owner and owner != POD_ID and await self._pod_alive(owner):
+            return False
+        result = await self.db.upload_jobs.update_one(
+            {"job_id": job_id, "resume_claimed_by": owner},
+            {"$set": {"resume_claimed_by": POD_ID, "resume_claimed_at": _now_iso(),
+                      "updated_at": _now_iso()}},
+        )
+        return result.modified_count == 1
+
+    async def _release_resume_claim(self, job_id: str):
+        try:
+            await self.db.upload_jobs.update_one(
+                {"job_id": job_id, "resume_claimed_by": POD_ID},
+                {"$set": {"resume_claimed_by": None}},
+            )
+        except Exception as e:
+            logger.warning(f"No se pudo liberar el reclamo del job {job_id}: {e}")
+
+    async def _still_owner(self, job_id: str) -> bool:
+        doc = await self.db.upload_jobs.find_one({"job_id": job_id}, {"_id": 0, "resume_claimed_by": 1})
+        return not doc or doc.get("resume_claimed_by") in (None, POD_ID)
+
     async def resume_job(self, doc: Dict) -> bool:
         """Vuelve a poner en cola un job cuyo archivo sigue respaldado en almacenamiento."""
         staged_path = doc.get("staged_path")
@@ -410,6 +491,12 @@ class BackgroundProcessor:
             return False
 
         job_id = doc["job_id"]
+        live = self.jobs.get(job_id)
+        if live and live.status in (JobStatus.PENDING, JobStatus.PROCESSING):
+            return True  # ya está vivo en la cola de esta réplica: no se encola dos veces
+        if not await self._claim_resume(job_id):
+            logger.info(f"Job {job_id} ya fue reclamado por otra réplica: no se encola aquí")
+            return False
         job = ProcessingJob(
             job_id=job_id,
             batch_id=doc["batch_id"],
@@ -439,9 +526,15 @@ class BackgroundProcessor:
         logger.info(f"Job {job_id} reanudado desde almacenamiento ({job.file_name})")
         return True
 
-    async def resume_interrupted_jobs(self) -> int:
-        """Al arrancar: reanuda los jobs que quedaron a medias y tienen archivo respaldado."""
-        resumed = 0
+    async def _recheck_deferred(self):
+        while True:
+            await asyncio.sleep(RECHECK_SECONDS)
+            _, deferred = await self._resume_scan()
+            if not deferred:
+                return
+
+    async def _resume_scan(self):
+        resumed, deferred = 0, 0
         cursor = self.db.upload_jobs.find(
             {"status": {"$in": [JobStatus.PENDING.value, JobStatus.PROCESSING.value,
                                 JobStatus.FAILED.value]},
@@ -454,15 +547,28 @@ class BackgroundProcessor:
                 (e or {}).get("recoverable") for e in (doc.get("errors") or [])
             ):
                 continue
+            live = self.jobs.get(doc["job_id"])
+            if live and live.status in (JobStatus.PENDING, JobStatus.PROCESSING):
+                continue
             if await self.resume_job(doc):
                 resumed += 1
+            else:
+                deferred += 1
         if resumed:
-            logger.info(f"✓ {resumed} CVs interrumpidos reanudados automáticamente al arranque")
+            logger.info(f"✓ {resumed} CVs interrumpidos reanudados automáticamente")
+        return resumed, deferred
+
+    async def resume_interrupted_jobs(self) -> int:
+        """Al arrancar: reanuda los jobs que quedaron a medias y tienen archivo respaldado."""
+        resumed, deferred = await self._resume_scan()
+        if deferred:
+            # Reclamados por otra réplica viva (o recién caída): se retoman si esa réplica deja de latir.
+            logger.info(f"{deferred} CVs reclamados por otra réplica; se revisan cada {RECHECK_SECONDS}s")
+            asyncio.create_task(self._recheck_deferred())
         return resumed
 
     async def purge_staged_uploads(self, older_than_days: int = 7) -> Dict:
         """Borra los respaldos de carga con más de N días (los jobs ya terminaron hace mucho)."""
-        from datetime import timedelta
         limite = (datetime.now(timezone.utc) - timedelta(days=older_than_days)).isoformat()
         docs = await self.db.upload_jobs.find(
             {"staged_path": {"$ne": None}, "created_at": {"$lt": limite}},
@@ -488,13 +594,16 @@ class BackgroundProcessor:
             {"_id": 0},
         ).to_list(length=200)
 
-        requeued, unrecoverable = 0, []
+        requeued, unrecoverable, retry_limit_reached = 0, [], []
         for doc in docs:
-            if doc.get("staged_path") and await self.resume_job(doc):
+            if (doc.get("retry_count") or 0) >= MAX_RETRIES:
+                retry_limit_reached.append(doc.get("file_name"))
+            elif doc.get("staged_path") and await self.resume_job(doc):
                 requeued += 1
             else:
                 unrecoverable.append(doc.get("file_name"))
-        return {"requeued": requeued, "unrecoverable": unrecoverable}
+        return {"requeued": requeued, "unrecoverable": unrecoverable,
+                "retry_limit_reached": retry_limit_reached}
 
     async def finalize_batch(self, batch_id: str, submitted_files: List[Dict]):
         """Persist upload acknowledgement, including files rejected before queueing."""
@@ -546,6 +655,10 @@ class BackgroundProcessor:
                 age_min = 0
             limit = STALE_PROCESSING_MINUTES if status == JobStatus.PROCESSING.value else STALE_PENDING_MINUTES
             if age_min > limit:
+                owner = doc.get("resume_claimed_by")
+                if status == JobStatus.PENDING.value and owner and await self._pod_alive(owner):
+                    updated.append(doc)  # sigue en la cola de una réplica viva: no está perdido
+                    continue
                 # Si el archivo sigue respaldado, se reanuda en vez de darse por perdido.
                 if doc.get("staged_path") and await self.resume_job(doc):
                     doc["status"] = JobStatus.PENDING.value
